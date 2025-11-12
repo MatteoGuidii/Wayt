@@ -1,0 +1,15 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-zyvo-dev-2e9c5-authRole",
+      "UnauthRoleArn": "arn:aws:iam::274828214214:role/amplify-zyvo-dev-2e9c5-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::274828214214:role/amplify-zyvo-dev-2e9c5-authRole",
+      "Region": "ca-central-1",
+      "DeploymentBucketName": "amplify-zyvo-dev-2e9c5-deployment",
+      "UnauthRoleName": "amplify-zyvo-dev-2e9c5-unauthRole",
+      "StackName": "amplify-zyvo-dev-2e9c5",
+      "StackId": "arn:aws:cloudformation:ca-central-1:274828214214:stack/amplify-zyvo-dev-2e9c5/f4087e60-c01c-11f0-9541-067df0f3199d",
+      "AmplifyAppId": "d3h7w4ai2a7l6r"
+    }
+  }
+}

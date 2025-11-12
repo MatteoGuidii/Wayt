@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		32A45A345F000A236FA55064 /* amplifyconfiguration.json in Resources */ = {isa = PBXBuildFile; fileRef = 55ED99E75F8D23B1D4897D6F /* amplifyconfiguration.json */; };
+		AE7246EB46AF219E272C2507 /* awsconfiguration.json in Resources */ = {isa = PBXBuildFile; fileRef = B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		958E984D2EC5484D0062E64D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,9 +29,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		55ED99E75F8D23B1D4897D6F /* amplifyconfiguration.json */ = {isa = PBXFileReference; explicitFileType = text.json; lastKnownFileType = text.json; name = amplifyconfiguration.json; path = amplifyconfiguration.json; sourceTree = "<group>"; };
 		958E983F2EC5484C0062E64D /* zyvo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = zyvo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		958E984C2EC5484D0062E64D /* zyvoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = zyvoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		958E98562EC5484D0062E64D /* zyvoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = zyvoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */ = {isa = PBXFileReference; explicitFileType = text.json; lastKnownFileType = text.json; name = awsconfiguration.json; path = awsconfiguration.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,6 +86,7 @@
 				958E984F2EC5484D0062E64D /* zyvoTests */,
 				958E98592EC5484D0062E64D /* zyvoUITests */,
 				958E98402EC5484C0062E64D /* Products */,
+				9FDBA4E0A1D62D8E9453EA4B /* AmplifyConfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -90,6 +98,15 @@
 				958E98562EC5484D0062E64D /* zyvoUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9FDBA4E0A1D62D8E9453EA4B /* AmplifyConfig */ = {
+			isa = PBXGroup;
+			children = (
+				B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */,
+				55ED99E75F8D23B1D4897D6F /* amplifyconfiguration.json */,
+			);
+			name = AmplifyConfig;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -212,6 +229,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AE7246EB46AF219E272C2507 /* awsconfiguration.json in Resources */,
+				32A45A345F000A236FA55064 /* amplifyconfiguration.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
