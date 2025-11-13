@@ -8,6 +8,18 @@
 
 /* Begin PBXBuildFile section */
 		32A45A345F000A236FA55064 /* amplifyconfiguration.json in Resources */ = {isa = PBXBuildFile; fileRef = 55ED99E75F8D23B1D4897D6F /* amplifyconfiguration.json */; };
+		958E98822EC57AC30062E64D /* Amplify in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98812EC57AC30062E64D /* Amplify */; };
+		958E98842EC57AC30062E64D /* AWSAPIPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98832EC57AC30062E64D /* AWSAPIPlugin */; };
+		958E98862EC57AC30062E64D /* AWSCloudWatchLoggingPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98852EC57AC30062E64D /* AWSCloudWatchLoggingPlugin */; };
+		958E98882EC57AC30062E64D /* AWSCognitoAuthPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98872EC57AC30062E64D /* AWSCognitoAuthPlugin */; };
+		958E988A2EC57AC30062E64D /* AWSDataStorePlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98892EC57AC30062E64D /* AWSDataStorePlugin */; };
+		958E988C2EC57AC30062E64D /* AWSLocationGeoPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E988B2EC57AC30062E64D /* AWSLocationGeoPlugin */; };
+		958E988E2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E988D2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin */; };
+		958E98902EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E988F2EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin */; };
+		958E98922EC57AC30062E64D /* AWSPluginsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98912EC57AC30062E64D /* AWSPluginsCore */; };
+		958E98942EC57AC30062E64D /* AWSPredictionsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98932EC57AC30062E64D /* AWSPredictionsPlugin */; };
+		958E98962EC57AC30062E64D /* AWSS3StoragePlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98952EC57AC30062E64D /* AWSS3StoragePlugin */; };
+		958E98982EC57AC30062E64D /* CoreMLPredictionsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98972EC57AC30062E64D /* CoreMLPredictionsPlugin */; };
 		AE7246EB46AF219E272C2507 /* awsconfiguration.json in Resources */ = {isa = PBXBuildFile; fileRef = B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */; };
 /* End PBXBuildFile section */
 
@@ -59,6 +71,18 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				958E98942EC57AC30062E64D /* AWSPredictionsPlugin in Frameworks */,
+				958E988C2EC57AC30062E64D /* AWSLocationGeoPlugin in Frameworks */,
+				958E98842EC57AC30062E64D /* AWSAPIPlugin in Frameworks */,
+				958E98922EC57AC30062E64D /* AWSPluginsCore in Frameworks */,
+				958E98822EC57AC30062E64D /* Amplify in Frameworks */,
+				958E98902EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin in Frameworks */,
+				958E98962EC57AC30062E64D /* AWSS3StoragePlugin in Frameworks */,
+				958E98862EC57AC30062E64D /* AWSCloudWatchLoggingPlugin in Frameworks */,
+				958E98982EC57AC30062E64D /* CoreMLPredictionsPlugin in Frameworks */,
+				958E988A2EC57AC30062E64D /* AWSDataStorePlugin in Frameworks */,
+				958E98882EC57AC30062E64D /* AWSCognitoAuthPlugin in Frameworks */,
+				958E988E2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -87,6 +111,7 @@
 				958E98592EC5484D0062E64D /* zyvoUITests */,
 				958E98402EC5484C0062E64D /* Products */,
 				9FDBA4E0A1D62D8E9453EA4B /* AmplifyConfig */,
+				958E987F2EC579580062E64D /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -98,6 +123,13 @@
 				958E98562EC5484D0062E64D /* zyvoUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		958E987F2EC579580062E64D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		9FDBA4E0A1D62D8E9453EA4B /* AmplifyConfig */ = {
@@ -129,6 +161,18 @@
 			);
 			name = zyvo;
 			packageProductDependencies = (
+				958E98812EC57AC30062E64D /* Amplify */,
+				958E98832EC57AC30062E64D /* AWSAPIPlugin */,
+				958E98852EC57AC30062E64D /* AWSCloudWatchLoggingPlugin */,
+				958E98872EC57AC30062E64D /* AWSCognitoAuthPlugin */,
+				958E98892EC57AC30062E64D /* AWSDataStorePlugin */,
+				958E988B2EC57AC30062E64D /* AWSLocationGeoPlugin */,
+				958E988D2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin */,
+				958E988F2EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin */,
+				958E98912EC57AC30062E64D /* AWSPluginsCore */,
+				958E98932EC57AC30062E64D /* AWSPredictionsPlugin */,
+				958E98952EC57AC30062E64D /* AWSS3StoragePlugin */,
+				958E98972EC57AC30062E64D /* CoreMLPredictionsPlugin */,
 			);
 			productName = zyvo;
 			productReference = 958E983F2EC5484C0062E64D /* zyvo.app */;
@@ -212,6 +256,9 @@
 			);
 			mainGroup = 958E98362EC5484C0062E64D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 958E98402EC5484C0062E64D /* Products */;
 			projectDirPath = "";
@@ -589,6 +636,80 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/aws-amplify/amplify-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.51.5;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		958E98812EC57AC30062E64D /* Amplify */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = Amplify;
+		};
+		958E98832EC57AC30062E64D /* AWSAPIPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSAPIPlugin;
+		};
+		958E98852EC57AC30062E64D /* AWSCloudWatchLoggingPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSCloudWatchLoggingPlugin;
+		};
+		958E98872EC57AC30062E64D /* AWSCognitoAuthPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSCognitoAuthPlugin;
+		};
+		958E98892EC57AC30062E64D /* AWSDataStorePlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSDataStorePlugin;
+		};
+		958E988B2EC57AC30062E64D /* AWSLocationGeoPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSLocationGeoPlugin;
+		};
+		958E988D2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSPinpointAnalyticsPlugin;
+		};
+		958E988F2EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSPinpointPushNotificationsPlugin;
+		};
+		958E98912EC57AC30062E64D /* AWSPluginsCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSPluginsCore;
+		};
+		958E98932EC57AC30062E64D /* AWSPredictionsPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSPredictionsPlugin;
+		};
+		958E98952EC57AC30062E64D /* AWSS3StoragePlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSS3StoragePlugin;
+		};
+		958E98972EC57AC30062E64D /* CoreMLPredictionsPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = CoreMLPredictionsPlugin;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 958E98372EC5484C0062E64D /* Project object */;
 }

@@ -11,6 +11,9 @@ struct LoginView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var email = ""
     @State private var password = ""
+    private let inputFieldBackground = Color.white.opacity(0.92)
+    private let inputTextColor = Color.black.opacity(0.85)
+    private let placeholderColor = Color.black.opacity(0.55)
 
     var body: some View {
         ZStack {
@@ -23,30 +26,49 @@ struct LoginView: View {
 
             VStack(spacing: 32) {
                 HStack {
-                    Button("Close") {
+                    Button {
                         dismiss()
+                    } label: {
+                        Label("Close", systemImage: "xmark.circle.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.white.opacity(0.2), in: Capsule())
+                            .foregroundStyle(.white)
                     }
-                    .foregroundStyle(.white.opacity(0.85))
                     .padding(.leading)
 
                     Spacer()
                 }
+                .padding(.top, 16)
 
                 AuthHeaderView()
 
                 VStack(spacing: 16) {
-                    TextField("Email", text: $email)
+                    TextField("", text: $email, prompt: Text("Email").foregroundStyle(placeholderColor))
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
                         .padding()
-                        .background(.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(inputTextColor)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(inputFieldBackground)
+                                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+                        )
 
-                    SecureField("Password", text: $password)
+                    SecureField("", text: $password, prompt: Text("Password").foregroundStyle(placeholderColor))
                         .textContentType(.password)
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
                         .padding()
-                        .background(.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(inputTextColor)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(inputFieldBackground)
+                                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+                        )
                 }
                 .padding(.horizontal, 24)
 

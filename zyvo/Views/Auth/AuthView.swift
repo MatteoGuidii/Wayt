@@ -37,6 +37,7 @@ struct AuthView: View {
                     Button("Log In") {
                         destination = .login
                     }
+    
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding()
