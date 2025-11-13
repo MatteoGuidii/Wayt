@@ -11,9 +11,12 @@ import AWSCognitoAuthPlugin
 
 @main
 struct zyvoApp: App {
+    @StateObject private var authManager = AuthManager()
+
     var body: some Scene {
         WindowGroup {
             AuthView()
+                .environmentObject(authManager)
         }
     }
     
