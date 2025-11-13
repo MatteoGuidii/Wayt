@@ -11,7 +11,7 @@ import SwiftUI
 struct zyvoApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            AuthView()
         }
     }
 }
