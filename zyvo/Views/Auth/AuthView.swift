@@ -15,7 +15,7 @@ struct AuthView: View {
         Group {
             switch authManager.authState {
             case .signedIn(let username):
-                WelcomeView(username: username) {
+                MainMapView(username: username) {
                     Task {
                         await authManager.signOut()
                     }
