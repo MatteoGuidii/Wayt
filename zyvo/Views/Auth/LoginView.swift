@@ -27,84 +27,47 @@ struct LoginView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 32) {
-                HStack {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Label("Close", systemImage: "xmark.circle.fill")
-                            .font(.headline)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(.white.opacity(0.2), in: Capsule())
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.leading)
-
-                    Spacer()
-                }
-                .padding(.top, 16)
-
-                AuthHeaderView()
-
-                VStack(spacing: 16) {
-                    TextField("", text: $email, prompt: Text("Email").foregroundStyle(placeholderColor))
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
-                        .padding()
-                        .foregroundStyle(inputTextColor)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(inputFieldBackground)
-                                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
-                        )
-
-                    SecureField("", text: $password, prompt: Text("Password").foregroundStyle(placeholderColor))
-                        .textContentType(.password)
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
-                        .padding()
-                        .foregroundStyle(inputTextColor)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(inputFieldBackground)
-                                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
-                        )
-                }
-                .padding(.horizontal, 24)
-
-                if let statusMessage {
-                    Text(statusMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                }
-
-                Button(action: handleLogin) {
-                    Group {
-                        if isSubmitting {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                                .tint(.white)
-                        } else {
-                            Text("Log In")
+            ScrollView {
+                VStack(spacing: 32) {
+                    HStack {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Label("Close", systemImage: "xmark.circle.fill")
+                                .font(.headline)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(.white.opacity(0.2), in: Capsule())
+                                .foregroundStyle(.white)
                         }
-                    }
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .foregroundStyle(.white)
-                }
-                .disabled(!isFormValid || isSubmitting)
-                .padding(.horizontal, 32)
+                        .padding(.leading)
 
-                Spacer()
+                        Spacer()
+                    }
+                    .padding(.top, 16)
+
+                    AuthHeaderView()
+
+                    inputFields
+                        .padding(.horizontal, 24)
+
+                    if let statusMessage {
+                        Text(statusMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                    }
+
+                    loginButton
+                        .padding(.horizontal, 32)
+
+                    Spacer(minLength: 100)
+                }
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -114,6 +77,57 @@ struct LoginView: View {
 }
 
 private extension LoginView {
+    var inputFields: some View {
+        VStack(spacing: 16) {
+            TextField("", text: $email, prompt: Text("Email").foregroundStyle(placeholderColor))
+                .textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.system(size: 17, weight: .medium, design: .rounded))
+                .padding()
+                .foregroundStyle(inputTextColor)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(inputFieldBackground)
+                )
+                .compositingGroup()
+                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+
+            SecureField("", text: $password, prompt: Text("Password").foregroundStyle(placeholderColor))
+                .textContentType(.password)
+                .font(.system(size: 17, weight: .medium, design: .rounded))
+                .padding()
+                .foregroundStyle(inputTextColor)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(inputFieldBackground)
+                )
+                .compositingGroup()
+                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+        }
+    }
+
+    var loginButton: some View {
+        Button(action: handleLogin) {
+            Group {
+                if isSubmitting {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.white)
+                } else {
+                    Text("Log In")
+                }
+            }
+            .fontWeight(.semibold)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isFormValid || isSubmitting)
+    }
     var isFormValid: Bool {
         !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !password.isEmpty

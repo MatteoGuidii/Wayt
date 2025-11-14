@@ -4,9 +4,7 @@ import Foundation
 import MapKit
 
 final class LocationManager: NSObject, ObservableObject {
-    private static let fallbackCoordinate = CLLocationCoordinate2D(latitude: 37.3346, longitude: -122.0090)
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-    static let fallbackRegion = MKCoordinateRegion(center: fallbackCoordinate, span: defaultSpan)
 
     @Published var region: MKCoordinateRegion
     @Published var authorizationStatus: CLAuthorizationStatus
@@ -17,9 +15,13 @@ final class LocationManager: NSObject, ObservableObject {
 
     override init() {
         manager = CLLocationManager()
-        region = Self.fallbackRegion
-        authorizationStatus = manager.authorizationStatus
-        accuracyAuthorization = manager.accuracyAuthorization
+        // Start with a default region that will be immediately updated when location is available
+        region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+            span: Self.defaultSpan
+        )
+        authorizationStatus = .notDetermined
+        accuracyAuthorization = .fullAccuracy
 
         super.init()
 
@@ -34,7 +36,7 @@ final class LocationManager: NSObject, ObservableObject {
             return
         }
 
-        switch manager.authorizationStatus {
+        switch authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
             // Authorized: request a one-time location update; ongoing updates are started in the delegate when appropriate.
             manager.requestLocation()

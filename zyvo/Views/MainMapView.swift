@@ -7,10 +7,9 @@ struct MainMapView: View {
     let onSignOut: () -> Void
 
     @StateObject private var locationManager = LocationManager()
-    @State private var cameraPosition: MapCameraPosition = .userLocation(
-        fallback: .region(LocationManager.fallbackRegion)
-    )
+    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var shouldFollowUser = true
+    @State private var hasInitialLocation = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -45,9 +44,18 @@ struct MainMapView: View {
         }
         .task {
             locationManager.start()
-            locationManager.recenterOnUser()
         }
         .onReceive(locationManager.$region) { newRegion in
+            // Always update on the first location fix
+            if !hasInitialLocation && newRegion.center.latitude != 0 && newRegion.center.longitude != 0 {
+                hasInitialLocation = true
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    cameraPosition = .region(newRegion)
+                }
+                return
+            }
+            
+            // After initial location, only update if following user
             guard shouldFollowUser else { return }
             withAnimation(.easeInOut(duration: 0.35)) {
                 cameraPosition = .region(newRegion)
@@ -119,7 +127,7 @@ private extension MainMapView {
     func recenter() {
         shouldFollowUser = true
         withAnimation(.easeInOut(duration: 0.35)) {
-            cameraPosition = .userLocation(fallback: .region(locationManager.region))
+            cameraPosition = .userLocation(fallback: .automatic)
         }
         locationManager.recenterOnUser()
     }

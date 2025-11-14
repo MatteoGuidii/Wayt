@@ -32,7 +32,7 @@ struct AuthView: View {
                 }
             }
         }
-        .sheet(item: $destination) { destination in
+        .fullScreenCover(item: $destination) { destination in
             switch destination {
             case .signup:
                 SignupView()
@@ -60,23 +60,29 @@ private extension AuthView {
             AuthHeaderView()
 
             VStack(spacing: 16) {
-                Button("Sign Up") {
+                Button {
                     destination = .signup
+                } label: {
+                    Text("Sign Up")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .foregroundStyle(.black)
                 }
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .foregroundStyle(.black)
+                .buttonStyle(.plain)
 
-                Button("Log In") {
+                Button {
                     destination = .login
+                } label: {
+                    Text("Log In")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .foregroundStyle(.white)
                 }
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .foregroundStyle(.white)
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 32)
 
