@@ -124,23 +124,23 @@ private extension LoginView {
         statusMessage = nil
         isSubmitting = true
 
-        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
         Task {
             do {
-                let didSignIn = try await authManager.signIn(email: normalizedEmail, password: password)
-                await MainActor.run {
-                    isSubmitting = false
-                    if didSignIn {
-                        dismiss()
-                    } else {
+                let didSignIn = try await authManager.signIn(email: email, password: password)
+                if !didSignIn {
+                    await MainActor.run {
                         statusMessage = authManager.infoMessage ?? "Additional steps required."
                     }
                 }
             } catch {
                 await MainActor.run {
-                    isSubmitting = false
                     statusMessage = error.localizedDescription
+                }
+            }
+            await MainActor.run {
+                isSubmitting = false
+                if authManager.isSignedIn {
+                    dismiss()
                 }
             }
         }

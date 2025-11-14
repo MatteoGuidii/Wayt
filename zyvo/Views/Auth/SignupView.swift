@@ -144,11 +144,9 @@ private extension SignupView {
         statusMessage = nil
         isSubmitting = true
 
-        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
         Task {
             do {
-                let result = try await authManager.signUp(email: normalizedEmail, password: password)
+                let result = try await authManager.signUp(email: email, password: password)
                 await MainActor.run {
                     isSubmitting = false
                 }
@@ -161,7 +159,7 @@ private extension SignupView {
                 case .confirmationRequired(let message):
                     await MainActor.run {
                         statusMessage = message
-                        confirmationEmail = normalizedEmail
+                        confirmationEmail = email
                         confirmationCode = ""
                     }
                 }
@@ -170,7 +168,7 @@ private extension SignupView {
                     isSubmitting = false
                 }
 
-                if await handleExistingAccountFlow(email: normalizedEmail, error: error) {
+                if await handleExistingAccountFlow(email: email, error: error) {
                     return
                 }
 

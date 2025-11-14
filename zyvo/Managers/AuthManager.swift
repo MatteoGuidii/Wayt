@@ -136,4 +136,3 @@ final class AuthManager: ObservableObject {
         return "Please confirm the verification code we just sent."
     }
 }
-
