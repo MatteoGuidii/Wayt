@@ -47,7 +47,8 @@ struct MainMapView: View {
         }
         .onReceive(locationManager.$region) { newRegion in
             // Always update on the first location fix
-            if !hasInitialLocation && newRegion.center.latitude != 0 && newRegion.center.longitude != 0 {
+            if !hasInitialLocation && CLLocationCoordinate2DIsValid(newRegion.center) && 
+               (newRegion.center.latitude != 0 || newRegion.center.longitude != 0) {
                 hasInitialLocation = true
                 withAnimation(.easeInOut(duration: 0.5)) {
                     cameraPosition = .region(newRegion)
