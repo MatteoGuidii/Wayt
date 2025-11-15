@@ -16,27 +16,25 @@ struct MainMapView: View {
             Map(position: $cameraPosition, interactionModes: .all) {
                 UserAnnotation()
             }
-            .ignoresSafeArea()
+            .ignoresSafeArea(edges: .top)
             .mapStyle(.standard(elevation: .realistic))
-            .onMapCameraChange(frequency: .continuous) { context in
-                let region = context.region
-                locationManager.syncRegionWithCamera(region)
-            }
-            .highPriorityGesture(DragGesture(minimumDistance: 0).onChanged { _ in
-                shouldFollowUser = false
-            })
-            .simultaneousGesture(MagnificationGesture().onChanged { _ in
-                shouldFollowUser = false
-            })
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 10)
+                    .onChanged { _ in
+                        shouldFollowUser = false
+                    }
+            )
+            .simultaneousGesture(
+                MagnificationGesture()
+                    .onChanged { _ in
+                        shouldFollowUser = false
+                    }
+            )
 
             VStack {
                 header
                 Spacer()
             }
-        }
-        .overlay(alignment: .bottomLeading) {
-            statusCard
-                .padding()
         }
         .overlay(alignment: .bottomTrailing) {
             controls
@@ -95,16 +93,14 @@ private extension MainMapView {
 
     var statusCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(locationAccuracyDescription, systemImage: "scope")
-                .font(.footnote.weight(.medium))
-
             if let message = locationManager.statusMessage {
-                Text(message)
-                    .font(.caption)
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.orange)
             } else {
-                Text("Pan the map freely or use the crosshair to jump back to your precise position.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Label("Tracking your location", systemImage: "location.fill")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.blue)
             }
         }
         .padding(16)
@@ -116,12 +112,6 @@ private extension MainMapView {
     var controls: some View {
         VStack(spacing: 12) {
             ControlButton(systemName: "location.circle.fill", action: recenter)
-            ControlButton(systemName: "plus.magnifyingglass") {
-                zoom(by: 0.7)
-            }
-            ControlButton(systemName: "minus.magnifyingglass") {
-                zoom(by: 1.3)
-            }
         }
     }
 
@@ -131,12 +121,6 @@ private extension MainMapView {
             cameraPosition = .userLocation(fallback: .automatic)
         }
         locationManager.recenterOnUser()
-    }
-
-    func zoom(by factor: Double) {
-        shouldFollowUser = false
-        let newRegion = locationManager.adjustZoom(by: factor)
-        cameraPosition = .region(newRegion)
     }
 
     var locationAccuracyDescription: String {
