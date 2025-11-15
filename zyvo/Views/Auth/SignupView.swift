@@ -20,51 +20,40 @@ struct SignupView: View {
     @State private var confirmationCode = ""
     @State private var isConfirming = false
     @FocusState private var focusedField: Field?
-    private let inputFieldBackground = Color.white.opacity(0.92)
-    private let inputBorderColor = Color.black.opacity(0.12)
-    private let inputTextColor = Color.black.opacity(0.85)
-    private let placeholderColor = Color.black.opacity(0.55)
-    private let backgroundGradient = LinearGradient(
-        colors: [.purple.opacity(0.3), .blue.opacity(0.3)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 32) {
-                header
+        AuthGradientBackground {
+            ScrollView {
+                VStack(spacing: 32) {
+                    header
 
-                inputFields
-                    .padding(.horizontal, 24)
-
-                if let statusMessage {
-                    Text(statusMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
+                    inputFields
                         .padding(.horizontal, 24)
+
+                    if let statusMessage {
+                        Text(statusMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                    }
+
+                    signupButton
+                        .padding(.horizontal, 32)
+
+                    if let confirmationEmail {
+                        confirmationSection(for: confirmationEmail)
+                    }
+
+                    Color.clear
+                        .frame(height: 80)
                 }
-
-                signupButton
-                    .padding(.horizontal, 32)
-
-                if let confirmationEmail {
-                    confirmationSection(for: confirmationEmail)
-                }
-
-                Color.clear
-                    .frame(height: 80)
+                .padding(.top, 16)
             }
-            .padding(.top, 32)
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .scrollIndicators(.hidden)
-        .scrollDismissesKeyboard(.interactively)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(
-            backgroundGradient
-                .ignoresSafeArea()
-        )
     }
 }
 
@@ -89,7 +78,6 @@ private extension SignupView {
 
             AuthHeaderView()
         }
-        .padding(.top, 28)
     }
 
     var isFormValid: Bool {
@@ -100,38 +88,38 @@ private extension SignupView {
 
     var inputFields: some View {
         VStack(spacing: 16) {
-            TextField("", text: $email, prompt: Text("Email").foregroundStyle(placeholderColor))
+            TextField("", text: $email, prompt: Text("Email").foregroundStyle(AuthTheme.placeholderColor))
                 .textContentType(.emailAddress)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .font(.system(size: 17, weight: .medium, design: .rounded))
-                .foregroundStyle(inputTextColor)
-                .authInputDecoration(background: inputFieldBackground, borderColor: inputBorderColor)
+                .foregroundStyle(AuthTheme.inputTextColor)
+                .authInputFieldStyle()
                 .submitLabel(.next)
                 .focused($focusedField, equals: .email)
                 .onSubmit {
                     focusedField = .password
                 }
 
-            SecureField("", text: $password, prompt: Text("Password").foregroundStyle(placeholderColor))
+            SecureField("", text: $password, prompt: Text("Password").foregroundStyle(AuthTheme.placeholderColor))
                 .textContentType(.newPassword)
                 .textInputAutocapitalization(.never)
                 .font(.system(size: 17, weight: .medium, design: .rounded))
-                .foregroundStyle(inputTextColor)
-                .authInputDecoration(background: inputFieldBackground, borderColor: inputBorderColor)
+                .foregroundStyle(AuthTheme.inputTextColor)
+                .authInputFieldStyle()
                 .submitLabel(.next)
                 .focused($focusedField, equals: .password)
                 .onSubmit {
                     focusedField = .confirmPassword
                 }
 
-            SecureField("", text: $confirmPassword, prompt: Text("Confirm Password").foregroundStyle(placeholderColor))
+            SecureField("", text: $confirmPassword, prompt: Text("Confirm Password").foregroundStyle(AuthTheme.placeholderColor))
                 .textContentType(.newPassword)
                 .textInputAutocapitalization(.never)
                 .font(.system(size: 17, weight: .medium, design: .rounded))
-                .foregroundStyle(inputTextColor)
-                .authInputDecoration(background: inputFieldBackground, borderColor: inputBorderColor)
+                .foregroundStyle(AuthTheme.inputTextColor)
+                .authInputFieldStyle()
                 .submitLabel(.go)
                 .focused($focusedField, equals: .confirmPassword)
                 .onSubmit {
@@ -156,8 +144,8 @@ private extension SignupView {
             .fontWeight(.semibold)
             .frame(maxWidth: .infinity)
             .padding()
-            .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .foregroundStyle(.black)
+            .background(AuthTheme.secondaryButtonBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .foregroundStyle(AuthTheme.secondaryButtonForeground)
         }
         .buttonStyle(.plain)
         .disabled(!isFormValid || isSubmitting)
@@ -258,8 +246,8 @@ private extension SignupView {
                 .textInputAutocapitalization(.never)
                 .textContentType(.oneTimeCode)
                 .font(.system(size: 17, weight: .medium, design: .rounded))
-                .foregroundStyle(inputTextColor)
-                .authInputDecoration(background: inputFieldBackground, borderColor: inputBorderColor)
+                .foregroundStyle(AuthTheme.inputTextColor)
+                .authInputFieldStyle()
                 .submitLabel(.done)
                 .focused($focusedField, equals: .confirmationCode)
                 .onSubmit {
@@ -281,8 +269,8 @@ private extension SignupView {
                 .fontWeight(.semibold)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .foregroundStyle(.white)
+                .background(AuthTheme.primaryButtonBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .foregroundStyle(AuthTheme.primaryButtonForeground)
             }
             .buttonStyle(.plain)
             .disabled(!isConfirmationValid || isConfirming)
@@ -318,31 +306,6 @@ private extension SignupView {
             return message.lowercased().contains("exist")
         }
         return false
-    }
-}
-
-private struct AuthInputDecoration: ViewModifier {
-    let background: Color
-    let borderColor: Color
-
-    func body(content: Content) -> some View {
-        content
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(background)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: 1)
-            )
-    }
-}
-
-private extension View {
-    func authInputDecoration(background: Color, borderColor: Color) -> some View {
-        modifier(AuthInputDecoration(background: background, borderColor: borderColor))
     }
 }
 

@@ -14,19 +14,9 @@ struct LoginView: View {
     @State private var password = ""
     @State private var statusMessage: String?
     @State private var isSubmitting = false
-    private let inputFieldBackground = Color.white.opacity(0.92)
-    private let inputTextColor = Color.black.opacity(0.85)
-    private let placeholderColor = Color.black.opacity(0.55)
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [.purple.opacity(0.3), .blue.opacity(0.3)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
+        AuthGradientBackground {
             ScrollView {
                 VStack(spacing: 32) {
                     HStack {
@@ -79,32 +69,20 @@ struct LoginView: View {
 private extension LoginView {
     var inputFields: some View {
         VStack(spacing: 16) {
-            TextField("", text: $email, prompt: Text("Email").foregroundStyle(placeholderColor))
+            TextField("", text: $email, prompt: Text("Email").foregroundStyle(AuthTheme.placeholderColor))
                 .textContentType(.emailAddress)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .font(.system(size: 17, weight: .medium, design: .rounded))
-                .padding()
-                .foregroundStyle(inputTextColor)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(inputFieldBackground)
-                )
-                .compositingGroup()
-                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+                .foregroundStyle(AuthTheme.inputTextColor)
+                .authInputFieldStyle()
 
-            SecureField("", text: $password, prompt: Text("Password").foregroundStyle(placeholderColor))
+            SecureField("", text: $password, prompt: Text("Password").foregroundStyle(AuthTheme.placeholderColor))
                 .textContentType(.password)
                 .font(.system(size: 17, weight: .medium, design: .rounded))
-                .padding()
-                .foregroundStyle(inputTextColor)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(inputFieldBackground)
-                )
-                .compositingGroup()
-                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+                .foregroundStyle(AuthTheme.inputTextColor)
+                .authInputFieldStyle()
         }
     }
 
@@ -122,8 +100,8 @@ private extension LoginView {
             .fontWeight(.semibold)
             .frame(maxWidth: .infinity)
             .padding()
-            .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .foregroundStyle(.white)
+            .background(AuthTheme.primaryButtonBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .foregroundStyle(AuthTheme.primaryButtonForeground)
         }
         .buttonStyle(.plain)
         .disabled(!isFormValid || isSubmitting)

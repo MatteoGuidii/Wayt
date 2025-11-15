@@ -21,13 +21,13 @@ struct AuthView: View {
                     }
                 }
             case .loading:
-                gradientBackground {
+                AuthGradientBackground {
                     ProgressView()
                         .progressViewStyle(.circular)
                         .tint(.white)
                 }
             case .signedOut:
-                gradientBackground {
+                AuthGradientBackground {
                     landingContent
                 }
             }
@@ -67,8 +67,8 @@ private extension AuthView {
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .foregroundStyle(.black)
+                        .background(AuthTheme.secondaryButtonBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .foregroundStyle(AuthTheme.secondaryButtonForeground)
                 }
                 .buttonStyle(.plain)
 
@@ -79,8 +79,8 @@ private extension AuthView {
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .foregroundStyle(.white)
+                        .background(AuthTheme.primaryButtonBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .foregroundStyle(AuthTheme.primaryButtonForeground)
                 }
                 .buttonStyle(.plain)
             }
@@ -95,19 +95,6 @@ private extension AuthView {
             }
 
             Spacer()
-        }
-    }
-
-    func gradientBackground<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        ZStack {
-            LinearGradient(
-                colors: [.purple.opacity(0.3), .blue.opacity(0.3)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
-            content()
         }
     }
 }

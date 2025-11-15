@@ -17,14 +17,7 @@ struct AuthHeaderView: View {
 }
 
 #Preview {
-    ZStack {
-        LinearGradient(
-            colors: [.purple.opacity(0.3), .blue.opacity(0.3)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
-
+    AuthGradientBackground {
         AuthHeaderView()
     }
 }
