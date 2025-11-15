@@ -20,6 +20,7 @@
 		958E98942EC57AC30062E64D /* AWSPredictionsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98932EC57AC30062E64D /* AWSPredictionsPlugin */; };
 		958E98962EC57AC30062E64D /* AWSS3StoragePlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98952EC57AC30062E64D /* AWSS3StoragePlugin */; };
 		958E98982EC57AC30062E64D /* CoreMLPredictionsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98972EC57AC30062E64D /* CoreMLPredictionsPlugin */; };
+		958E98C92EC818270062E64D /* Authenticator in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98C82EC818270062E64D /* Authenticator */; };
 		AE7246EB46AF219E272C2507 /* awsconfiguration.json in Resources */ = {isa = PBXBuildFile; fileRef = B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */; };
 /* End PBXBuildFile section */
 
@@ -77,6 +78,7 @@
 				958E98922EC57AC30062E64D /* AWSPluginsCore in Frameworks */,
 				958E98822EC57AC30062E64D /* Amplify in Frameworks */,
 				958E98902EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin in Frameworks */,
+				958E98C92EC818270062E64D /* Authenticator in Frameworks */,
 				958E98962EC57AC30062E64D /* AWSS3StoragePlugin in Frameworks */,
 				958E98862EC57AC30062E64D /* AWSCloudWatchLoggingPlugin in Frameworks */,
 				958E98982EC57AC30062E64D /* CoreMLPredictionsPlugin in Frameworks */,
@@ -173,6 +175,7 @@
 				958E98932EC57AC30062E64D /* AWSPredictionsPlugin */,
 				958E98952EC57AC30062E64D /* AWSS3StoragePlugin */,
 				958E98972EC57AC30062E64D /* CoreMLPredictionsPlugin */,
+				958E98C82EC818270062E64D /* Authenticator */,
 			);
 			productName = zyvo;
 			productReference = 958E983F2EC5484C0062E64D /* zyvo.app */;
@@ -258,6 +261,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */,
+				958E98C72EC8173C0062E64D /* XCRemoteSwiftPackageReference "amplify-ui-swift-authenticator" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 958E98402EC5484C0062E64D /* Products */;
@@ -393,6 +397,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -449,6 +454,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -650,6 +656,14 @@
 				minimumVersion = 2.51.5;
 			};
 		};
+		958E98C72EC8173C0062E64D /* XCRemoteSwiftPackageReference "amplify-ui-swift-authenticator" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/aws-amplify/amplify-ui-swift-authenticator";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -712,6 +726,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
 			productName = CoreMLPredictionsPlugin;
+		};
+		958E98C82EC818270062E64D /* Authenticator */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98C72EC8173C0062E64D /* XCRemoteSwiftPackageReference "amplify-ui-swift-authenticator" */;
+			productName = Authenticator;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

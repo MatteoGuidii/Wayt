@@ -7,16 +7,33 @@
 
 import SwiftUI
 import Amplify
+import Authenticator
 import AWSCognitoAuthPlugin
 
 @main
 struct zyvoApp: App {
-    @StateObject private var authManager = AuthManager()
+    @StateObject private var locationManager = LocationManager()
 
     var body: some Scene {
         WindowGroup {
-            AuthView()
-                .environmentObject(authManager)
+            ZStack {
+                ZyvoAuthTheme.backgroundGradient
+                    .ignoresSafeArea()
+                
+                Authenticator(
+                    headerContent: {
+                        ZyvoAuthTheme.headerView
+                    }
+                ) { state in
+                    MainMapView(username: state.user.username) {
+                        Task {
+                            await state.signOut()
+                        }
+                    }
+                    .environmentObject(locationManager)
+                }
+                .authenticatorTheme(ZyvoAuthTheme.createCustomTheme())
+            }
         }
     }
     
