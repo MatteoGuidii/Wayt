@@ -17,6 +17,9 @@ struct MainMapView: View {
                 UserAnnotation()
             }
             .ignoresSafeArea(edges: .top)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 8) 
+            }
             .mapStyle(.standard(elevation: .realistic))
             .simultaneousGesture(
                 DragGesture(minimumDistance: 10)
