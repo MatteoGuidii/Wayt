@@ -20,8 +20,8 @@ final class LocationManager: NSObject, ObservableObject {
             center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
             span: Self.defaultSpan
         )
-        authorizationStatus = .notDetermined
-        accuracyAuthorization = .fullAccuracy
+        authorizationStatus = manager.authorizationStatus
+        accuracyAuthorization = manager.accuracyAuthorization
 
         super.init()
 
