@@ -32,7 +32,7 @@ struct zyvoApp: App {
                     }
                     .environmentObject(locationManager)
                 }
-                .authenticatorTheme(ZyvoAuthTheme.createCustomTheme())
+                .authenticatorTheme(ZyvoAuthTheme.authenticatorTheme)
             }
         }
     }

@@ -19,9 +19,9 @@ enum ZyvoAuthTheme {
     
     // MARK: - Authenticator Theme
     
-    static func createCustomTheme() -> AuthenticatorTheme {
-        let theme = AuthenticatorTheme()
-        
+    static let authenticatorTheme: AuthenticatorTheme = {
+        var theme = AuthenticatorTheme()
+
         // Colors - these apply throughout the Authenticator
         theme.colors.background.primary = Color.clear
         theme.colors.background.interactive = Color.black.opacity(0.85)
@@ -55,9 +55,9 @@ enum ZyvoAuthTheme {
             trailing: 18,
             leading: 18
         )
-        
+
         return theme
-    }
+    }()
     
     // MARK: - Header View
     
