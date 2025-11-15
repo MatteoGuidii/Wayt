@@ -6,11 +6,10 @@ struct MainMapView: View {
     let username: String
     let onSignOut: () -> Void
 
-    @StateObject private var locationManager = LocationManager()
-    @State private var cameraPosition: MapCameraPosition = .userLocation(
-        fallback: .region(LocationManager.fallbackRegion)
-    )
+    @EnvironmentObject private var locationManager: LocationManager
+    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var shouldFollowUser = true
+    @State private var hasInitialLocation = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -45,9 +44,19 @@ struct MainMapView: View {
         }
         .task {
             locationManager.start()
-            locationManager.recenterOnUser()
         }
         .onReceive(locationManager.$region) { newRegion in
+            // Always update on the first location fix
+            if !hasInitialLocation && CLLocationCoordinate2DIsValid(newRegion.center) && 
+               (newRegion.center.latitude != 0 || newRegion.center.longitude != 0) {
+                hasInitialLocation = true
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    cameraPosition = .region(newRegion)
+                }
+                return
+            }
+            
+            // After initial location, only update if following user
             guard shouldFollowUser else { return }
             withAnimation(.easeInOut(duration: 0.35)) {
                 cameraPosition = .region(newRegion)
@@ -119,7 +128,7 @@ private extension MainMapView {
     func recenter() {
         shouldFollowUser = true
         withAnimation(.easeInOut(duration: 0.35)) {
-            cameraPosition = .userLocation(fallback: .region(locationManager.region))
+            cameraPosition = .userLocation(fallback: .automatic)
         }
         locationManager.recenterOnUser()
     }
@@ -166,5 +175,5 @@ private struct ControlButton: View {
 
 #Preview {
     MainMapView(username: "matteo@example.com", onSignOut: {})
-        .environmentObject(AuthManager())
+        .environmentObject(LocationManager())
 }
