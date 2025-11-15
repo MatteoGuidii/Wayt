@@ -6,7 +6,7 @@ struct MainMapView: View {
     let username: String
     let onSignOut: () -> Void
 
-    @StateObject private var locationManager = LocationManager()
+    @EnvironmentObject private var locationManager: LocationManager
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var shouldFollowUser = true
     @State private var hasInitialLocation = false
@@ -174,5 +174,5 @@ private struct ControlButton: View {
 
 #Preview {
     MainMapView(username: "matteo@example.com", onSignOut: {})
-        .environmentObject(AuthManager())
+        .environmentObject(LocationManager())
 }
