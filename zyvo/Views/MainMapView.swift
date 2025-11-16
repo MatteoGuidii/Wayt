@@ -10,6 +10,7 @@ struct MainMapView: View {
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var shouldFollowUser = true
     @State private var hasInitialLocation = false
+    @State private var currentCoordinate: CLLocationCoordinate2D?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -47,21 +48,41 @@ struct MainMapView: View {
             locationManager.start()
         }
         .onReceive(locationManager.$region) { newRegion in
+            // Store the current coordinate
+            currentCoordinate = newRegion.center
+            
             // Always update on the first location fix
             if !hasInitialLocation && CLLocationCoordinate2DIsValid(newRegion.center) && 
                (newRegion.center.latitude != 0 || newRegion.center.longitude != 0) {
                 hasInitialLocation = true
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    cameraPosition = .region(newRegion)
-                }
+                updateCameraPosition(coordinate: newRegion.center, heading: locationManager.heading)
                 return
             }
             
             // After initial location, only update if following user
             guard shouldFollowUser else { return }
-            withAnimation(.easeInOut(duration: 0.35)) {
-                cameraPosition = .region(newRegion)
-            }
+            updateCameraPosition(coordinate: newRegion.center, heading: locationManager.heading)
+        }
+        .onReceive(locationManager.$heading) { newHeading in
+            // Update map rotation when heading changes, but only if following user
+            guard shouldFollowUser,
+                  let coordinate = currentCoordinate,
+                  CLLocationCoordinate2DIsValid(coordinate) else { return }
+            
+            updateCameraPosition(coordinate: coordinate, heading: newHeading)
+        }
+    }
+    
+    private func updateCameraPosition(coordinate: CLLocationCoordinate2D, heading: CLLocationDirection) {
+        withAnimation(.easeInOut(duration: 0.35)) {
+            cameraPosition = .camera(
+                MapCamera(
+                    centerCoordinate: coordinate,
+                    distance: 500, // Distance from ground in meters (zoom level)
+                    heading: heading, // Rotation of the map based on user's direction
+                    pitch: 60 // Tilt angle (0 = top-down, 90 = street view)
+                )
+            )
         }
     }
 }
@@ -120,8 +141,12 @@ private extension MainMapView {
 
     func recenter() {
         shouldFollowUser = true
-        withAnimation(.easeInOut(duration: 0.35)) {
-            cameraPosition = .userLocation(fallback: .automatic)
+        if let coordinate = currentCoordinate {
+            updateCameraPosition(coordinate: coordinate, heading: locationManager.heading)
+        } else {
+            withAnimation(.easeInOut(duration: 0.35)) {
+                cameraPosition = .userLocation(fallback: .automatic)
+            }
         }
         locationManager.recenterOnUser()
     }

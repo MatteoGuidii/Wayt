@@ -10,6 +10,7 @@ final class LocationManager: NSObject, ObservableObject {
     @Published var authorizationStatus: CLAuthorizationStatus
     @Published var accuracyAuthorization: CLAccuracyAuthorization
     @Published var statusMessage: String?
+    @Published var heading: CLLocationDirection = 0 // User's compass heading in degrees
 
     private let manager: CLLocationManager
 
@@ -87,6 +88,8 @@ final class LocationManager: NSObject, ObservableObject {
         manager.distanceFilter = 3
         manager.activityType = .otherNavigation
         manager.pausesLocationUpdatesAutomatically = false
+        manager.showsBackgroundLocationIndicator = true
+        manager.headingFilter = 5 // Update heading when it changes by 5 degrees
         manager.delegate = self
     }
 
@@ -94,6 +97,7 @@ final class LocationManager: NSObject, ObservableObject {
         switch status {
         case .authorizedAlways, .authorizedWhenInUse:
             manager.startUpdatingLocation()
+            manager.startUpdatingHeading() // Start tracking heading
             manager.requestLocation()
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
@@ -137,6 +141,15 @@ extension LocationManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         updateRegion(with: location)
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        // Use true heading if available (requires location), otherwise use magnetic heading
+        let headingValue = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
+        
+        DispatchQueue.main.async {
+            self.heading = headingValue
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
