@@ -58,6 +58,7 @@ struct AuthRootView: View {
             ZyvoAuthTheme.backgroundGradient
                 .ignoresSafeArea()
         )
+        .keyboardAccessoryPadding()
     }
 }
 
