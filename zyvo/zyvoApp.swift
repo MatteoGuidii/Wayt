@@ -41,24 +41,27 @@ struct zyvoApp: App {
 /// Keeping this separate helps avoid unnecessary re-renders of Authenticator.
 struct AuthRootView: View {
     var body: some View {
-        Authenticator(
-            headerContent: {
-                ZyvoAuthTheme.headerView
-            }
-        ) { state in
-            MainMapView(username: state.user.username) {
-                Task {
-                    await state.signOut()
-                }
-            }
-            .transition(.opacity.combined(with: .scale))
-        }
-        .authenticatorTheme(ZyvoAuthTheme.authenticatorTheme)
-        .background(
+        ZStack {
+            // Background gradient fills entire screen
             ZyvoAuthTheme.backgroundGradient
                 .ignoresSafeArea()
-        )
-        .keyboardAccessoryPadding()
+            
+            // Authenticator on top
+            Authenticator(
+                headerContent: {
+                    ZyvoAuthTheme.headerView
+                }
+            ) { state in
+                MainMapView(username: state.user.username) {
+                    Task {
+                        await state.signOut()
+                    }
+                }
+                .transition(.opacity.combined(with: .scale))
+            }
+            .authenticatorTheme(ZyvoAuthTheme.authenticatorTheme)
+            .keyboardAccessoryPadding()
+        }
     }
 }
 
