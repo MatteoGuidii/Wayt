@@ -7,10 +7,11 @@ struct MainMapView: View {
     let onSignOut: () -> Void
 
     @EnvironmentObject private var locationManager: LocationManager
-    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
+    @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var shouldFollowUser = true
     @State private var hasInitialLocation = false
     @State private var currentCoordinate: CLLocationCoordinate2D?
+    @State private var initialHeading: CLLocationDirection?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -22,18 +23,6 @@ struct MainMapView: View {
                 Color.clear.frame(height: 8) 
             }
             .mapStyle(.standard(elevation: .realistic))
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 10)
-                    .onChanged { _ in
-                        shouldFollowUser = false
-                    }
-            )
-            .simultaneousGesture(
-                MagnificationGesture()
-                    .onChanged { _ in
-                        shouldFollowUser = false
-                    }
-            )
 
             VStack {
                 header
@@ -55,35 +44,29 @@ struct MainMapView: View {
             if !hasInitialLocation && CLLocationCoordinate2DIsValid(newRegion.center) && 
                (newRegion.center.latitude != 0 || newRegion.center.longitude != 0) {
                 hasInitialLocation = true
-                updateCameraPosition(coordinate: newRegion.center, heading: locationManager.heading)
+                // Capture the initial heading when map starts
+                if initialHeading == nil {
+                    initialHeading = locationManager.heading
+                }
+                updateCameraPosition(coordinate: newRegion.center, heading: initialHeading ?? 0)
                 return
             }
             
             // After initial location, only update if following user
             guard shouldFollowUser else { return }
-            updateCameraPosition(coordinate: newRegion.center, heading: locationManager.heading)
-        }
-        .onReceive(locationManager.$heading) { newHeading in
-            // Update map rotation when heading changes, but only if following user
-            guard shouldFollowUser,
-                  let coordinate = currentCoordinate,
-                  CLLocationCoordinate2DIsValid(coordinate) else { return }
-            
-            updateCameraPosition(coordinate: coordinate, heading: newHeading)
+            updateCameraPosition(coordinate: newRegion.center, heading: initialHeading ?? 0)
         }
     }
     
     private func updateCameraPosition(coordinate: CLLocationCoordinate2D, heading: CLLocationDirection) {
-        withAnimation(.easeInOut(duration: 0.35)) {
-            cameraPosition = .camera(
-                MapCamera(
-                    centerCoordinate: coordinate,
-                    distance: 500, // Distance from ground in meters (zoom level)
-                    heading: heading, // Rotation of the map based on user's direction
-                    pitch: 60 // Tilt angle (0 = top-down, 90 = street view)
-                )
+        cameraPosition = .camera(
+            MapCamera(
+                centerCoordinate: coordinate,
+                distance: 500, // Closer zoom - distance from ground in meters
+                heading: heading, // Rotation of the map based on user's direction
+                pitch: 0 // Top-down view (0 = top-down, 90 = street view)
             )
-        }
+        )
     }
 }
 
@@ -142,7 +125,7 @@ private extension MainMapView {
     func recenter() {
         shouldFollowUser = true
         if let coordinate = currentCoordinate {
-            updateCameraPosition(coordinate: coordinate, heading: locationManager.heading)
+            updateCameraPosition(coordinate: coordinate, heading: initialHeading ?? 0)
         } else {
             withAnimation(.easeInOut(duration: 0.35)) {
                 cameraPosition = .userLocation(fallback: .automatic)
