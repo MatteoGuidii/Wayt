@@ -65,6 +65,12 @@ struct AuthRootView: View {
     }
 }
 
+extension AuthenticatorBaseState: @retroactive Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(self))
+    }
+}
+
 #Preview {
     AuthRootView()
 }
