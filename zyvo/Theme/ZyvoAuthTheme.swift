@@ -39,11 +39,11 @@ enum ZyvoAuthTheme {
         theme.colors.border.interactive = .clear
 
         // Adjust spacing and container style
-        theme.components.authenticator.spacing.vertical = 24
+        theme.components.authenticator.spacing.vertical = 16
         theme.components.authenticator.cornerRadius = 0
         theme.components.field.padding = .init(
-            top: 8,
-            bottom: 8,
+            top: 12,
+            bottom: 12,
             trailing: 14,
             leading: 14
         )
