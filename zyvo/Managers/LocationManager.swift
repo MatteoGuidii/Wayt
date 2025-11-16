@@ -4,11 +4,12 @@ import Foundation
 import MapKit
 
 final class LocationManager: NSObject, ObservableObject {
-    private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+    private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.01,
+                                                      longitudeDelta: 0.01)
 
     @Published var region: MKCoordinateRegion
-    @Published var authorizationStatus: CLAuthorizationStatus
-    @Published var accuracyAuthorization: CLAccuracyAuthorization
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    @Published var accuracyAuthorization: CLAccuracyAuthorization = .reducedAccuracy
     @Published var statusMessage: String?
     @Published var heading: CLLocationDirection = 0 // User's compass heading in degrees
 
@@ -21,8 +22,6 @@ final class LocationManager: NSObject, ObservableObject {
             center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
             span: Self.defaultSpan
         )
-        authorizationStatus = manager.authorizationStatus
-        accuracyAuthorization = manager.accuracyAuthorization
 
         super.init()
 
@@ -30,26 +29,18 @@ final class LocationManager: NSObject, ObservableObject {
     }
 
     func start() {
-        guard CLLocationManager.locationServicesEnabled() else {
-            DispatchQueue.main.async {
-                self.statusMessage = "Location services are disabled. Enable them in Settings to view the live map."
-            }
-            return
-        }
+        // Only look at the manager's current authorization status.
+        // No more CLLocationManager.locationServicesEnabled() on main thread.
+        let status = manager.authorizationStatus
 
-        switch authorizationStatus {
-        case .authorizedAlways, .authorizedWhenInUse:
-            // Authorized: request a one-time location update; ongoing updates are started in the delegate when appropriate.
-            manager.requestLocation()
+        switch status {
         case .notDetermined:
-            // Trigger the system prompt; subsequent actions happen in the delegate callback.
+            // Trigger the system prompt once; future changes come via the delegate
             manager.requestWhenInUseAuthorization()
-        case .restricted, .denied:
-            DispatchQueue.main.async {
-                self.statusMessage = "Location access is required to show precise maps around you."
-            }
-        @unknown default:
-            break
+
+        default:
+            // For all other states, let the central handler decide what to do
+            handleAuthorizationStatus(status)
         }
     }
 
@@ -91,6 +82,10 @@ final class LocationManager: NSObject, ObservableObject {
         manager.showsBackgroundLocationIndicator = true
         manager.headingFilter = 5 // Update heading when it changes by 5 degrees
         manager.delegate = self
+
+        // Seed published properties from current manager state
+        authorizationStatus = manager.authorizationStatus
+        accuracyAuthorization = manager.accuracyAuthorization
     }
 
     private func handleAuthorizationStatus(_ status: CLAuthorizationStatus) {
@@ -99,12 +94,16 @@ final class LocationManager: NSObject, ObservableObject {
             manager.startUpdatingLocation()
             manager.startUpdatingHeading() // Start tracking heading
             manager.requestLocation()
+
         case .notDetermined:
-            manager.requestWhenInUseAuthorization()
+            // Do nothing here; `start()` is responsible for requesting auth
+            break
+
         case .restricted, .denied:
             DispatchQueue.main.async {
                 self.statusMessage = "Location access is required to show precise maps around you."
             }
+
         @unknown default:
             break
         }
@@ -131,11 +130,16 @@ final class LocationManager: NSObject, ObservableObject {
 
 extension LocationManager: CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        let accuracy = manager.accuracyAuthorization
+
         DispatchQueue.main.async {
-            self.authorizationStatus = manager.authorizationStatus
-            self.accuracyAuthorization = manager.accuracyAuthorization
+            self.authorizationStatus = status
+            self.accuracyAuthorization = accuracy
         }
-        handleAuthorizationStatus(manager.authorizationStatus)
+
+        // React to new status via a single handler, as Apple recommends
+        handleAuthorizationStatus(status)
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -146,7 +150,7 @@ extension LocationManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         // Use true heading if available (requires location), otherwise use magnetic heading
         let headingValue = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
-        
+
         DispatchQueue.main.async {
             self.heading = headingValue
         }
