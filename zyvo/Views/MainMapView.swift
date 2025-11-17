@@ -13,60 +13,80 @@ struct MainMapView: View {
     @State private var currentCoordinate: CLLocationCoordinate2D?
     @State private var initialHeading: CLLocationDirection?
 
+    // Map scope to bind controls to this specific map
+    @Namespace private var mapScope
+
     var body: some View {
         ZStack(alignment: .top) {
-            Map(position: $cameraPosition, interactionModes: .all) {
+            Map(position: $cameraPosition,
+                interactionModes: .all,
+                scope: mapScope
+            ) {
                 UserAnnotation()
             }
             .ignoresSafeArea(edges: .top)
             .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 8) 
+                Color.clear.frame(height: 8)
             }
             .mapStyle(.standard(elevation: .realistic))
 
             VStack {
-                header
-                Spacer()
+//                header
+//                Spacer()
+                bottomControls
             }
         }
-        .overlay(alignment: .bottomTrailing) {
-            controls
-                .padding()
-        }
+        // Bind all map controls inside this view hierarchy
+        .mapScope(mapScope)
         .task {
             locationManager.start()
         }
         .onReceive(locationManager.$region) { newRegion in
             // Store the current coordinate
             currentCoordinate = newRegion.center
-            
+
             // Always update on the first location fix
-            if !hasInitialLocation && CLLocationCoordinate2DIsValid(newRegion.center) && 
-               (newRegion.center.latitude != 0 || newRegion.center.longitude != 0) {
+            if !hasInitialLocation &&
+                CLLocationCoordinate2DIsValid(newRegion.center) &&
+                (newRegion.center.latitude != 0 || newRegion.center.longitude != 0) {
+
                 hasInitialLocation = true
+
                 // Capture the initial heading when map starts
                 if initialHeading == nil {
                     initialHeading = locationManager.heading
                 }
-                updateCameraPosition(coordinate: newRegion.center, heading: initialHeading ?? 0)
+
+                updateCameraPosition(
+                    coordinate: newRegion.center,
+                    heading: initialHeading ?? 0
+                )
                 return
             }
-            
+
             // After initial location, only update if following user
             guard shouldFollowUser else { return }
-            updateCameraPosition(coordinate: newRegion.center, heading: initialHeading ?? 0)
+            updateCameraPosition(
+                coordinate: newRegion.center,
+                heading: initialHeading ?? 0
+            )
         }
     }
-    
-    private func updateCameraPosition(coordinate: CLLocationCoordinate2D, heading: CLLocationDirection) {
-        cameraPosition = .camera(
-            MapCamera(
-                centerCoordinate: coordinate,
-                distance: 500, // Closer zoom - distance from ground in meters
-                heading: heading, // Rotation of the map based on user's direction
-                pitch: 0 // Top-down view (0 = top-down, 90 = street view)
+
+    private func updateCameraPosition(
+        coordinate: CLLocationCoordinate2D,
+        heading: CLLocationDirection
+    ) {
+        withAnimation(.easeInOut(duration: 0.35)) {
+            cameraPosition = .camera(
+                MapCamera(
+                    centerCoordinate: coordinate,
+                    distance: 500, // meters
+                    heading: heading,
+                    pitch: 0
+                )
             )
-        )
+        }
     }
 }
 
@@ -98,6 +118,29 @@ private extension MainMapView {
         .padding(.top)
     }
 
+    /// Pill-shaped map controls pinned to the top trailing corner
+    var bottomControls: some View {
+        VStack {
+            HStack {
+                Spacer()
+                VStack(spacing: 12) {
+                    ControlButton(systemName: "location.circle.fill", action: recenter)
+                    MapPitchToggle(scope: mapScope)
+                    MapCompass(scope: mapScope)
+                }
+                .padding(.vertical, 14)
+                .padding(.horizontal, 10)
+                .background(.ultraThinMaterial, in: Capsule())
+                .shadow(radius: 8)
+            }
+            Spacer()
+        }
+        .padding(.top, 16)
+        .padding(.trailing, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+
     var statusCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let message = locationManager.statusMessage {
@@ -116,16 +159,13 @@ private extension MainMapView {
         .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 8)
     }
 
-    var controls: some View {
-        VStack(spacing: 12) {
-            ControlButton(systemName: "location.circle.fill", action: recenter)
-        }
-    }
-
     func recenter() {
         shouldFollowUser = true
         if let coordinate = currentCoordinate {
-            updateCameraPosition(coordinate: coordinate, heading: initialHeading ?? 0)
+            updateCameraPosition(
+                coordinate: coordinate,
+                heading: initialHeading ?? 0
+            )
         } else {
             withAnimation(.easeInOut(duration: 0.35)) {
                 cameraPosition = .userLocation(fallback: .automatic)
