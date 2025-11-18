@@ -12,7 +12,7 @@ struct MainMapView: View {
     @State private var hasInitialLocation = false
     @State private var currentCoordinate: CLLocationCoordinate2D?
     @State private var currentPitch: CGFloat = 0
-    
+
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
     
@@ -41,7 +41,6 @@ struct MainMapView: View {
             }
             
             VStack {
-                header
                 Spacer()
                 bottomControls
             }
@@ -61,20 +60,13 @@ struct MainMapView: View {
                 )
                 return
             }
-            
+
             // After initial location, only update if following user
             guard shouldFollowUser else { return }
-            
+
             updateCameraPosition(
                 coordinate: newRegion.center,
-                heading: locationManager.heading
-            )
-        }
-        .onReceive(locationManager.$heading) { newHeading in
-            guard shouldFollowUser, let coordinate = currentCoordinate, CLLocationCoordinate2DIsValid(coordinate) else { return }
-            updateCameraPosition(
-                coordinate: coordinate,
-                heading: newHeading
+                heading: 0 // North-up orientation
             )
         }
     }
@@ -102,57 +94,26 @@ struct MainMapView: View {
 }
 
 private extension MainMapView {
-    var header: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Signed in as")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(username)
-                    .font(.headline)
-            }
-            
-            Spacer()
-            
-            Button(action: onSignOut) {
-                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .tint(.black)
-            .labelStyle(.titleAndIcon)
-            .buttonStyle(.borderedProminent)
-        }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .padding(.horizontal)
-        .padding(.top)
-    }
-    
-    /// Pill-shaped map controls pinned to the top trailing corner
+    /// Pill-shaped map controls pinned to the bottom trailing corner
     var bottomControls: some View {
-        VStack {
-            HStack {
-                Spacer()
-                VStack(spacing: 12) {
-                    ControlButton(systemName: "location.circle.fill", action: recenter)
-                    
-                    MapPitchToggle(scope: mapScope)
-                        // .mapControlVisibility(.visible) // Force always visible
-                    
-                    MapCompass(scope: mapScope)
-                         .mapControlVisibility(.visible) // Force always visible
-                }
-                .padding(.vertical, 14)
-                .padding(.horizontal, 10)
-                .background(.ultraThinMaterial, in: Capsule())
-                .shadow(radius: 8)
-            }
+        HStack {
             Spacer()
+            VStack(spacing: 12) {
+                ControlButton(systemName: "location.circle.fill", action: recenter)
+
+                MapPitchToggle(scope: mapScope)
+                    // .mapControlVisibility(.visible) // Force always visible
+
+                MapCompass(scope: mapScope)
+                     .mapControlVisibility(.visible) // Force always visible
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 10)
+            .background(.ultraThinMaterial, in: Capsule())
+            .shadow(radius: 8)
         }
-        .padding(.top, 16)
+        .padding(.bottom, 16)
         .padding(.trailing, 16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     var statusCard: some View {
