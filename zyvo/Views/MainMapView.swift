@@ -21,8 +21,7 @@ struct MainMapView: View {
             Map(position: $cameraPosition, interactionModes: .all, scope: mapScope) {
                 UserAnnotation()
             }
-            // Supress normal Compass control to use our custom one
-            .mapControls{}
+            .mapControls { }
             .ignoresSafeArea(edges: .top)
             .safeAreaInset(edge: .bottom) {
                 Color.clear.frame(height: 8)
@@ -83,12 +82,13 @@ struct MainMapView: View {
     private func updateCameraPosition(
         coordinate: CLLocationCoordinate2D,
         heading: CLLocationDirection,
-        pitch: CGFloat? = nil
+        pitch: CGFloat? = nil,
+        duration: Double = 0.35
     ) {
         let resolvedPitch = pitch ?? currentPitch
         currentPitch = resolvedPitch
-        
-        withAnimation(.easeInOut(duration: 0.35)) {
+
+        withAnimation(.easeInOut(duration: duration)) {
             cameraPosition = .camera(
                 MapCamera(
                     centerCoordinate: coordinate,
@@ -174,14 +174,14 @@ private extension MainMapView {
     }
     
     func recenter() {
-        shouldFollowUser = true
         if let coordinate = currentCoordinate {
             updateCameraPosition(
                 coordinate: coordinate,
-                heading: locationManager.heading
+                heading: locationManager.heading,
+                duration: 2.5
             )
         } else {
-            withAnimation(.easeInOut(duration: 0.35)) {
+            withAnimation(.easeInOut(duration: 2.5)) {
                 cameraPosition = .userLocation(fallback: .automatic)
             }
         }
