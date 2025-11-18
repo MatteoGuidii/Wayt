@@ -21,6 +21,8 @@ struct MainMapView: View {
             Map(position: $cameraPosition, interactionModes: .all, scope: mapScope) {
                 UserAnnotation()
             }
+            // Supress normal Compass control to use our custom one
+            .mapControls{}
             .ignoresSafeArea(edges: .top)
             .safeAreaInset(edge: .bottom) {
                 Color.clear.frame(height: 8)
