@@ -52,7 +52,7 @@ struct AuthRootView: View {
                     ZyvoAuthTheme.headerView
                 }
             ) { state in
-                MainMapView(username: state.user.username) {
+                MainTabView(username: state.user.username) {
                     Task {
                         await state.signOut()
                     }
