@@ -85,8 +85,7 @@ struct MainMapView: View {
         heading: CLLocationDirection,
         pitch: CGFloat? = nil
     ) {
-        // Ensure minimum pitch to prevent control disappearance
-        let resolvedPitch = pitch ?? max(currentPitch, 5)
+        let resolvedPitch = pitch ?? currentPitch
         currentPitch = resolvedPitch
         
         withAnimation(.easeInOut(duration: 0.35)) {
@@ -139,10 +138,10 @@ private extension MainMapView {
                     ControlButton(systemName: "location.circle.fill", action: recenter)
                     
                     MapPitchToggle(scope: mapScope)
-                        .mapControlVisibility(.visible) // Force always visible
+                        // .mapControlVisibility(.visible) // Force always visible
                     
                     MapCompass(scope: mapScope)
-                        .mapControlVisibility(.visible) // Force always visible
+                         .mapControlVisibility(.visible) // Force always visible
                 }
                 .padding(.vertical, 14)
                 .padding(.horizontal, 10)
