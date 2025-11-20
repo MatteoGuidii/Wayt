@@ -12,6 +12,8 @@ struct MainMapView: View {
     @State private var hasInitialLocation = false
     @State private var currentCoordinate: CLLocationCoordinate2D?
     @State private var currentPitch: CGFloat = 0
+    
+    @StateObject private var venueDiscoveryManager = VenueDiscoveryManager()
 
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
@@ -20,6 +22,12 @@ struct MainMapView: View {
         ZStack(alignment: .top) {
             Map(position: $cameraPosition, interactionModes: .all, scope: mapScope) {
                 UserAnnotation()
+                
+                ForEach(venueDiscoveryManager.venues) { venue in
+                    Annotation(venue.name, coordinate: venue.coordinate) {
+                        VenueMarker(venue: venue)
+                    }
+                }
             }
             .mapControls { }
             .ignoresSafeArea(edges: .top)
@@ -41,9 +49,26 @@ struct MainMapView: View {
             }
             
             VStack {
+                if venueDiscoveryManager.isSearching {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Searching area...")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .shadow(radius: 4)
+                    .padding(.top, 60)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                
                 Spacer()
                 bottomControls
             }
+            .animation(.easeInOut, value: venueDiscoveryManager.isSearching)
         }
         .mapScope(mapScope)
         .task { locationManager.start() }
@@ -68,6 +93,13 @@ struct MainMapView: View {
                 coordinate: newRegion.center,
                 heading: 0 // North-up orientation
             )
+        }
+        .onReceive(locationManager.$region) { region in
+            // Trigger venue search when user location changes
+            // We use the region center as a proxy for user location when tracking
+            // Ideally, LocationManager should expose the raw CLLocation for better accuracy
+            let location = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+            venueDiscoveryManager.updateUserLocation(location)
         }
     }
     
@@ -180,6 +212,45 @@ private struct ControlButton: View {
         }
         .buttonStyle(.plain)
         .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+    }
+}
+
+struct VenueMarker: View {
+    let venue: Venue
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            if let image = venue.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(.white, lineWidth: 2)
+                    )
+                    .shadow(radius: 4)
+            } else {
+                Image(systemName: venue.systemImage)
+                    .font(.title3)
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Color.purple)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(.white, lineWidth: 2)
+                    )
+                    .shadow(radius: 4)
+            }
+            
+            Image(systemName: "triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.white)
+                .offset(y: -4)
+                .shadow(radius: 2)
+        }
     }
 }
 
