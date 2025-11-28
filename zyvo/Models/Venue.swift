@@ -1,5 +1,6 @@
 import Foundation
 import MapKit
+import SwiftUI
 
 struct Venue: Identifiable, Hashable {
     let id = UUID()
@@ -55,6 +56,17 @@ struct Venue: Identifiable, Hashable {
         case .nightlife: return "music.note"
         case .winery, .brewery, .distillery: return "wineglass.fill"
         default: return "mappin"
+        }
+    }
+    
+    var themeColor: Color {
+        guard let category = category else { return .purple }
+        switch category {
+        case .restaurant: return .orange // Warm Orange for food
+        case .cafe: return .teal // Soft Teal for cafes
+        case .nightlife: return .pink // Fun Pink for nightlife
+        case .winery, .brewery, .distillery: return .indigo // Deep Indigo for drinks
+        default: return .purple
         }
     }
 }
