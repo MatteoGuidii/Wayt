@@ -13,6 +13,10 @@ final class LocationManager: NSObject, ObservableObject {
     @Published var statusMessage: String?
     @Published var heading: CLLocationDirection = 0 // User's compass heading in degrees
 
+    var userLocation: CLLocation? {
+        manager.location
+    }
+
     private let manager: CLLocationManager
 
     override init() {

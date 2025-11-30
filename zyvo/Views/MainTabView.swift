@@ -12,6 +12,7 @@ struct MainTabView: View {
     let onSignOut: () -> Void
 
     @State private var selectedTab = 0
+    @StateObject private var venueDiscoveryManager = VenueDiscoveryManager()
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -43,6 +44,7 @@ struct MainTabView: View {
                 }
                 .tag(3)
         }
+        .environmentObject(venueDiscoveryManager)
         .accentColor(.purple) // Tab bar selected color
     }
 }

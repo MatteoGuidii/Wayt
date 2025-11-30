@@ -48,25 +48,15 @@ struct Venue: Identifiable, Hashable {
         lhs.coordinate.longitude == rhs.coordinate.longitude
     }
     
+    var type: VenueType {
+        VenueClassifier.classify(mapItem: mapItem)
+    }
+    
     var systemImage: String {
-        guard let category = category else { return "mappin" }
-        switch category {
-        case .restaurant: return "fork.knife"
-        case .cafe: return "cup.and.saucer.fill"
-        case .nightlife: return "music.note"
-        case .winery, .brewery, .distillery: return "wineglass.fill"
-        default: return "mappin"
-        }
+        type.icon
     }
     
     var themeColor: Color {
-        guard let category = category else { return .purple }
-        switch category {
-        case .restaurant: return .orange // Warm Orange for food
-        case .cafe: return .teal // Soft Teal for cafes
-        case .nightlife: return .pink // Fun Pink for nightlife
-        case .winery, .brewery, .distillery: return .indigo // Deep Indigo for drinks
-        default: return .purple
-        }
+        type.color
     }
 }
