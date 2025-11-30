@@ -110,7 +110,7 @@ class VenueDiscoveryManager: ObservableObject {
     // MARK: - Image Fetching (Look Around Snapshots)
     
     private var imageCache: [String: UIImage] = [:]
-    private let maxImageFetchCount = 20
+    private let maxImageFetchCount = 10 // Reduced from 20 to prevent throttling
     
     private func fetchImages(for venues: [Venue]) async {
         // 0. Check cache first and update immediately
@@ -156,8 +156,8 @@ class VenueDiscoveryManager: ObservableObject {
         
         for chunk in remainingVenues.chunked(into: batchSize) {
             // Significant delay to stay under rate limits
-            // 1.5 seconds * (14 remaining / 4 per batch) = ~5 seconds total
-            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
+            // 2.0 seconds delay between batches
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2.0 seconds
             
             await fetchBatch(venues: chunk)
         }

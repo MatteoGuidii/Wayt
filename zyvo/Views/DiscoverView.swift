@@ -52,6 +52,9 @@ struct DiscoverView: View {
                         // Categories
                         categoriesSection
                         
+                        // Vibes
+                        vibesSection
+                        
                         // Nearby List
                         nearbySection
                     }
@@ -104,6 +107,16 @@ struct DiscoverView: View {
                 .onSubmit {
                     venueDiscoveryManager.search(text: searchText)
                 }
+            
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                    venueDiscoveryManager.search(text: "")
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemBackground))
@@ -135,34 +148,77 @@ struct DiscoverView: View {
     @State private var selectedCategory: String?
     
     var categoriesSection: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                Button {
-                    toggleCategory("Live Music")
-                } label: {
-                    CategoryChip(icon: "music.mic", label: "Live Music", isSelected: selectedCategory == "Live Music")
-                }
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Categories")
+                .font(.headline)
+                .padding(.horizontal, 20)
                 
-                Button {
-                    toggleCategory("Bars")
-                } label: {
-                    CategoryChip(icon: "wineglass.fill", label: "Bars", isSelected: selectedCategory == "Bars")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    Button {
+                        toggleCategory("Live Music")
+                    } label: {
+                        CategoryChip(icon: "music.mic", label: "Live Music", isSelected: selectedCategory == "Live Music")
+                    }
+                    
+                    Button {
+                        toggleCategory("Bars")
+                    } label: {
+                        CategoryChip(icon: "wineglass.fill", label: "Bars", isSelected: selectedCategory == "Bars")
+                    }
+                    
+                    Button {
+                        toggleCategory("Food")
+                    } label: {
+                        CategoryChip(icon: "fork.knife", label: "Food", isSelected: selectedCategory == "Food")
+                    }
+                    
+                    Button {
+                        toggleCategory("Clubs")
+                    } label: {
+                        CategoryChip(icon: "figure.dance", label: "Clubs", isSelected: selectedCategory == "Clubs")
+                    }
                 }
-                
-                Button {
-                    toggleCategory("Food")
-                } label: {
-                    CategoryChip(icon: "fork.knife", label: "Food", isSelected: selectedCategory == "Food")
-                }
-                
-                Button {
-                    toggleCategory("Clubs")
-                } label: {
-                    CategoryChip(icon: "figure.dance", label: "Clubs", isSelected: selectedCategory == "Clubs")
-                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 20)
+        }
+    }
+    
+    var vibesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Vibes")
+                .font(.headline)
+                .padding(.horizontal, 20)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(["Chill", "Party", "Date", "Fancy", "Good Mood"], id: \.self) { vibe in
+                        Button {
+                            toggleCategory(vibe)
+                        } label: {
+                            CategoryChip(
+                                icon: getIconForVibe(vibe),
+                                label: vibe,
+                                isSelected: selectedCategory == vibe
+                            )
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+    
+    private func getIconForVibe(_ vibe: String) -> String {
+        switch vibe {
+        case "Chill": return "leaf.fill"
+        case "Party": return "party.popper.fill"
+        case "Date": return "heart.fill"
+        case "Fancy": return "star.fill"
+        case "Good Mood": return "face.smiling.fill"
+        default: return "sparkles"
         }
     }
     
@@ -186,11 +242,13 @@ struct DiscoverView: View {
             
             LazyVStack(spacing: 16) {
                 // Show the rest of the venues
-                ForEach(venueDiscoveryManager.venues.dropFirst(5)) { venue in
+                ForEach(Array(venueDiscoveryManager.venues.dropFirst(5).enumerated()), id: \.element.id) { index, venue in
                     NearbyVenueRow(venue: venue)
                         .onTapGesture {
                             selectedVenue = venue
                         }
+                        .transition(.opacity.combined(with: .slide))
+                        .animation(.easeOut.delay(Double(index) * 0.05), value: venueDiscoveryManager.venues)
                 }
             }
             .padding(.horizontal, 20)
