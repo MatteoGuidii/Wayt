@@ -51,7 +51,7 @@ class VenueDiscoveryManager: ObservableObject {
         Task {
             let queries = searchService.getQueries(for: searchText)
             var allVenues: [Venue] = []
-            var seenIds: Set<UUID> = []
+            var seenKeys: Set<String> = []
             
             await withTaskGroup(of: [Venue].self) { group in
                 for query in queries {
@@ -66,9 +66,13 @@ class VenueDiscoveryManager: ObservableObject {
                 
                 for await venues in group {
                     for venue in venues {
-                        if !seenIds.contains(venue.id) {
+                        // Create a unique key based on name and location to prevent duplicates
+                        // distinct from the random UUID
+                        let key = "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)"
+                        
+                        if !seenKeys.contains(key) {
                             allVenues.append(venue)
-                            seenIds.insert(venue.id)
+                            seenKeys.insert(key)
                         }
                     }
                 }

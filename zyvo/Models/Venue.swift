@@ -45,7 +45,8 @@ struct Venue: Identifiable, Hashable {
     static func == (lhs: Venue, rhs: Venue) -> Bool {
         lhs.name == rhs.name &&
         lhs.coordinate.latitude == rhs.coordinate.latitude &&
-        lhs.coordinate.longitude == rhs.coordinate.longitude
+        lhs.coordinate.longitude == rhs.coordinate.longitude &&
+        lhs.image === rhs.image
     }
     
     var type: VenueType {
