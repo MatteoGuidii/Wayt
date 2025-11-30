@@ -15,11 +15,9 @@ class VenueSearchService {
         "good mood": ["Cocktail Bar", "Tapas", "Bistro", "Rooftop Bar"]
     ]
     
-    // Default discovery queries (excluding Cafe)
+    // Default discovery queries (Reduced to prevent rate limiting)
     private let discoveryQueries = [
-        "Cocktail Bar", "Wine Bar", "Pub", "Gastropub",
-        "Night Club", "Live Music", "Tapas", "Speakeasy",
-        "Rooftop Bar", "Jazz Club", "Lounge"
+        "Bar", "Night Club", "Live Music", "Lounge"
     ]
     
     func getQueries(for searchText: String) -> [String] {
