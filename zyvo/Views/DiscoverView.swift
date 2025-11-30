@@ -7,6 +7,8 @@ struct DiscoverView: View {
     @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
     @State private var selectedVenue: Venue?
     @State private var searchText = ""
+    @State private var showMap = true
+    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
     
     var body: some View {
         ZStack {
@@ -40,6 +42,11 @@ struct DiscoverView: View {
                     // Search
                     searchBar
                     
+                    // Map Preview
+                    if showMap {
+                        mapSection
+                    }
+                    
                     if venueDiscoveryManager.isSearching && venueDiscoveryManager.venues.isEmpty {
                         ProgressView()
                             .padding(.top, 40)
@@ -64,7 +71,9 @@ struct DiscoverView: View {
             }
             .refreshable {
                 if let location = locationManager.userLocation {
-                    venueDiscoveryManager.updateUserLocation(location)
+                    // Calculate radius based on current span
+                    let radius = calculateRadius(from: locationManager.region.span)
+                    venueDiscoveryManager.updateUserLocation(location, radius: radius)
                 }
             }
         }
@@ -73,11 +82,36 @@ struct DiscoverView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        .onReceive(locationManager.$region) { region in
-            // Trigger search when we have a valid location
-            let location = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
-            venueDiscoveryManager.updateUserLocation(location)
+        .onChange(of: locationManager.region.center.latitude) { oldValue, newValue in
+            triggerSearchOnMapChange()
         }
+        .onChange(of: locationManager.region.span.latitudeDelta) { oldValue, newValue in
+            triggerSearchOnMapChange()
+        }
+        .onReceive(locationManager.$region) { region in
+            // Sync camera position when location manager updates (e.g. GPS)
+            // We only update if the map isn't being interacted with to avoid fighting
+            // For now, we'll just set it if it's significantly different or on first load
+            // A simple approach is to let the Map handle user interaction and only force update if needed.
+            // But since we want the map to follow the user initially:
+            // cameraPosition = .region(region) // This might cause loops if not careful
+        }
+    }
+    
+    private func triggerSearchOnMapChange() {
+        // Debounce is handled in Manager, but we can also check if we should trigger
+        let center = CLLocation(latitude: locationManager.region.center.latitude, longitude: locationManager.region.center.longitude)
+        let radius = calculateRadius(from: locationManager.region.span)
+        
+        // Use the manager's update logic which handles distance checks
+        venueDiscoveryManager.updateUserLocation(center, radius: radius)
+    }
+    
+    private func calculateRadius(from span: MKCoordinateSpan) -> CLLocationDistance {
+        // 1 degree of latitude is approx 111km
+        // We take half the span as radius
+        let meters = span.latitudeDelta * 111_000 / 2
+        return max(500, min(meters, 50_000)) // Clamp between 500m and 50km
     }
     
     // MARK: - Sections
@@ -89,9 +123,26 @@ struct DiscoverView: View {
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             
-            Text("Find your vibe")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+            HStack {
+                Text("Find your vibe")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                
+                Spacer()
+                
+                Button {
+                    withAnimation {
+                        showMap.toggle()
+                    }
+                } label: {
+                    Image(systemName: showMap ? "map.fill" : "map")
+                        .font(.title2)
+                        .foregroundStyle(.primary)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
@@ -105,13 +156,15 @@ struct DiscoverView: View {
             
             TextField("Search venues, vibes...", text: $searchText)
                 .onSubmit {
-                    venueDiscoveryManager.search(text: searchText)
+                    let radius = calculateRadius(from: locationManager.region.span)
+                    venueDiscoveryManager.search(text: searchText, radius: radius)
                 }
             
             if !searchText.isEmpty {
                 Button {
                     searchText = ""
-                    venueDiscoveryManager.search(text: "")
+                    let radius = calculateRadius(from: locationManager.region.span)
+                    venueDiscoveryManager.search(text: "", radius: radius)
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
@@ -122,6 +175,34 @@ struct DiscoverView: View {
         .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 20)
+    }
+    
+    var mapSection: some View {
+        Map(position: $cameraPosition) {
+            UserAnnotation()
+            
+            ForEach(venueDiscoveryManager.venues) { venue in
+                Annotation(venue.name, coordinate: venue.coordinate) {
+                    Button {
+                        selectedVenue = venue
+                    } label: {
+                        Image(systemName: venue.systemImage)
+                            .padding(6)
+                            .background(venue.themeColor)
+                            .foregroundStyle(.white)
+                            .clipShape(Circle())
+                            .shadow(radius: 4)
+                    }
+                }
+            }
+        }
+        .onMapCameraChange(frequency: .continuous) { context in
+            locationManager.region = context.region
+        }
+        .frame(height: 200)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.horizontal, 20)
+        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
     
     var featuredSection: some View {
@@ -223,14 +304,15 @@ struct DiscoverView: View {
     }
     
     private func toggleCategory(_ category: String) {
+        let radius = calculateRadius(from: locationManager.region.span)
         if selectedCategory == category {
             // Deselect and clear search
             selectedCategory = nil
-            venueDiscoveryManager.search(text: "")
+            venueDiscoveryManager.search(text: "", radius: radius)
         } else {
             // Select and search
             selectedCategory = category
-            venueDiscoveryManager.search(text: category)
+            venueDiscoveryManager.search(text: category, radius: radius)
         }
     }
     
@@ -260,10 +342,10 @@ struct DiscoverView: View {
     var timeBasedGreeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
-        case 5..<12: return "Good Morning"
-        case 12..<17: return "Good Afternoon"
-        case 17..<22: return "Good Evening"
-        default: return "Good Night"
+        case 5..<12: return NSLocalizedString("Good Morning", comment: "")
+        case 12..<17: return NSLocalizedString("Good Afternoon", comment: "")
+        case 17..<22: return NSLocalizedString("Good Evening", comment: "")
+        default: return NSLocalizedString("Good Night", comment: "")
         }
     }
 }
@@ -367,7 +449,7 @@ struct CategoryChip: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
-            Text(label)
+            Text(NSLocalizedString(label, comment: ""))
         }
         .font(.subheadline.weight(.medium))
         .foregroundStyle(isSelected ? .white : .primary)

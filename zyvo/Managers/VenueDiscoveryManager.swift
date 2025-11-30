@@ -9,46 +9,73 @@ class VenueDiscoveryManager: ObservableObject {
     @Published var isSearching = false
     
     private var lastSearchLocation: CLLocation?
-    private let searchRadius: CLLocationDistance = 5000 // 5km
+    private var lastSearchRadius: CLLocationDistance = 5000 // Default 5km
     
     private let searchService = VenueSearchService()
+    private let cacheManager = VenueCacheManager.shared
     
-
+    private var searchTask: Task<Void, Never>?
+    
+    init() {
+        // Load cached venues on startup
+        Task {
+            let cached = await cacheManager.loadVenues()
+            if !cached.isEmpty {
+                self.venues = cached
+            }
+        }
+    }
     
     // MARK: - Public API
     
     /// Triggers a search around the user's location if they have moved significantly
-    func updateUserLocation(_ location: CLLocation) {
+    func updateUserLocation(_ location: CLLocation, radius: CLLocationDistance = 5000) {
         // Only search if we haven't searched yet, or if we've moved significantly (e.g. 500m)
+        // OR if the radius has changed significantly (e.g. by 20%)
         guard let lastLocation = lastSearchLocation else {
-            performSearch(near: location.coordinate)
+            performSearch(near: location.coordinate, radius: radius)
             lastSearchLocation = location
+            lastSearchRadius = radius
             return
         }
         
-        if location.distance(from: lastLocation) > 500 {
-            performSearch(near: location.coordinate)
+        let distance = location.distance(from: lastLocation)
+        let radiusRatio = abs(radius - lastSearchRadius) / lastSearchRadius
+        
+        if distance > 500 || radiusRatio > 0.2 {
+            performSearch(near: location.coordinate, radius: radius)
             lastSearchLocation = location
+            lastSearchRadius = radius
         }
     }
     
     /// Performs a search with a specific query (e.g. from search bar)
-    func search(text: String) {
+    func search(text: String, radius: CLLocationDistance? = nil) {
         guard let location = lastSearchLocation else { return }
-        performSearch(near: location.coordinate, searchText: text)
+        let searchRadius = radius ?? lastSearchRadius
+        performSearch(near: location.coordinate, searchText: text, radius: searchRadius)
     }
     
-    private func performSearch(near center: CLLocationCoordinate2D, searchText: String = "") {
-        guard !isSearching else { return }
+    private func performSearch(near center: CLLocationCoordinate2D, searchText: String = "", radius: CLLocationDistance) {
+        // Cancel previous search task
+        searchTask?.cancel()
+        
         isSearching = true
         
-        let searchRegion = MKCoordinateRegion(
-            center: center,
-            latitudinalMeters: searchRadius * 2,
-            longitudinalMeters: searchRadius * 2
-        )
-        
-        Task {
+        searchTask = Task {
+            // Debounce for map interactions (optional, but good for rapid zooming)
+            if searchText.isEmpty {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s debounce for location updates
+            }
+            
+            if Task.isCancelled { return }
+            
+            let searchRegion = MKCoordinateRegion(
+                center: center,
+                latitudinalMeters: radius * 2,
+                longitudinalMeters: radius * 2
+            )
+            
             let queries = searchService.getQueries(for: searchText)
             var allVenues: [Venue] = []
             var seenKeys: Set<String> = []
@@ -67,7 +94,6 @@ class VenueDiscoveryManager: ObservableObject {
                 for await venues in group {
                     for venue in venues {
                         // Create a unique key based on name and location to prevent duplicates
-                        // distinct from the random UUID
                         let key = "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)"
                         
                         if !seenKeys.contains(key) {
@@ -78,12 +104,14 @@ class VenueDiscoveryManager: ObservableObject {
                 }
             }
             
+            if Task.isCancelled { return }
+            
             // Filter and Sort
             let userLocation = CLLocation(latitude: center.latitude, longitude: center.longitude)
             
             let filteredVenues = allVenues.filter { venue in
                 let venueLoc = CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude)
-                let distanceOk = venueLoc.distance(from: userLocation) <= self.searchRadius
+                let distanceOk = venueLoc.distance(from: userLocation) <= radius
                 let typeOk = venue.type.isNightlife
                 return distanceOk && typeOk
             }
@@ -99,6 +127,23 @@ class VenueDiscoveryManager: ObservableObject {
                 self.venues = sortedVenues
                 self.isSearching = false
                 
+                // Save to cache
+                let cachedVenues = sortedVenues.map { venue in
+                    VenueCacheManager.CachedVenue(
+                        id: venue.id,
+                        name: venue.name,
+                        latitude: venue.coordinate.latitude,
+                        longitude: venue.coordinate.longitude,
+                        categoryRawValue: venue.category?.rawValue,
+                        imageData: nil
+                    )
+                }
+                
+                Task {
+                    await self.cacheManager.saveVenues(cachedVenues)
+                    await self.cacheManager.saveImages(for: sortedVenues)
+                }
+                
                 // Start fetching images
                 Task {
                     await self.fetchImages(for: sortedVenues)
@@ -113,8 +158,8 @@ class VenueDiscoveryManager: ObservableObject {
     private let maxImageFetchCount = 10 // Reduced from 20 to prevent throttling
     
     private func fetchImages(for venues: [Venue]) async {
-        // 0. Check cache first and update immediately
-        var venuesToFetch: [Venue] = []
+        // 0. Check memory cache first and identify candidates
+        var venuesToProcess: [Venue] = []
         
         await MainActor.run {
             var currentVenues = self.venues
@@ -122,13 +167,18 @@ class VenueDiscoveryManager: ObservableObject {
             
             for (index, venue) in currentVenues.enumerated() {
                 let cacheKey = "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)"
+                
+                // Check memory cache
                 if let cachedImage = imageCache[cacheKey] {
-                    currentVenues[index].image = cachedImage
-                    hasChanges = true
+                    if currentVenues[index].image == nil {
+                        currentVenues[index].image = cachedImage
+                        hasChanges = true
+                    }
                 } else {
-                    // Only queue for fetching if within the limit
+                    // Not in memory, so we need to process it (check disk, then network)
+                    // Only queue if within limit
                     if index < maxImageFetchCount {
-                        venuesToFetch.append(venue)
+                        venuesToProcess.append(venue)
                     }
                 }
             }
@@ -138,34 +188,53 @@ class VenueDiscoveryManager: ObservableObject {
             }
         }
         
-        guard !venuesToFetch.isEmpty else { return }
+        guard !venuesToProcess.isEmpty else { return }
         
-        // 1. Prioritize the first 6 venues (Visible on screen)
+        // 1. Check disk cache for these venues
+        var venuesNeedingNetwork: [Venue] = []
+        
+        for venue in venuesToProcess {
+            if Task.isCancelled { return }
+            
+            if let diskImage = await self.cacheManager.loadImage(for: venue.id) {
+                // Found on disk, update UI and memory cache
+                let cacheKey = "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)"
+                await MainActor.run {
+                    self.imageCache[cacheKey] = diskImage
+                    if let index = self.venues.firstIndex(where: { $0.id == venue.id }) {
+                        self.venues[index].image = diskImage
+                    }
+                }
+            } else {
+                // Not on disk, needs network
+                venuesNeedingNetwork.append(venue)
+            }
+        }
+        
+        guard !venuesNeedingNetwork.isEmpty else { return }
+        
+        // 2. Prioritize the first 6 venues (Visible on screen)
         let priorityCount = 6
-        let priorityVenues = Array(venuesToFetch.prefix(priorityCount))
-        let remainingVenues = Array(venuesToFetch.dropFirst(priorityCount))
+        let priorityVenues = Array(venuesNeedingNetwork.prefix(priorityCount))
+        let remainingVenues = Array(venuesNeedingNetwork.dropFirst(priorityCount))
         
         // Fetch priority batch immediately
         if !priorityVenues.isEmpty {
             await fetchBatch(venues: priorityVenues)
         }
         
-        // 2. Fetch the rest in smaller, slower batches to avoid throttling
-        // Apple limits are tight (approx 50 requests per minute)
+        // 3. Fetch the rest in smaller, slower batches to avoid throttling
         let batchSize = 4
         
         for chunk in remainingVenues.chunked(into: batchSize) {
-            // Significant delay to stay under rate limits
-            // 2.0 seconds delay between batches
+            if Task.isCancelled { return }
             try? await Task.sleep(nanoseconds: 2_000_000_000) // 2.0 seconds
-            
             await fetchBatch(venues: chunk)
         }
     }
     
     private func fetchBatch(venues: [Venue]) async {
         await withTaskGroup(of: (UUID, UIImage?, String).self) { group in
-            // Capture MainActor-isolated properties before hopping off the main actor
             let items: [(id: UUID, mapItem: MKMapItem, cacheKey: String)] = await MainActor.run {
                 venues.map { venue in
                     (
@@ -178,7 +247,9 @@ class VenueDiscoveryManager: ObservableObject {
             
             for item in items {
                 group.addTask {
-                    // Double check cache before request (in case another batch got it)
+                    if Task.isCancelled { return (item.id, nil, item.cacheKey) }
+                    
+                    // Double check cache
                     if let cached = await MainActor.run(body: { self.imageCache[item.cacheKey] }) {
                         return (item.id, cached, item.cacheKey)
                     }
@@ -200,7 +271,6 @@ class VenueDiscoveryManager: ObservableObject {
                 }
             }
             
-            // Collect results for this batch
             var updates: [(UUID, UIImage, String)] = []
             for await (id, image, key) in group {
                 if let image = image {
@@ -208,7 +278,6 @@ class VenueDiscoveryManager: ObservableObject {
                 }
             }
             
-            // Update the main array and cache
             if !updates.isEmpty {
                 await MainActor.run {
                     var currentVenues = self.venues
@@ -220,6 +289,11 @@ class VenueDiscoveryManager: ObservableObject {
                         if let index = currentVenues.firstIndex(where: { $0.id == id }) {
                             currentVenues[index].image = image
                             hasChanges = true
+                            
+                            // Save image to disk cache
+                            Task {
+                                await self.cacheManager.saveImage(image, for: id)
+                            }
                         }
                     }
                     
@@ -241,3 +315,4 @@ extension Array {
         }
     }
 }
+
