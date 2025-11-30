@@ -1,206 +1,294 @@
-//
-//  DiscoverView.swift
-//  zyvo
-//
-//  Created by Claude Code
-//
-
 import SwiftUI
+import MapKit
+import CoreLocation
 
 struct DiscoverView: View {
+    @EnvironmentObject var locationManager: LocationManager
+    @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
+    @State private var selectedVenue: Venue?
+    @State private var searchText = ""
+    
     var body: some View {
         ZStack {
-            // Purple-blue gradient background
-            LinearGradient(
-                colors: [
-                    Color.purple.opacity(0.3),
-                    Color.blue.opacity(0.4)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            // Background
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
+            
+            // Ambient Gradient Mesh
+            GeometryReader { proxy in
+                ZStack {
+                    Circle()
+                        .fill(Color.purple.opacity(0.15))
+                        .frame(width: proxy.size.width * 0.8)
+                        .offset(x: -proxy.size.width * 0.2, y: -proxy.size.height * 0.2)
+                        .blur(radius: 60)
+                    
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: proxy.size.width * 0.8)
+                        .offset(x: proxy.size.width * 0.2, y: proxy.size.height * 0.1)
+                        .blur(radius: 60)
+                }
+            }
             .ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 20) {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
                     // Header
-                    Text("Discover")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-
-                    // Search bar
+                    headerSection
+                    
+                    // Search
                     searchBar
-
-                    // Categories
-                    categoriesSection
-
-                    // Trending venues
-                    trendingSection
-
-                    Spacer(minLength: 40)
+                    
+                    if venueDiscoveryManager.isSearching && venueDiscoveryManager.venues.isEmpty {
+                        ProgressView()
+                            .padding(.top, 40)
+                    } else {
+                        // Featured / Top Picks
+                        if !venueDiscoveryManager.venues.isEmpty {
+                            featuredSection
+                        }
+                        
+                        // Categories
+                        categoriesSection
+                        
+                        // Nearby List
+                        nearbySection
+                    }
+                    
+                    Spacer(minLength: 100) // Bottom padding for tab bar
+                }
+            }
+            .refreshable {
+                if let location = locationManager.userLocation {
+                    venueDiscoveryManager.updateUserLocation(location)
                 }
             }
         }
+        .sheet(item: $selectedVenue) { venue in
+            VenueDetailView(venue: venue)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .onReceive(locationManager.$region) { region in
+            // Trigger search when we have a valid location
+            let location = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+            venueDiscoveryManager.updateUserLocation(location)
+        }
     }
-}
-
-// MARK: - Components
-private extension DiscoverView {
+    
+    // MARK: - Sections
+    
+    var headerSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(timeBasedGreeting)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            
+            Text("Find your vibe")
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+    }
+    
     var searchBar: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.white.opacity(0.6))
-
-            Text("Search venues, vibes, music...")
-                .foregroundStyle(.white.opacity(0.4))
-
-            Spacer()
+                .foregroundStyle(.secondary)
+            
+            TextField("Search venues, vibes...", text: $searchText)
+                .onSubmit {
+                    venueDiscoveryManager.search(text: searchText)
+                }
         }
         .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 20)
     }
-
-    var categoriesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Categories")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
+    
+    var featuredSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Featured")
+                .font(.title3.weight(.bold))
                 .padding(.horizontal, 20)
-
+            
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    CategoryChip(icon: "music.note", label: "Live Music")
-                    CategoryChip(icon: "wineglass", label: "Cocktail Bars")
-                    CategoryChip(icon: "sparkles", label: "Clubs")
-                    CategoryChip(icon: "building.2", label: "Rooftop")
-                    CategoryChip(icon: "fork.knife", label: "Lounge")
+                HStack(spacing: 16) {
+                    // Show top 5 venues as featured
+                    ForEach(venueDiscoveryManager.venues.prefix(5)) { venue in
+                        FeaturedVenueCard(venue: venue)
+                            .onTapGesture {
+                                selectedVenue = venue
+                            }
+                    }
                 }
                 .padding(.horizontal, 20)
             }
         }
     }
-
-    var trendingSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Trending Now")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 20)
-
-            VStack(spacing: 12) {
-                TrendingVenueCard(
-                    name: "The Blue Note",
-                    type: "Jazz Club",
-                    vibe: "Packed",
-                    distance: "0.3 mi"
-                )
-
-                TrendingVenueCard(
-                    name: "Skybar Rooftop",
-                    type: "Rooftop Bar",
-                    vibe: "Chill",
-                    distance: "0.8 mi"
-                )
-
-                TrendingVenueCard(
-                    name: "The Underground",
-                    type: "Night Club",
-                    vibe: "Electric",
-                    distance: "1.2 mi"
-                )
+    
+    var categoriesSection: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                CategoryChip(icon: "music.mic", label: "Live Music")
+                CategoryChip(icon: "wineglass.fill", label: "Bars")
+                CategoryChip(icon: "fork.knife", label: "Food")
+                CategoryChip(icon: "figure.dance", label: "Clubs")
             }
             .padding(.horizontal, 20)
+        }
+    }
+    
+    var nearbySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Nearby")
+                .font(.title3.weight(.bold))
+                .padding(.horizontal, 20)
+            
+            LazyVStack(spacing: 16) {
+                // Show the rest of the venues
+                ForEach(venueDiscoveryManager.venues.dropFirst(5)) { venue in
+                    NearbyVenueRow(venue: venue)
+                        .onTapGesture {
+                            selectedVenue = venue
+                        }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+    
+    // MARK: - Helpers
+    
+    var timeBasedGreeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12: return "Good Morning"
+        case 12..<17: return "Good Afternoon"
+        case 17..<22: return "Good Evening"
+        default: return "Good Night"
         }
     }
 }
 
 // MARK: - Subviews
-private struct CategoryChip: View {
-    let icon: String
-    let label: String
 
+struct FeaturedVenueCard: View {
+    let venue: Venue
+    
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.callout)
-
-            Text(label)
-                .font(.subheadline.weight(.medium))
+        VStack(alignment: .leading, spacing: 0) {
+            // Image
+            if let image = venue.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 260, height: 160)
+                    .clipped()
+            } else {
+                ZStack {
+                    Rectangle()
+                        .fill(venue.themeColor.gradient)
+                    Image(systemName: venue.systemImage)
+                        .font(.system(size: 40))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .frame(width: 260, height: 160)
+            }
+            
+            // Info
+            VStack(alignment: .leading, spacing: 6) {
+                Text(venue.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+                
+                Text(venue.category?.rawValue.replacingOccurrences(of: "MKPOICategory", with: "") ?? "Venue")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+            }
+            .padding(12)
+            .frame(width: 260, alignment: .leading)
+            .background(.ultraThinMaterial)
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: Capsule())
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
 }
 
-private struct TrendingVenueCard: View {
-    let name: String
-    let type: String
-    let vibe: String
-    let distance: String
-
+struct NearbyVenueRow: View {
+    let venue: Venue
+    
     var body: some View {
-        HStack(spacing: 12) {
-            // Venue image placeholder
-            RoundedRectangle(cornerRadius: 12)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.purple, Color.blue],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+        HStack(spacing: 16) {
+            // Thumb
+            if let image = venue.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 70, height: 70)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(venue.themeColor.opacity(0.2))
+                    .frame(width: 70, height: 70)
+                    .overlay(
+                        Image(systemName: venue.systemImage)
+                            .foregroundStyle(venue.themeColor)
                     )
-                )
-                .frame(width: 70, height: 70)
-                .overlay {
-                    Image(systemName: "photo")
-                        .font(.title2)
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-
-                Text(type)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
-
-                HStack(spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "waveform")
-                            .font(.caption2)
-                        Text(vibe)
-                            .font(.caption2.weight(.medium))
-                    }
-                    .foregroundStyle(.purple)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.purple.opacity(0.2), in: Capsule())
-
-                    Text(distance)
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.5))
-                }
             }
-
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(venue.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                
+                Text(venue.category?.rawValue.replacingOccurrences(of: "MKPOICategory", with: "") ?? "Venue")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            
             Spacer()
-
+            
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.3))
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
         .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+struct CategoryChip: View {
+    let icon: String
+    let label: String
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+            Text(label)
+        }
+        .font(.subheadline.weight(.medium))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(.secondary.opacity(0.2), lineWidth: 1)
+        )
     }
 }
 
 #Preview {
     DiscoverView()
+        .environmentObject(LocationManager())
 }

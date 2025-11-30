@@ -13,7 +13,7 @@ struct MainMapView: View {
     @State private var currentCoordinate: CLLocationCoordinate2D?
     @State private var currentPitch: CGFloat = 0
     
-    @StateObject private var venueDiscoveryManager = VenueDiscoveryManager()
+    @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
     @State private var selectedVenue: Venue?
 
     // Map scope to bind controls to this specific map
