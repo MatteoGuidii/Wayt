@@ -66,7 +66,7 @@ struct DiscoverView: View {
             }
         }
         .sheet(item: $selectedVenue) { venue in
-            VenueDetailView(venue: venue)
+            VenueDetailView(venue: venueDiscoveryManager.venues.first(where: { $0.id == venue.id }) ?? venue)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -132,15 +132,49 @@ struct DiscoverView: View {
         }
     }
     
+    @State private var selectedCategory: String?
+    
     var categoriesSection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                CategoryChip(icon: "music.mic", label: "Live Music")
-                CategoryChip(icon: "wineglass.fill", label: "Bars")
-                CategoryChip(icon: "fork.knife", label: "Food")
-                CategoryChip(icon: "figure.dance", label: "Clubs")
+                Button {
+                    toggleCategory("Live Music")
+                } label: {
+                    CategoryChip(icon: "music.mic", label: "Live Music", isSelected: selectedCategory == "Live Music")
+                }
+                
+                Button {
+                    toggleCategory("Bars")
+                } label: {
+                    CategoryChip(icon: "wineglass.fill", label: "Bars", isSelected: selectedCategory == "Bars")
+                }
+                
+                Button {
+                    toggleCategory("Food")
+                } label: {
+                    CategoryChip(icon: "fork.knife", label: "Food", isSelected: selectedCategory == "Food")
+                }
+                
+                Button {
+                    toggleCategory("Clubs")
+                } label: {
+                    CategoryChip(icon: "figure.dance", label: "Clubs", isSelected: selectedCategory == "Clubs")
+                }
             }
+            .buttonStyle(.plain)
             .padding(.horizontal, 20)
+        }
+    }
+    
+    private func toggleCategory(_ category: String) {
+        if selectedCategory == category {
+            // Deselect and clear search
+            selectedCategory = nil
+            venueDiscoveryManager.search(text: "")
+        } else {
+            // Select and search
+            selectedCategory = category
+            venueDiscoveryManager.search(text: category)
         }
     }
     
@@ -270,6 +304,7 @@ struct NearbyVenueRow: View {
 struct CategoryChip: View {
     let icon: String
     let label: String
+    var isSelected: Bool = false
     
     var body: some View {
         HStack(spacing: 6) {
@@ -277,13 +312,15 @@ struct CategoryChip: View {
             Text(label)
         }
         .font(.subheadline.weight(.medium))
+        .foregroundStyle(isSelected ? .white : .primary)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .background(isSelected ? Color.blue : Color.clear)
         .background(.ultraThinMaterial)
         .clipShape(Capsule())
         .overlay(
             Capsule()
-                .strokeBorder(.secondary.opacity(0.2), lineWidth: 1)
+                .strokeBorder(isSelected ? Color.blue : .secondary.opacity(0.2), lineWidth: 1)
         )
     }
 }

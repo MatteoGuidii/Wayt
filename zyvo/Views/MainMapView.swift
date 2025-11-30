@@ -76,7 +76,7 @@ struct MainMapView: View {
         }
         .mapScope(mapScope)
         .sheet(item: $selectedVenue) { venue in
-            VenueDetailView(venue: venue)
+            VenueDetailView(venue: venueDiscoveryManager.venues.first(where: { $0.id == venue.id }) ?? venue)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
