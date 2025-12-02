@@ -101,7 +101,7 @@ struct VenueDetailView: View {
     }
     
     private func getAddress(for mapItem: MKMapItem) -> String {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 16.0, *) {
             // Use non-deprecated APIs. Since formatted address strings may require async lookups,
             // fall back to a concise coordinate representation which is always available.
             let coord = mapItem.location.coordinate

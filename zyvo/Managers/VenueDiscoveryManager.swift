@@ -13,6 +13,7 @@ class VenueDiscoveryManager: ObservableObject {
     
     private let searchService = VenueSearchService()
     private let cacheManager = VenueCacheManager.shared
+    private let imageService = VenueImageService.shared
     
     private var searchTask: Task<Void, Never>?
     
@@ -146,159 +147,11 @@ class VenueDiscoveryManager: ObservableObject {
                 
                 // Start fetching images
                 Task {
-                    await self.fetchImages(for: sortedVenues)
-                }
-            }
-        }
-    }
-    
-    // MARK: - Image Fetching (Look Around Snapshots)
-    
-    private var imageCache: [String: UIImage] = [:]
-    private let maxImageFetchCount = 10 // Reduced from 20 to prevent throttling
-    
-    private func fetchImages(for venues: [Venue]) async {
-        // 0. Check memory cache first and identify candidates
-        var venuesToProcess: [Venue] = []
-        
-        await MainActor.run {
-            var currentVenues = self.venues
-            var hasChanges = false
-            
-            for (index, venue) in currentVenues.enumerated() {
-                let cacheKey = "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)"
-                
-                // Check memory cache
-                if let cachedImage = imageCache[cacheKey] {
-                    if currentVenues[index].image == nil {
-                        currentVenues[index].image = cachedImage
-                        hasChanges = true
-                    }
-                } else {
-                    // Not in memory, so we need to process it (check disk, then network)
-                    // Only queue if within limit
-                    if index < maxImageFetchCount {
-                        venuesToProcess.append(venue)
-                    }
-                }
-            }
-            
-            if hasChanges {
-                self.venues = currentVenues
-            }
-        }
-        
-        guard !venuesToProcess.isEmpty else { return }
-        
-        // 1. Check disk cache for these venues
-        var venuesNeedingNetwork: [Venue] = []
-        
-        for venue in venuesToProcess {
-            if Task.isCancelled { return }
-            
-            if let diskImage = await self.cacheManager.loadImage(for: venue.id) {
-                // Found on disk, update UI and memory cache
-                let cacheKey = "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)"
-                await MainActor.run {
-                    self.imageCache[cacheKey] = diskImage
-                    if let index = self.venues.firstIndex(where: { $0.id == venue.id }) {
-                        self.venues[index].image = diskImage
-                    }
-                }
-            } else {
-                // Not on disk, needs network
-                venuesNeedingNetwork.append(venue)
-            }
-        }
-        
-        guard !venuesNeedingNetwork.isEmpty else { return }
-        
-        // 2. Prioritize the first 6 venues (Visible on screen)
-        let priorityCount = 6
-        let priorityVenues = Array(venuesNeedingNetwork.prefix(priorityCount))
-        let remainingVenues = Array(venuesNeedingNetwork.dropFirst(priorityCount))
-        
-        // Fetch priority batch immediately
-        if !priorityVenues.isEmpty {
-            await fetchBatch(venues: priorityVenues)
-        }
-        
-        // 3. Fetch the rest in smaller, slower batches to avoid throttling
-        let batchSize = 4
-        
-        for chunk in remainingVenues.chunked(into: batchSize) {
-            if Task.isCancelled { return }
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2.0 seconds
-            await fetchBatch(venues: chunk)
-        }
-    }
-    
-    private func fetchBatch(venues: [Venue]) async {
-        await withTaskGroup(of: (UUID, UIImage?, String).self) { group in
-            let items: [(id: UUID, mapItem: MKMapItem, cacheKey: String)] = await MainActor.run {
-                venues.map { venue in
-                    (
-                        id: venue.id,
-                        mapItem: venue.mapItem,
-                        cacheKey: "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)"
-                    )
-                }
-            }
-            
-            for item in items {
-                group.addTask {
-                    if Task.isCancelled { return (item.id, nil, item.cacheKey) }
-                    
-                    // Double check cache
-                    if let cached = await MainActor.run(body: { self.imageCache[item.cacheKey] }) {
-                        return (item.id, cached, item.cacheKey)
-                    }
-                    
-                    do {
-                        let request = MKLookAroundSceneRequest(mapItem: item.mapItem)
-                        if let scene = try await request.scene {
-                            let options = MKLookAroundSnapshotter.Options()
-                            options.size = CGSize(width: 300, height: 200)
-                            
-                            let snapshotter = MKLookAroundSnapshotter(scene: scene, options: options)
-                            let snapshot = try await snapshotter.snapshot
-                            return (item.id, snapshot.image, item.cacheKey)
+                    await self.imageService.fetchImages(for: sortedVenues) { [weak self] id, image in
+                        guard let self = self else { return }
+                        if let index = self.venues.firstIndex(where: { $0.id == id }) {
+                            self.venues[index].image = image
                         }
-                    } catch {
-                        // Ignore errors
-                    }
-                    return (item.id, nil, item.cacheKey)
-                }
-            }
-            
-            var updates: [(UUID, UIImage, String)] = []
-            for await (id, image, key) in group {
-                if let image = image {
-                    updates.append((id, image, key))
-                }
-            }
-            
-            if !updates.isEmpty {
-                await MainActor.run {
-                    var currentVenues = self.venues
-                    var hasChanges = false
-                    
-                    for (id, image, key) in updates {
-                        self.imageCache[key] = image
-                        
-                        if let index = currentVenues.firstIndex(where: { $0.id == id }) {
-                            currentVenues[index].image = image
-                            hasChanges = true
-                            
-                            // Save image to disk cache
-                            Task {
-                                await self.cacheManager.saveImage(image, for: id)
-                            }
-                        }
-                    }
-                    
-                    if hasChanges {
-                        self.venues = currentVenues
                     }
                 }
             }

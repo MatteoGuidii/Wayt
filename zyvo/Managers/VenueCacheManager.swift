@@ -54,18 +54,15 @@ actor VenueCacheManager {
         }
     }
     
-    func loadVenues() -> [Venue] {
+    func loadVenues() async -> [Venue] {
         guard let data = try? Data(contentsOf: venuesFile),
               let cachedVenues = try? JSONDecoder().decode([CachedVenue].self, from: data) else {
             return []
         }
         
-        return cachedVenues.map { cached in
-            // Reconstruct Venue
-            // Since we can't fully reconstruct MKMapItem easily without a network lookup,
-            // we will create a "lite" version or use a placeholder MKMapItem.
-            // For this implementation, we'll create a basic MKMapItem with a placemark.
-            
+        var venues: [Venue] = []
+        for cached in cachedVenues {
+            // Reconstruct a basic MKMapItem using MKPlacemark for compatibility across iOS versions
             let coordinate = CLLocationCoordinate2D(latitude: cached.latitude, longitude: cached.longitude)
             let placemark = MKPlacemark(coordinate: coordinate)
             let mapItem = MKMapItem(placemark: placemark)
@@ -73,15 +70,18 @@ actor VenueCacheManager {
             if let catRaw = cached.categoryRawValue {
                 mapItem.pointOfInterestCategory = MKPointOfInterestCategory(rawValue: catRaw)
             }
-            
-            var venue = Venue(mapItem: mapItem)
-            // Load image
-            if let image = loadImage(for: cached.id) {
-                venue.image = image
+
+            let image = loadImage(for: cached.id)
+            let venue: Venue = await MainActor.run {
+                var v = Venue(mapItem: mapItem)
+                if let image {
+                    v.image = image
+                }
+                return v
             }
-            
-            return venue
+            venues.append(venue)
         }
+        return venues
     }
     
     // MARK: - Images
