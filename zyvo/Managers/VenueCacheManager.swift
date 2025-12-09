@@ -62,10 +62,18 @@ actor VenueCacheManager {
         
         var venues: [Venue] = []
         for cached in cachedVenues {
-            // Reconstruct a basic MKMapItem using MKPlacemark for compatibility across iOS versions
+            // Reconstruct a basic MKMapItem using modern API
             let coordinate = CLLocationCoordinate2D(latitude: cached.latitude, longitude: cached.longitude)
-            let placemark = MKPlacemark(coordinate: coordinate)
-            let mapItem = MKMapItem(placemark: placemark)
+            let location = CLLocation(latitude: cached.latitude, longitude: cached.longitude)
+
+            let mapItem: MKMapItem
+            if #available(iOS 17.0, *) {
+                mapItem = MKMapItem(location: location, address: nil)
+            } else {
+                let placemark = MKPlacemark(coordinate: coordinate)
+                mapItem = MKMapItem(placemark: placemark)
+            }
+
             mapItem.name = cached.name
             if let catRaw = cached.categoryRawValue {
                 mapItem.pointOfInterestCategory = MKPointOfInterestCategory(rawValue: catRaw)

@@ -56,6 +56,7 @@ final class LocationManager: NSObject, ObservableObject {
         }
     }
 
+    @MainActor
     @discardableResult
     func adjustZoom(by factor: Double) -> MKCoordinateRegion {
         let center = region.center
@@ -64,18 +65,13 @@ final class LocationManager: NSObject, ObservableObject {
             longitudeDelta: clamp(region.span.longitudeDelta * factor)
         )
         let newRegion = MKCoordinateRegion(center: center, span: span)
-
-        DispatchQueue.main.async {
-            self.region = newRegion
-        }
-
+        self.region = newRegion
         return newRegion
     }
 
+    @MainActor
     func syncRegionWithCamera(_ region: MKCoordinateRegion) {
-        DispatchQueue.main.async {
-            self.region = region
-        }
+        self.region = region
     }
 
     private func configureManager() {

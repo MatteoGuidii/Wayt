@@ -44,7 +44,7 @@ struct VibeFilterView: View {
     }
     
     private func toggleCategory(_ category: String) {
-        let radius = calculateRadius(from: locationManager.region.span)
+        let radius = locationManager.region.span.toRadius()
         if selectedCategory == category {
             // Deselect and clear search
             selectedCategory = nil
@@ -54,12 +54,5 @@ struct VibeFilterView: View {
             selectedCategory = category
             venueDiscoveryManager.search(text: category, radius: radius)
         }
-    }
-    
-    private func calculateRadius(from span: MKCoordinateSpan) -> CLLocationDistance {
-        // 1 degree of latitude is approx 111km
-        // We take half the span as radius
-        let meters = span.latitudeDelta * 111_000 / 2
-        return max(500, min(meters, 50_000)) // Clamp between 500m and 50km
     }
 }

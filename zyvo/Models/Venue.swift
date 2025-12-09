@@ -9,11 +9,13 @@ struct Venue: Identifiable, Hashable {
     var name: String {
         mapItem.name ?? "Unknown Venue"
     }
-    
+
+    // Image is intentionally mutable and not included in equality/hash checks
+    // This allows lazy loading of images without affecting venue identity
     var image: UIImage?
     
     var coordinate: CLLocationCoordinate2D {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 17.0, *) {
             return mapItem.location.coordinate
         } else {
             return mapItem.placemark.coordinate
@@ -45,8 +47,7 @@ struct Venue: Identifiable, Hashable {
     static func == (lhs: Venue, rhs: Venue) -> Bool {
         lhs.name == rhs.name &&
         lhs.coordinate.latitude == rhs.coordinate.latitude &&
-        lhs.coordinate.longitude == rhs.coordinate.longitude &&
-        lhs.image === rhs.image
+        lhs.coordinate.longitude == rhs.coordinate.longitude
     }
     
     var type: VenueType {

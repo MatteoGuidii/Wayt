@@ -77,7 +77,7 @@ struct DiscoverView: View {
             .refreshable {
                 if let location = locationManager.userLocation {
                     // Calculate radius based on current span
-                    let radius = calculateRadius(from: locationManager.region.span)
+                    let radius = locationManager.region.span.toRadius()
                     venueDiscoveryManager.updateUserLocation(location, radius: radius)
                 }
             }
@@ -91,8 +91,8 @@ struct DiscoverView: View {
             // Trigger venue search when user location changes
             // We use the region center as a proxy for user location when tracking
             let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
-            let radius = calculateRadius(from: region.span)
-            
+            let radius = region.span.toRadius()
+
             // Delegate update logic to manager (debounce, distance check)
             venueDiscoveryManager.updateUserLocation(center, radius: radius)
         }
@@ -110,15 +110,6 @@ struct DiscoverView: View {
                 }
             }
         }
-    }
-    
-
-    
-    private func calculateRadius(from span: MKCoordinateSpan) -> CLLocationDistance {
-        // 1 degree of latitude is approx 111km
-        // We take half the span as radius
-        let meters = span.latitudeDelta * 111_000 / 2
-        return max(500, min(meters, 50_000)) // Clamp between 500m and 50km
     }
 }
 
