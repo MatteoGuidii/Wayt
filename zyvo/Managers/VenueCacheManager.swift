@@ -5,7 +5,13 @@ import MapKit
 
 actor VenueCacheManager {
     static let shared = VenueCacheManager()
-    
+
+    enum CacheError: Error {
+        case imageCompressionFailed
+        case fileWriteFailed
+        case fileReadFailed
+    }
+
     private let fileManager = FileManager.default
     private let cacheDirectory: URL
     private let venuesFile: URL
@@ -37,19 +43,15 @@ actor VenueCacheManager {
         // For a full app, we might want to store more metadata.
     }
     
-    func saveVenues(_ venues: [CachedVenue]) {
-        do {
-            let data = try JSONEncoder().encode(venues)
-            try data.write(to: venuesFile)
-        } catch {
-            print("Failed to save venues: \(error)")
-        }
+    func saveVenues(_ venues: [CachedVenue]) async throws {
+        let data = try JSONEncoder().encode(venues)
+        try data.write(to: venuesFile, options: .atomic)
     }
     
-    func saveImages(for venues: [Venue]) {
+    func saveImages(for venues: [Venue]) async throws {
         for venue in venues {
             if let image = venue.image {
-                saveImage(image, for: venue.id)
+                try await saveImage(image, for: venue.id)
             }
         }
     }
@@ -79,7 +81,7 @@ actor VenueCacheManager {
                 mapItem.pointOfInterestCategory = MKPointOfInterestCategory(rawValue: catRaw)
             }
 
-            let image = loadImage(for: cached.id)
+            let image = await loadImage(for: cached.id)
             let venue: Venue = await MainActor.run {
                 var v = Venue(mapItem: mapItem)
                 if let image {
@@ -94,19 +96,20 @@ actor VenueCacheManager {
     
     // MARK: - Images
     
-    func saveImage(_ image: UIImage, for id: UUID) {
+    func saveImage(_ image: UIImage, for id: UUID) async throws {
         let fileURL = imagesDirectory.appendingPathComponent("\(id.uuidString).jpg")
-        if let data = image.jpegData(compressionQuality: 0.7) {
-            try? data.write(to: fileURL)
+        guard let data = await image.jpegData(compressionQuality: AppConfiguration.ImageService.compressionQuality) else {
+            throw CacheError.imageCompressionFailed
         }
+        try data.write(to: fileURL, options: .atomic)
     }
     
-    func loadImage(for id: UUID) -> UIImage? {
+    func loadImage(for id: UUID) async -> UIImage? {
         let fileURL = imagesDirectory.appendingPathComponent("\(id.uuidString).jpg")
-        if let data = try? Data(contentsOf: fileURL) {
-            return UIImage(data: data)
+        guard let data = try? Data(contentsOf: fileURL) else {
+            return nil
         }
-        return nil
+        return UIImage(data: data)
     }
     
     func clearCache() {

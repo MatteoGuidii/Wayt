@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import Contacts
 
 struct VenueDetailView: View {
     let venue: Venue
@@ -101,22 +102,29 @@ struct VenueDetailView: View {
     }
     
     private func getAddress(for mapItem: MKMapItem) -> String {
-        if #available(iOS 16.0, *) {
-            // Use non-deprecated APIs. Since formatted address strings may require async lookups,
-            // fall back to a concise coordinate representation which is always available.
-            let coord = mapItem.location.coordinate
-            return String(format: "%.5f, %.5f", coord.latitude, coord.longitude)
-        } else {
-            let placemark = mapItem.placemark
-            let components = [
-                placemark.subThoroughfare,
-                placemark.thoroughfare,
-                placemark.locality,
-                placemark.administrativeArea,
-                placemark.postalCode
-            ].compactMap { $0 }
+        // Try modern postal address API (available iOS 16+)
+        if let postalAddress = mapItem.placemark.postalAddress {
+            let formatter = CNPostalAddressFormatter()
+            return formatter.string(from: postalAddress)
+        }
+
+        // Fall back to placemark data
+        let placemark = mapItem.placemark
+        let components = [
+            placemark.subThoroughfare,
+            placemark.thoroughfare,
+            placemark.locality,
+            placemark.administrativeArea,
+            placemark.postalCode
+        ].compactMap { $0 }
+
+        if !components.isEmpty {
             return components.joined(separator: ", ")
         }
+
+        // Final fallback to coordinate representation
+        let coord = mapItem.placemark.coordinate
+        return String(format: "%.5f, %.5f", coord.latitude, coord.longitude)
     }
 }
 

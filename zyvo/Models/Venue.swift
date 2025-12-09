@@ -28,7 +28,7 @@ struct Venue: Identifiable, Hashable {
     
     var subtitle: String {
         // Fallback to name or empty if address is not easily available without placemark
-        // In iOS 26, we might use mapItem.address if available, but for now let's keep it simple
+        // Future iOS versions may provide simplified address APIs on MKMapItem
         mapItem.name ?? ""
     }
     

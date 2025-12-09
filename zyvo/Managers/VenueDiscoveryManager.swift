@@ -7,9 +7,9 @@ import UIKit
 class VenueDiscoveryManager: ObservableObject {
     @Published var venues: [Venue] = []
     @Published var isSearching = false
-    
+
     private var lastSearchLocation: CLLocation?
-    private var lastSearchRadius: CLLocationDistance = 5000 // Default 5km
+    private var lastSearchRadius: CLLocationDistance = AppConfiguration.Search.defaultSearchRadius
     
     private let searchService = VenueSearchService()
     private let cacheManager = VenueCacheManager.shared
@@ -30,23 +30,26 @@ class VenueDiscoveryManager: ObservableObject {
     // MARK: - Public API
     
     /// Triggers a search around the user's location if they have moved significantly
-    func updateUserLocation(_ location: CLLocation, radius: CLLocationDistance = 5000) {
-        // Only search if we haven't searched yet, or if we've moved significantly (e.g. 500m)
-        // OR if the radius has changed significantly (e.g. by 20%)
+    func updateUserLocation(_ location: CLLocation, radius: CLLocationDistance? = nil) {
+        let searchRadius = radius ?? AppConfiguration.Search.defaultSearchRadius
+
+        // Only search if we haven't searched yet, or if we've moved significantly
+        // OR if the radius has changed significantly
         guard let lastLocation = lastSearchLocation else {
-            performSearch(near: location.coordinate, radius: radius)
+            performSearch(near: location.coordinate, radius: searchRadius)
             lastSearchLocation = location
-            lastSearchRadius = radius
+            lastSearchRadius = searchRadius
             return
         }
-        
+
         let distance = location.distance(from: lastLocation)
-        let radiusRatio = abs(radius - lastSearchRadius) / lastSearchRadius
-        
-        if distance > 500 || radiusRatio > 0.2 {
-            performSearch(near: location.coordinate, radius: radius)
+        let radiusRatio = abs(searchRadius - lastSearchRadius) / lastSearchRadius
+
+        if distance > AppConfiguration.Search.minimumDistanceForNewSearch ||
+           radiusRatio > AppConfiguration.Search.minimumRadiusChangeRatio {
+            performSearch(near: location.coordinate, radius: searchRadius)
             lastSearchLocation = location
-            lastSearchRadius = radius
+            lastSearchRadius = searchRadius
         }
     }
     
@@ -64,9 +67,9 @@ class VenueDiscoveryManager: ObservableObject {
         isSearching = true
         
         searchTask = Task {
-            // Debounce for map interactions (optional, but good for rapid zooming)
+            // Debounce for map interactions to prevent excessive searches during rapid zooming
             if searchText.isEmpty {
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s debounce for location updates
+                try? await Task.sleep(nanoseconds: AppConfiguration.Search.debounceDelayNanoseconds)
             }
             
             if Task.isCancelled { return }
@@ -79,8 +82,8 @@ class VenueDiscoveryManager: ObservableObject {
             
             let queries = searchService.getQueries(for: searchText)
             var allVenues: [Venue] = []
-            var seenKeys: Set<String> = []
-            
+            var seenVenues: Set<Venue> = []
+
             await withTaskGroup(of: [Venue].self) { group in
                 for query in queries {
                     group.addTask {
@@ -91,15 +94,13 @@ class VenueDiscoveryManager: ObservableObject {
                         }
                     }
                 }
-                
+
                 for await venues in group {
                     for venue in venues {
-                        // Create a unique key based on name and location to prevent duplicates
-                        let key = "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)"
-                        
-                        if !seenKeys.contains(key) {
+                        // Use Venue's Hashable implementation for proper deduplication
+                        if !seenVenues.contains(venue) {
                             allVenues.append(venue)
-                            seenKeys.insert(key)
+                            seenVenues.insert(venue)
                         }
                     }
                 }
@@ -141,8 +142,12 @@ class VenueDiscoveryManager: ObservableObject {
                 }
                 
                 Task {
-                    await self.cacheManager.saveVenues(cachedVenues)
-                    await self.cacheManager.saveImages(for: sortedVenues)
+                    do {
+                        try await self.cacheManager.saveVenues(cachedVenues)
+                        try await self.cacheManager.saveImages(for: sortedVenues)
+                    } catch {
+                        // Cache save failed, but continue - this is non-critical
+                    }
                 }
                 
                 // Start fetching images
