@@ -15,21 +15,72 @@ struct MainMapView: View {
     
     @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
     @State private var selectedVenue: Venue?
+    @State private var peekVenue: Venue?
+    @State private var selectedCategories: Set<VenueType> = []
+    @State private var showClusters = true
+    @State private var clusterThreshold: CLLocationDistance = 150
+    @State private var disableClusteringTemporarily = false
+    @State private var currentMapSpan: MKCoordinateSpan?
+    @State private var isProgrammaticZoom = false
 
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
+
+    // Computed property for filtered venues based on selected categories
+    private var filteredVenues: [Venue] {
+        if selectedCategories.isEmpty {
+            return venueDiscoveryManager.venues
+        }
+        return venueDiscoveryManager.venues.filter { selectedCategories.contains($0.type) }
+    }
+
+    // Computed property for venue clusters
+    private var venueClusters: [VenueCluster] {
+        guard !filteredVenues.isEmpty else { return [] }
+        // If clustering is temporarily disabled, show all venues individually
+        if disableClusteringTemporarily {
+            return filteredVenues.map { VenueCluster(venues: [$0]) }
+        }
+        return showClusters ? filteredVenues.clustered(threshold: clusterThreshold) : filteredVenues.map { VenueCluster(venues: [$0]) }
+    }
     
     var body: some View {
         ZStack(alignment: .top) {
             Map(position: $cameraPosition, interactionModes: .all, scope: mapScope) {
                 UserAnnotation()
-                
-                ForEach(venueDiscoveryManager.venues) { venue in
-                    Annotation(venue.name, coordinate: venue.coordinate) {
-                        VenueMarker(venue: venue, userLocation: currentCoordinate)
-                            .onTapGesture {
-                                selectedVenue = venue
+
+                // Venue clusters and markers
+                // Fallback: if clustering fails or is empty, show all venues directly
+                let clustersToShow = venueClusters.isEmpty ? filteredVenues.map { VenueCluster(venues: [$0]) } : venueClusters
+
+                ForEach(clustersToShow) { cluster in
+                    if cluster.venues.count > 1 && showClusters && !disableClusteringTemporarily {
+                        // Show cluster marker
+                        Annotation("", coordinate: cluster.coordinate) {
+                            ClusterMarker(venues: cluster.venues, userLocation: currentCoordinate)
+                                .onTapGesture {
+                                    // Zoom into cluster
+                                    zoomToCluster(cluster)
+                                }
+                        }
+                    } else {
+                        // Show individual venue markers
+                        ForEach(cluster.venues) { venue in
+                            Annotation(venue.name, coordinate: venue.coordinate) {
+                                VenueMarker(
+                                    venue: venue,
+                                    userLocation: currentCoordinate,
+                                    onLongPress: {
+                                        peekVenue = venue
+                                    }
+                                )
+                                .onTapGesture {
+                                    selectedVenue = venue
+                                    // Smooth camera animation to venue
+                                    animateCameraToVenue(venue)
+                                }
                             }
+                        }
                     }
                 }
             }
@@ -40,19 +91,44 @@ struct MainMapView: View {
             }
             .mapStyle(.standard(elevation: .realistic))
             .simultaneousGesture(
-                DragGesture(minimumDistance: 5).onChanged { _ in shouldFollowUser = false }
+                DragGesture(minimumDistance: 5).onChanged { _ in
+                    shouldFollowUser = false
+                    isProgrammaticZoom = false
+                }
             )
             .simultaneousGesture(
-                MagnificationGesture().onChanged { _ in shouldFollowUser = false }
+                MagnificationGesture().onChanged { _ in
+                    shouldFollowUser = false
+                    isProgrammaticZoom = false
+                }
             )
             .simultaneousGesture(
-                RotationGesture().onChanged { _ in shouldFollowUser = false }
+                RotationGesture().onChanged { _ in
+                    shouldFollowUser = false
+                    isProgrammaticZoom = false
+                }
             )
             .onMapCameraChange(frequency: .continuous) { context in
                 currentPitch = context.camera.pitch
+
+                // Track the current map span
+                let region = context.region
+                currentMapSpan = region.span
+
+                // Re-enable clustering when zoomed out enough (only for user-initiated zooms)
+                // If latitude span is > 0.05 degrees (~5.5km), re-enable clustering
+                // Don't re-enable during programmatic zooms to prevent clustering during cluster tap zoom
+                if disableClusteringTemporarily && !isProgrammaticZoom && region.span.latitudeDelta > 0.05 {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        disableClusteringTemporarily = false
+                    }
+                }
             }
             
             VStack {
+                // Category filter at the top
+                MapCategoryFilter(selectedCategories: $selectedCategories)
+
                 if venueDiscoveryManager.isSearching {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -65,14 +141,53 @@ struct MainMapView: View {
                     .padding(.horizontal, 12)
                     .background(.ultraThinMaterial, in: Capsule())
                     .shadow(radius: 4)
-                    .padding(.top, 60)
+                    .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                
+
                 Spacer()
-                bottomControls
+
+                HStack {
+                    // Stats card on the left
+                    if !venueDiscoveryManager.venues.isEmpty {
+                        MapStatsCard(
+                            totalVenues: venueDiscoveryManager.venues.count,
+                            filteredVenues: filteredVenues.count,
+                            isFiltering: !selectedCategories.isEmpty
+                        )
+                        .padding(.leading, 16)
+                    }
+
+                    Spacer()
+                    bottomControls
+                }
             }
             .animation(.easeInOut, value: venueDiscoveryManager.isSearching)
+
+            // Quick peek card overlay
+            if let peekVenue = peekVenue {
+                ZStack {
+                    // Dimmed background
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                self.peekVenue = nil
+                            }
+                        }
+
+                    VenueQuickPeekCard(
+                        venue: peekVenue,
+                        userLocation: currentCoordinate,
+                        onDismiss: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                self.peekVenue = nil
+                            }
+                        }
+                    )
+                }
+                .transition(.opacity)
+            }
         }
         .mapScope(mapScope)
         .sheet(item: $selectedVenue) { venue in
@@ -200,17 +315,80 @@ private extension MainMapView {
             return "Location accuracy unavailable"
         }
     }
+
+    /// Zooms into a cluster of venues with a smooth animation
+    func zoomToCluster(_ cluster: VenueCluster) {
+        // Mark as programmatic zoom to prevent auto re-clustering
+        isProgrammaticZoom = true
+
+        // Stop following user immediately
+        shouldFollowUser = false
+
+        // Disable clustering to show individual venues
+        // Use animation to ensure smooth transition
+        withAnimation(.easeInOut(duration: 0.2)) {
+            disableClusteringTemporarily = true
+        }
+
+        // Calculate bounding box for all venues in cluster
+        let coordinates = cluster.venues.map { $0.coordinate }
+        let minLat = coordinates.map { $0.latitude }.min() ?? cluster.coordinate.latitude
+        let maxLat = coordinates.map { $0.latitude }.max() ?? cluster.coordinate.latitude
+        let minLon = coordinates.map { $0.longitude }.min() ?? cluster.coordinate.longitude
+        let maxLon = coordinates.map { $0.longitude }.max() ?? cluster.coordinate.longitude
+
+        let center = CLLocationCoordinate2D(
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLon + maxLon) / 2
+        )
+
+        // Use a smaller span to zoom in closer and show all venues
+        let span = MKCoordinateSpan(
+            latitudeDelta: max((maxLat - minLat) * 2.5, 0.01), // Ensure venues are visible
+            longitudeDelta: max((maxLon - minLon) * 2.5, 0.01)
+        )
+
+        // Delay camera zoom to ensure view updates with individual markers first
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.easeInOut(duration: 0.8)) {
+                cameraPosition = .region(MKCoordinateRegion(center: center, span: span))
+            }
+
+            // Clear programmatic zoom flag after animation completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                isProgrammaticZoom = false
+            }
+        }
+
+        // Note: Clustering will automatically re-enable when user zooms out
+        // (see onMapCameraChange handler)
+    }
+
+    /// Animates camera smoothly to a selected venue
+    func animateCameraToVenue(_ venue: Venue) {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            cameraPosition = .camera(
+                MapCamera(
+                    centerCoordinate: venue.coordinate,
+                    distance: 300, // Closer zoom for selected venue
+                    heading: 0,
+                    pitch: currentPitch
+                )
+            )
+            shouldFollowUser = false
+        }
+    }
 }
 
 private struct ControlButton: View {
     let systemName: String
     let action: () -> Void
-    
+
     init(systemName: String, action: @escaping () -> Void) {
         self.systemName = systemName
         self.action = action
     }
-    
+
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
