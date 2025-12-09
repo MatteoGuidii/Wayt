@@ -19,8 +19,8 @@ class VenueSearchService {
     private let discoveryQueries = [
         "Bar", "Night Club", "Live Music", "Lounge"
     ]
-    
-    func getQueries(for searchText: String) -> [String] {
+
+    public func getQueries(for searchText: String) -> [String] {
         let lowerText = searchText.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         
         if lowerText.isEmpty {
@@ -38,8 +38,8 @@ class VenueSearchService {
         // This allows searching for specific places like "McDonalds" or "The Box"
         return [searchText]
     }
-    
-    func search(query: String, region: MKCoordinateRegion) async throws -> [Venue] {
+
+    public func search(query: String, region: MKCoordinateRegion) async throws -> [Venue] {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
         request.region = region

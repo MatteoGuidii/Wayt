@@ -2,8 +2,8 @@ import Foundation
 import MapKit
 
 struct VenueClassifier {
-    
-    static func classify(mapItem: MKMapItem) -> VenueType {
+
+    public static func classify(mapItem: MKMapItem) -> VenueType {
         let category = mapItem.pointOfInterestCategory
         let name = mapItem.name?.lowercased() ?? ""
         
