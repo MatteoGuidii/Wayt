@@ -6,53 +6,105 @@ struct MapCategoryFilter: View {
     @State private var isExpanded = false
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Toggle button
-            HStack(spacing: 8) {
+        VStack(spacing: 14) {
+            // Enhanced toggle button with better visual hierarchy
+            HStack(spacing: 10) {
                 Button {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
                         isExpanded.toggle()
                     }
                 } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
-                            .font(.title3)
+                    HStack(spacing: 10) {
+                        // Icon with gradient background
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue.opacity(0.8), .purple.opacity(0.7)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 32, height: 32)
+
+                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                        }
+
                         Text(filterText)
-                            .font(.subheadline.weight(.semibold))
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption.weight(.bold))
+                            .font(.subheadline.weight(.bold))
+
+                        Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
                     }
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                    .padding(.vertical, 11)
+                    .background(
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                    )
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.3), .white.opacity(0.1)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1.5
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 5)
                 }
                 .buttonStyle(.plain)
 
-                // Clear filters button (only show when filtering)
+                // Enhanced clear filters button
                 if !selectedCategories.isEmpty {
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedCategories.removeAll()
                         }
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                            .padding(10)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                        ZStack {
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .frame(width: 44, height: 44)
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(
+                                            LinearGradient(
+                                                colors: [.white.opacity(0.3), .white.opacity(0.1)],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            ),
+                                            lineWidth: 1.5
+                                        )
+                                )
+                                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 5)
+
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.red.opacity(0.8), .red],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        }
                     }
                     .buttonStyle(.plain)
                     .transition(.scale.combined(with: .opacity))
                 }
             }
 
-            // Filter chips
+            // Enhanced filter chips with better scrolling
             if isExpanded {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 12) {
                         ForEach(VenueType.allCases, id: \.self) { type in
                             FilterChip(
                                 type: type,
@@ -69,6 +121,7 @@ struct MapCategoryFilter: View {
                         }
                     }
                     .padding(.horizontal, 20)
+                    .padding(.vertical, 4)
                 }
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -96,25 +149,56 @@ private struct FilterChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 Image(systemName: type.icon)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 14, weight: .semibold))
                 Text(type.rawValue)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.bold))
             }
             .foregroundStyle(isSelected ? .white : type.color)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             .background(
-                Capsule()
-                    .fill(isSelected ? type.color : Color(uiColor: .systemBackground))
-                    .shadow(color: isSelected ? type.color.opacity(0.4) : .black.opacity(0.1), radius: isSelected ? 8 : 4, x: 0, y: 2)
+                Group {
+                    if isSelected {
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [type.color, type.color.opacity(0.85)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    } else {
+                        Capsule()
+                            .fill(Color(uiColor: .systemBackground))
+                    }
+                }
             )
             .overlay(
                 Capsule()
-                    .strokeBorder(isSelected ? Color.clear : type.color.opacity(0.3), lineWidth: 1.5)
+                    .strokeBorder(
+                        isSelected
+                            ? LinearGradient(
+                                colors: [.white.opacity(0.3), .white.opacity(0.1)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            : LinearGradient(
+                                colors: [type.color.opacity(0.4), type.color.opacity(0.2)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                        lineWidth: 2
+                    )
             )
-            .scaleEffect(isPressed ? 0.95 : 1.0)
+            .shadow(
+                color: isSelected ? type.color.opacity(0.5) : .black.opacity(0.12),
+                radius: isSelected ? 10 : 6,
+                x: 0,
+                y: isSelected ? 4 : 3
+            )
+            .scaleEffect(isPressed ? 0.94 : 1.0)
         }
         .buttonStyle(.plain)
         .simultaneousGesture(

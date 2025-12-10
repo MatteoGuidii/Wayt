@@ -64,7 +64,7 @@ enum ZyvoAuthTheme {
 
     static var headerView: some View {
         VStack(spacing: 12) {
-            Text("Zyvo")
+            Text("Venuu")
                 .font(.system(size: 48, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 

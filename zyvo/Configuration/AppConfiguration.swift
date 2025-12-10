@@ -36,7 +36,7 @@ enum AppConfiguration {
         static let minimumRadiusChangeRatio: Double = 0.2
 
         /// Default search radius (meters)
-        static let defaultSearchRadius: CLLocationDistance = 5000
+        static let defaultSearchRadius: CLLocationDistance = 1000
     }
 
     // MARK: - Map Configuration
