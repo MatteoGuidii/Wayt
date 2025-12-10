@@ -12,6 +12,7 @@ struct MainMapView: View {
     @State private var hasInitialLocation = false
     @State private var currentCoordinate: CLLocationCoordinate2D?
     @State private var currentPitch: CGFloat = 0
+    @State private var currentHeading: CLLocationDirection = 0
     
     @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
     @State private var selectedVenue: Venue?
@@ -110,6 +111,7 @@ struct MainMapView: View {
             )
             .onMapCameraChange(frequency: .continuous) { context in
                 currentPitch = context.camera.pitch
+                currentHeading = context.camera.heading
 
                 // Track the current map span
                 let region = context.region
@@ -295,10 +297,10 @@ private extension MainMapView {
             updateCameraPosition(
                 coordinate: coordinate,
                 heading: locationManager.heading,
-                duration: 2.5
+                duration: 1.5
             )
         } else {
-            withAnimation(.easeInOut(duration: 2.5)) {
+            withAnimation(.easeInOut(duration: 1.5)) {
                 cameraPosition = .userLocation(fallback: .automatic)
             }
         }
@@ -342,16 +344,25 @@ private extension MainMapView {
             longitude: (minLon + maxLon) / 2
         )
 
-        // Use a smaller span to zoom in closer and show all venues
-        let span = MKCoordinateSpan(
-            latitudeDelta: max((maxLat - minLat) * 2.5, 0.01), // Ensure venues are visible
-            longitudeDelta: max((maxLon - minLon) * 2.5, 0.01)
-        )
+        // Calculate appropriate camera distance based on cluster size
+        let latDelta = max((maxLat - minLat) * 2.5, 0.01)
+        let lonDelta = max((maxLon - minLon) * 2.5, 0.01)
+        // Convert span to approximate distance in meters
+        // Using the larger of the two deltas to ensure all venues are visible
+        let distance = max(latDelta, lonDelta) * 111_000 / 2.0 // Rough conversion: 1 degree ≈ 111km
 
         // Delay camera zoom to ensure view updates with individual markers first
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             withAnimation(.easeInOut(duration: 0.8)) {
-                cameraPosition = .region(MKCoordinateRegion(center: center, span: span))
+                // Use .camera() instead of .region() to preserve heading and pitch
+                cameraPosition = .camera(
+                    MapCamera(
+                        centerCoordinate: center,
+                        distance: distance,
+                        heading: currentHeading, // Preserve current map rotation
+                        pitch: currentPitch      // Preserve current pitch
+                    )
+                )
             }
 
             // Clear programmatic zoom flag after animation completes

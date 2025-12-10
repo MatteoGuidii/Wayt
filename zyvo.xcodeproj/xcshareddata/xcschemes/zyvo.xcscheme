@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "958E983E2EC5484C0062E64D"
-               BuildableName = "zyvo.app"
-               BlueprintName = "zyvo"
+               BuildableName = "Venuee.app"
+               BlueprintName = "Venuee"
                ReferencedContainer = "container:zyvo.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -70,8 +70,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "958E983E2EC5484C0062E64D"
-            BuildableName = "zyvo.app"
-            BlueprintName = "zyvo"
+            BuildableName = "Venuee.app"
+            BlueprintName = "Venuee"
             ReferencedContainer = "container:zyvo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -87,8 +87,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "958E983E2EC5484C0062E64D"
-            BuildableName = "zyvo.app"
-            BlueprintName = "zyvo"
+            BuildableName = "Venuee.app"
+            BlueprintName = "Venuee"
             ReferencedContainer = "container:zyvo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

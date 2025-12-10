@@ -43,7 +43,7 @@
 
 /* Begin PBXFileReference section */
 		55ED99E75F8D23B1D4897D6F /* amplifyconfiguration.json */ = {isa = PBXFileReference; explicitFileType = text.json; path = amplifyconfiguration.json; sourceTree = "<group>"; };
-		958E983F2EC5484C0062E64D /* zyvo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = zyvo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		958E983F2EC5484C0062E64D /* Venuee.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Venuee.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		958E984C2EC5484D0062E64D /* zyvoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = zyvoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		958E98562EC5484D0062E64D /* zyvoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = zyvoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */ = {isa = PBXFileReference; explicitFileType = text.json; path = awsconfiguration.json; sourceTree = "<group>"; };
@@ -120,7 +120,7 @@
 		958E98402EC5484C0062E64D /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				958E983F2EC5484C0062E64D /* zyvo.app */,
+				958E983F2EC5484C0062E64D /* Venuee.app */,
 				958E984C2EC5484D0062E64D /* zyvoTests.xctest */,
 				958E98562EC5484D0062E64D /* zyvoUITests.xctest */,
 			);
@@ -146,9 +146,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		958E983E2EC5484C0062E64D /* zyvo */ = {
+		958E983E2EC5484C0062E64D /* Venuee */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 958E98602EC5484D0062E64D /* Build configuration list for PBXNativeTarget "zyvo" */;
+			buildConfigurationList = 958E98602EC5484D0062E64D /* Build configuration list for PBXNativeTarget "Venuee" */;
 			buildPhases = (
 				958E983B2EC5484C0062E64D /* Sources */,
 				958E983C2EC5484C0062E64D /* Frameworks */,
@@ -161,7 +161,7 @@
 			fileSystemSynchronizedGroups = (
 				958E98412EC5484C0062E64D /* zyvo */,
 			);
-			name = zyvo;
+			name = Venuee;
 			packageProductDependencies = (
 				958E98812EC57AC30062E64D /* Amplify */,
 				958E98832EC57AC30062E64D /* AWSAPIPlugin */,
@@ -178,7 +178,7 @@
 				958E98C82EC818270062E64D /* Authenticator */,
 			);
 			productName = zyvo;
-			productReference = 958E983F2EC5484C0062E64D /* zyvo.app */;
+			productReference = 958E983F2EC5484C0062E64D /* Venuee.app */;
 			productType = "com.apple.product-type.application";
 		};
 		958E984B2EC5484D0062E64D /* zyvoTests */ = {
@@ -268,7 +268,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				958E983E2EC5484C0062E64D /* zyvo */,
+				958E983E2EC5484C0062E64D /* Venuee */,
 				958E984B2EC5484D0062E64D /* zyvoTests */,
 				958E98552EC5484D0062E64D /* zyvoUITests */,
 			);
@@ -328,12 +328,12 @@
 /* Begin PBXTargetDependency section */
 		958E984E2EC5484D0062E64D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 958E983E2EC5484C0062E64D /* zyvo */;
+			target = 958E983E2EC5484C0062E64D /* Venuee */;
 			targetProxy = 958E984D2EC5484D0062E64D /* PBXContainerItemProxy */;
 		};
 		958E98582EC5484D0062E64D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 958E983E2EC5484C0062E64D /* zyvo */;
+			target = 958E983E2EC5484C0062E64D /* Venuee */;
 			targetProxy = 958E98572EC5484D0062E64D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -470,6 +470,7 @@
 				DEVELOPMENT_TEAM = AWD6D9WN42;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Venuu;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location helps Zyvo render an accurate live map nearby.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -503,6 +504,7 @@
 				DEVELOPMENT_TEAM = AWD6D9WN42;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Venuu;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location helps Zyvo render an accurate live map nearby.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -618,7 +620,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		958E98602EC5484D0062E64D /* Build configuration list for PBXNativeTarget "zyvo" */ = {
+		958E98602EC5484D0062E64D /* Build configuration list for PBXNativeTarget "Venuee" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				958E98612EC5484D0062E64D /* Debug */,
