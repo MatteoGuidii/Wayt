@@ -10,112 +10,162 @@ struct VenueQuickPeekCard: View {
     @State private var appeared = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Venue image or icon
+        VStack(alignment: .leading, spacing: 0) {
+            // Enhanced venue image or icon section
             ZStack(alignment: .topTrailing) {
                 if let image = venue.image {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(height: 140)
+                        .frame(height: 160)
                         .clipped()
+                        .overlay(
+                            // Subtle gradient overlay for better text readability
+                            LinearGradient(
+                                colors: [.clear, .black.opacity(0.1)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
                 } else {
                     ZStack {
+                        // Enhanced gradient with more depth
                         LinearGradient(
-                            colors: [venue.themeColor.opacity(0.8), venue.themeColor],
+                            colors: [
+                                venue.themeColor.opacity(0.9),
+                                venue.themeColor,
+                                venue.themeColor.opacity(0.7)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
-                        .frame(height: 140)
+                        .frame(height: 160)
+
+                        // Background pattern for visual interest
+                        Circle()
+                            .fill(venue.themeColor.opacity(0.2))
+                            .frame(width: 150, height: 150)
+                            .blur(radius: 30)
+                            .offset(x: -40, y: -30)
 
                         Image(systemName: venue.systemImage)
-                            .font(.system(size: 48, weight: .light))
-                            .foregroundStyle(.white.opacity(0.9))
+                            .font(.system(size: 56, weight: .light))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                     }
                 }
 
-                // Dismiss button
+                // Enhanced dismiss button
                 Button(action: onDismiss) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title2)
                         .foregroundStyle(.white)
                         .background(
                             Circle()
-                                .fill(.black.opacity(0.3))
-                                .blur(radius: 4)
+                                .fill(.black.opacity(0.4))
+                                .frame(width: 32, height: 32)
+                                .blur(radius: 6)
                         )
-                        .padding(12)
+                        .padding(14)
                 }
                 .buttonStyle(.plain)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                // Venue name
+            // Content section with better spacing
+            VStack(alignment: .leading, spacing: 12) {
+                // Venue name with better typography
                 Text(venue.name)
-                    .font(.headline.weight(.bold))
+                    .font(.title3.weight(.bold))
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                // Type badge
-                HStack(spacing: 8) {
+                // Enhanced type badge with icon
+                HStack(spacing: 6) {
                     Image(systemName: venue.systemImage)
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                     Text(venue.type.rawValue)
-                        .font(.subheadline.weight(.medium))
+                        .font(.subheadline.weight(.semibold))
                 }
                 .foregroundStyle(venue.themeColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
                 .background(
                     Capsule()
                         .fill(venue.themeColor.opacity(0.15))
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(venue.themeColor.opacity(0.3), lineWidth: 1)
+                        )
                 )
 
-                // Distance
+                // Enhanced distance display
                 if let distance = distanceText {
-                    HStack(spacing: 6) {
-                        Image(systemName: "location.fill")
-                            .font(.caption)
+                    HStack(spacing: 8) {
+                        ZStack {
+                            Circle()
+                                .fill(venue.themeColor.opacity(0.15))
+                                .frame(width: 28, height: 28)
+                            Image(systemName: "location.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(venue.themeColor)
+                        }
                         Text(distance)
-                            .font(.subheadline)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
                     }
-                    .foregroundStyle(.secondary)
                 }
 
-                // Quick action button
+                // Enhanced action button with gradient
                 Button {
                     // In a real app, this would navigate or show more details
                     onDismiss()
                 } label: {
-                    HStack {
+                    HStack(spacing: 8) {
                         Text("View Details")
-                            .font(.subheadline.weight(.semibold))
-                        Image(systemName: "arrow.right")
-                            .font(.caption.weight(.bold))
+                            .font(.subheadline.weight(.bold))
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.subheadline)
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(venue.themeColor, in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.vertical, 14)
+                    .background(
+                        LinearGradient(
+                            colors: [venue.themeColor, venue.themeColor.opacity(0.85)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .shadow(color: venue.themeColor.opacity(0.4), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 18)
+            .padding(.top, 16)
+            .padding(.bottom, 18)
         }
-        .frame(width: 280)
+        .frame(width: 300)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.3), .white.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
         )
-        .shadow(color: .black.opacity(0.25), radius: 24, x: 0, y: 12)
-        .scaleEffect(appeared ? 1 : 0.8)
+        .shadow(color: .black.opacity(0.3), radius: 30, x: 0, y: 15)
+        .scaleEffect(appeared ? 1 : 0.85)
         .opacity(appeared ? 1 : 0)
         .onAppear {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) {
                 appeared = true
             }
         }

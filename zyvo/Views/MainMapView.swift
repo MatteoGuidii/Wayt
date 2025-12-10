@@ -127,44 +127,51 @@ struct MainMapView: View {
                 }
             }
             
-            VStack {
+            VStack(spacing: 0) {
                 // Category filter at the top
                 MapCategoryFilter(selectedCategories: $selectedCategories)
 
+                // Searching indicator with enhanced design
                 if venueDiscoveryManager.isSearching {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 10) {
                         ProgressView()
                             .controlSize(.small)
+                            .tint(.blue)
                         Text("Searching area...")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
                     }
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 12)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .shadow(radius: 4)
-                    .padding(.top, 8)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    .background(
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                    )
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.3), .white.opacity(0.1)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1.5
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 5)
+                    .padding(.top, 12)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 Spacer()
 
+                // Map controls
                 HStack {
-                    // Stats card on the left
-                    if !venueDiscoveryManager.venues.isEmpty {
-                        MapStatsCard(
-                            totalVenues: venueDiscoveryManager.venues.count,
-                            filteredVenues: filteredVenues.count,
-                            isFiltering: !selectedCategories.isEmpty
-                        )
-                        .padding(.leading, 16)
-                    }
-
                     Spacer()
                     bottomControls
                 }
             }
-            .animation(.easeInOut, value: venueDiscoveryManager.isSearching)
+            .animation(.easeInOut(duration: 0.35), value: venueDiscoveryManager.isSearching)
 
             // Quick peek card overlay
             if let peekVenue = peekVenue {
@@ -252,26 +259,45 @@ struct MainMapView: View {
 }
 
 private extension MainMapView {
-    /// Pill-shaped map controls pinned to the bottom trailing corner
+    /// Enhanced map controls with glass pill background
     var bottomControls: some View {
-        HStack {
-            Spacer()
-            VStack(spacing: 12) {
-                ControlButton(systemName: "location.circle.fill", action: recenter)
-
-                MapPitchToggle(scope: mapScope)
-                    // .mapControlVisibility(.visible) // Force always visible
-
-                MapCompass(scope: mapScope)
-                     .mapControlVisibility(.visible) // Force always visible
+        VStack(spacing: 12) {
+            // Recenter button
+            Button(action: recenter) {
+                Image(systemName: "location.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.blue)
+                    .frame(width: 44, height: 44)
             }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 10)
-            .background(.ultraThinMaterial, in: Capsule())
-            .shadow(radius: 8)
+            .buttonStyle(.plain)
+
+            // Map pitch toggle
+            MapPitchToggle(scope: mapScope)
+
+            // Map compass
+            MapCompass(scope: mapScope)
+                .mapControlVisibility(.visible)
         }
-        .padding(.bottom, 16)
-        .padding(.trailing, 16)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 10)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.3), .white.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
+        )
+        .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 6)
+        .padding(.bottom, 20)
+        .padding(.trailing, 18)
     }
     
     var statusCard: some View {
@@ -390,30 +416,6 @@ private extension MainMapView {
         }
     }
 }
-
-private struct ControlButton: View {
-    let systemName: String
-    let action: () -> Void
-
-    init(systemName: String, action: @escaping () -> Void) {
-        self.systemName = systemName
-        self.action = action
-    }
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.title3)
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(.black.opacity(0.65), in: Circle())
-        }
-        .buttonStyle(.plain)
-        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-    }
-}
-
-
 
 #Preview {
     MainMapView(username: "matteo@example.com", onSignOut: {})
