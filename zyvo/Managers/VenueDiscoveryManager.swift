@@ -81,7 +81,9 @@ class VenueDiscoveryManager: ObservableObject {
             )
             
             let queries = searchService.getQueries(for: searchText)
-            var allVenues: [Venue] = []
+            // Store venues with their search rank (index in the Apple Maps response)
+            // (Venue, Rank)
+            var scoredVenues: [(venue: Venue, rank: Int)] = []
             var seenVenues: Set<Venue> = []
 
             await withTaskGroup(of: [Venue].self) { group in
@@ -96,10 +98,10 @@ class VenueDiscoveryManager: ObservableObject {
                 }
 
                 for await venues in group {
-                    for venue in venues {
+                    for (index, venue) in venues.enumerated() {
                         // Use Venue's Hashable implementation for proper deduplication
                         if !seenVenues.contains(venue) {
-                            allVenues.append(venue)
+                            scoredVenues.append((venue, index))
                             seenVenues.insert(venue)
                         }
                     }
@@ -111,26 +113,55 @@ class VenueDiscoveryManager: ObservableObject {
             // Filter and Sort
             let userLocation = CLLocation(latitude: center.latitude, longitude: center.longitude)
             
-            let filteredVenues = allVenues.filter { venue in
+            // 1. Filter Check
+            let validVenues = scoredVenues.filter { item in
+                let venue = item.venue
                 let venueLoc = CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude)
                 let distanceOk = venueLoc.distance(from: userLocation) <= radius
                 let typeOk = venue.type.isNightlife
                 return distanceOk && typeOk
             }
             
-            // Sort by distance
-            let sortedVenues = filteredVenues.sorted { v1, v2 in
+            // 2. Hybrid Sort: "Trust Apple, but Verify Distance"
+            // Primary Sort Key: Rank (Index from Apple response)
+            // Secondary Sort Key: Distance (Break ties between categories)
+            // Penalty: If distance is very far (> 5km), add a rank penalty so closer "mediocre" places might win
+            
+            let sortedItemTuples = validVenues.sorted { item1, item2 in
+                let v1 = item1.venue
+                let v2 = item2.venue
+                
                 let loc1 = CLLocation(latitude: v1.coordinate.latitude, longitude: v1.coordinate.longitude)
                 let loc2 = CLLocation(latitude: v2.coordinate.latitude, longitude: v2.coordinate.longitude)
-                return loc1.distance(from: userLocation) < loc2.distance(from: userLocation)
+                
+                let dist1 = loc1.distance(from: userLocation)
+                let dist2 = loc2.distance(from: userLocation)
+                
+                // Penalty for being very far (> 5km)
+                // We add 'penalty' to the Apple Rank.
+                // 1 Rank point ~= "1 position worse in list"
+                let penalty1 = dist1 > 5000 ? 20 : 0
+                let penalty2 = dist2 > 5000 ? 20 : 0
+                
+                let score1 = item1.rank + penalty1
+                let score2 = item2.rank + penalty2
+                
+                if score1 == score2 {
+                    // If Ranks are equal (e.g. Best Bar vs Best Club), choose the closer one
+                    return dist1 < dist2
+                } else {
+                    return score1 < score2
+                }
             }
             
+            let finalVenues = sortedItemTuples.map { $0.venue }
+            
             await MainActor.run {
-                self.venues = sortedVenues
+                self.venues = finalVenues
                 self.isSearching = false
                 
                 // Save to cache
-                let cachedVenues = sortedVenues.map { venue in
+                let cachedVenues = finalVenues.map { venue in
                     VenueCacheManager.CachedVenue(
                         id: venue.id,
                         name: venue.name,
@@ -144,7 +175,7 @@ class VenueDiscoveryManager: ObservableObject {
                 Task {
                     do {
                         try await self.cacheManager.saveVenues(cachedVenues)
-                        try await self.cacheManager.saveImages(for: sortedVenues)
+                        try await self.cacheManager.saveImages(for: finalVenues)
                     } catch {
                         // Cache save failed, but continue - this is non-critical
                     }
@@ -152,7 +183,7 @@ class VenueDiscoveryManager: ObservableObject {
                 
                 // Start fetching images
                 Task {
-                    await self.imageService.fetchImages(for: sortedVenues) { [weak self] id, image in
+                    await self.imageService.fetchImages(for: finalVenues) { [weak self] id, image in
                         guard let self = self else { return }
                         if let index = self.venues.firstIndex(where: { $0.id == id }) {
                             self.venues[index].image = image
