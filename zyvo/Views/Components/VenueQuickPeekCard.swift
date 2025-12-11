@@ -83,36 +83,39 @@ struct VenueQuickPeekCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: venue.systemImage)
                         .font(.caption.weight(.semibold))
+                        .foregroundStyle(venue.themeColor) // Keep icon colored
                     Text(venue.type.rawValue)
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary) // TEXT IS NOW READABLE
                 }
-                .foregroundStyle(venue.themeColor)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .background(
+                .background(Material.thick) // Thicker material for background contrast
+                .clipShape(Capsule())
+                .overlay(
                     Capsule()
-                        .fill(venue.themeColor.opacity(0.15))
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(venue.themeColor.opacity(0.3), lineWidth: 1)
-                        )
+                        .strokeBorder(venue.themeColor.opacity(0.4), lineWidth: 1)
                 )
 
                 // Enhanced distance display
                 if let distance = distanceText {
-                    HStack(spacing: 8) {
-                        ZStack {
-                            Circle()
-                                .fill(venue.themeColor.opacity(0.15))
-                                .frame(width: 28, height: 28)
-                            Image(systemName: "location.fill")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(venue.themeColor)
-                        }
+                    HStack(spacing: 6) {
+                        Image(systemName: "location.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(venue.themeColor)
+                        
                         Text(distance)
-                            .font(.subheadline.weight(.medium))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Material.thick)
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(venue.themeColor.opacity(0.4), lineWidth: 1)
+                    )
                 }
 
                 // Enhanced action button with gradient
@@ -126,7 +129,7 @@ struct VenueQuickPeekCard: View {
                         Image(systemName: "arrow.right.circle.fill")
                             .font(.subheadline)
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.white) // Keep white on colored button (usually ok with strong theme colors)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(

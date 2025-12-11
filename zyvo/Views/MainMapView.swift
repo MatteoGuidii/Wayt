@@ -17,7 +17,7 @@ struct MainMapView: View {
     @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
     @State private var selectedVenue: Venue?
     @State private var peekVenue: Venue?
-    @State private var selectedCategories: Set<VenueType> = []
+    // selectedCategories removed
     @State private var showClusters = true
     @State private var clusterThreshold: CLLocationDistance = 150
     @State private var disableClusteringTemporarily = false
@@ -27,22 +27,19 @@ struct MainMapView: View {
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
 
-    // Computed property for filtered venues based on selected categories
-    private var filteredVenues: [Venue] {
-        if selectedCategories.isEmpty {
-            return venueDiscoveryManager.venues
-        }
-        return venueDiscoveryManager.venues.filter { selectedCategories.contains($0.type) }
-    }
+
+
+    // filteredVenues removed, using venueDiscoveryManager.venues directly
+
 
     // Computed property for venue clusters
     private var venueClusters: [VenueCluster] {
-        guard !filteredVenues.isEmpty else { return [] }
+        guard !venueDiscoveryManager.venues.isEmpty else { return [] }
         // If clustering is temporarily disabled, show all venues individually
         if disableClusteringTemporarily {
-            return filteredVenues.map { VenueCluster(venues: [$0]) }
+            return venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
         }
-        return showClusters ? filteredVenues.clustered(threshold: clusterThreshold) : filteredVenues.map { VenueCluster(venues: [$0]) }
+        return showClusters ? venueDiscoveryManager.venues.clustered(threshold: clusterThreshold) : venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
     }
     
     var body: some View {
@@ -52,7 +49,7 @@ struct MainMapView: View {
 
                 // Venue clusters and markers
                 // Fallback: if clustering fails or is empty, show all venues directly
-                let clustersToShow = venueClusters.isEmpty ? filteredVenues.map { VenueCluster(venues: [$0]) } : venueClusters
+                let clustersToShow = venueClusters.isEmpty ? venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) } : venueClusters
 
                 ForEach(clustersToShow) { cluster in
                     if cluster.venues.count > 1 && showClusters && !disableClusteringTemporarily {
@@ -128,8 +125,8 @@ struct MainMapView: View {
             }
             
             VStack(spacing: 0) {
-                // Category filter at the top
-                MapCategoryFilter(selectedCategories: $selectedCategories)
+                // MapCategoryFilter removed
+
 
                 // Searching indicator with enhanced design
                 if venueDiscoveryManager.isSearching {
