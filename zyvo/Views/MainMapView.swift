@@ -17,7 +17,6 @@ struct MainMapView: View {
     @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
     @State private var selectedVenue: Venue?
     @State private var peekVenue: Venue?
-    // selectedCategories removed
     @State private var showClusters = true
     @State private var clusterThreshold: CLLocationDistance = 150
     @State private var disableClusteringTemporarily = false
@@ -26,11 +25,6 @@ struct MainMapView: View {
 
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
-
-
-
-    // filteredVenues removed, using venueDiscoveryManager.venues directly
-
 
     // Computed property for venue clusters
     private var venueClusters: [VenueCluster] {
@@ -125,9 +119,6 @@ struct MainMapView: View {
             }
             
             VStack(spacing: 0) {
-                // MapCategoryFilter removed
-
-
                 // Searching indicator with enhanced design
                 if venueDiscoveryManager.isSearching {
                     HStack(spacing: 10) {
