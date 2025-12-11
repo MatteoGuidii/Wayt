@@ -5,19 +5,29 @@ class VenueSearchService {
     
     // Mapping "vibes" or keywords to MKLocalSearch queries
     private let vibeMappings: [String: [String]] = [
-        "dance": ["Night Club", "Dance Hall", "Disco"],
-        "party": ["Night Club", "Bar", "Lounge"],
-        "chill": ["Lounge", "Speakeasy", "Wine Bar", "Jazz Club"],
-        "date": ["Cocktail Bar", "Wine Bar", "Fine Dining", "Speakeasy"],
-        "live": ["Live Music", "Jazz Club", "Concert Hall"],
-        "beer": ["Pub", "Brewery", "Beer Garden", "Gastropub"],
-        "fancy": ["Cocktail Bar", "Rooftop Bar", "Lounge"],
-        "good mood": ["Cocktail Bar", "Tapas", "Bistro", "Rooftop Bar"]
+        "dance": ["Night Club", "Dance Club", "Disco"],
+        "party": ["Night Club", "Beach Club", "Day Club"],
+        "chill": ["Lounge", "Speakeasy", "Wine Bar", "Hookah Lounge", "Jazz Club"],
+        "date": ["Cocktail Bar", "Wine Bar", "Speakeasy", "Rooftop Bar"],
+        "live": ["Live Music", "Jazz Club", "Concert Hall", "Piano Bar"],
+        "beer": ["Pub", "Brewery", "Beer Garden", "Gastropub", "Irish Pub"],
+        "fancy": ["Cocktail Bar", "Rooftop Bar", "Hotel Bar", "Champagne Bar"],
+        "good mood": ["Cocktail Bar", "Tiki Bar", "Beach Bar", "Rooftop Bar"],
+        "hidden": ["Speakeasy", "Hidden Bar"],
+        "roof": ["Rooftop Bar", "Rooftop Lounge"]
     ]
     
-    // Default discovery queries (Reduced to prevent rate limiting)
+    // Default discovery queries (Expanded for better coverage)
+    // We split these into batches or rely on the main discovery manager to handle them
     private let discoveryQueries = [
-        "Bar", "Night Club", "Live Music", "Lounge"
+        "Cocktail Bar", 
+        "Night Club", 
+        "Speakeasy", 
+        "Rooftop Bar", 
+        "Live Music", 
+        "Jazz Club", 
+        "Gastropub",
+        "Wine Bar"
     ]
 
     public func getQueries(for searchText: String) -> [String] {
