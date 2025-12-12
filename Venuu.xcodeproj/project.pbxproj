@@ -1,0 +1,748 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		32A45A345F000A236FA55064 /* amplifyconfiguration.json in Resources */ = {isa = PBXBuildFile; fileRef = 55ED99E75F8D23B1D4897D6F /* amplifyconfiguration.json */; };
+		958E98822EC57AC30062E64D /* Amplify in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98812EC57AC30062E64D /* Amplify */; };
+		958E98842EC57AC30062E64D /* AWSAPIPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98832EC57AC30062E64D /* AWSAPIPlugin */; };
+		958E98862EC57AC30062E64D /* AWSCloudWatchLoggingPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98852EC57AC30062E64D /* AWSCloudWatchLoggingPlugin */; };
+		958E98882EC57AC30062E64D /* AWSCognitoAuthPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98872EC57AC30062E64D /* AWSCognitoAuthPlugin */; };
+		958E988A2EC57AC30062E64D /* AWSDataStorePlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98892EC57AC30062E64D /* AWSDataStorePlugin */; };
+		958E988C2EC57AC30062E64D /* AWSLocationGeoPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E988B2EC57AC30062E64D /* AWSLocationGeoPlugin */; };
+		958E988E2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E988D2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin */; };
+		958E98902EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E988F2EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin */; };
+		958E98922EC57AC30062E64D /* AWSPluginsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98912EC57AC30062E64D /* AWSPluginsCore */; };
+		958E98942EC57AC30062E64D /* AWSPredictionsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98932EC57AC30062E64D /* AWSPredictionsPlugin */; };
+		958E98962EC57AC30062E64D /* AWSS3StoragePlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98952EC57AC30062E64D /* AWSS3StoragePlugin */; };
+		958E98982EC57AC30062E64D /* CoreMLPredictionsPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98972EC57AC30062E64D /* CoreMLPredictionsPlugin */; };
+		958E98C92EC818270062E64D /* Authenticator in Frameworks */ = {isa = PBXBuildFile; productRef = 958E98C82EC818270062E64D /* Authenticator */; };
+		AE7246EB46AF219E272C2507 /* awsconfiguration.json in Resources */ = {isa = PBXBuildFile; fileRef = B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		958E984D2EC5484D0062E64D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 958E98372EC5484C0062E64D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 958E983E2EC5484C0062E64D;
+			remoteInfo = Venuu;
+		};
+		958E98572EC5484D0062E64D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 958E98372EC5484C0062E64D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 958E983E2EC5484C0062E64D;
+			remoteInfo = Venuu;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		55ED99E75F8D23B1D4897D6F /* amplifyconfiguration.json */ = {isa = PBXFileReference; explicitFileType = text.json; path = amplifyconfiguration.json; sourceTree = "<group>"; };
+		958E983F2EC5484C0062E64D /* Venuu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Venuu.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		958E984C2EC5484D0062E64D /* VenuuTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VenuuTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		958E98562EC5484D0062E64D /* VenuuUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VenuuUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */ = {isa = PBXFileReference; explicitFileType = text.json; path = awsconfiguration.json; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		958E98412EC5484C0062E64D /* Venuu */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Venuu;
+			sourceTree = "<group>";
+		};
+		958E984F2EC5484D0062E64D /* VenuuTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = VenuuTests;
+			sourceTree = "<group>";
+		};
+		958E98592EC5484D0062E64D /* VenuuUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = VenuuUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		958E983C2EC5484C0062E64D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				958E98942EC57AC30062E64D /* AWSPredictionsPlugin in Frameworks */,
+				958E988C2EC57AC30062E64D /* AWSLocationGeoPlugin in Frameworks */,
+				958E98842EC57AC30062E64D /* AWSAPIPlugin in Frameworks */,
+				958E98922EC57AC30062E64D /* AWSPluginsCore in Frameworks */,
+				958E98822EC57AC30062E64D /* Amplify in Frameworks */,
+				958E98902EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin in Frameworks */,
+				958E98C92EC818270062E64D /* Authenticator in Frameworks */,
+				958E98962EC57AC30062E64D /* AWSS3StoragePlugin in Frameworks */,
+				958E98862EC57AC30062E64D /* AWSCloudWatchLoggingPlugin in Frameworks */,
+				958E98982EC57AC30062E64D /* CoreMLPredictionsPlugin in Frameworks */,
+				958E988A2EC57AC30062E64D /* AWSDataStorePlugin in Frameworks */,
+				958E98882EC57AC30062E64D /* AWSCognitoAuthPlugin in Frameworks */,
+				958E988E2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		958E98492EC5484D0062E64D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		958E98532EC5484D0062E64D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		958E98362EC5484C0062E64D = {
+			isa = PBXGroup;
+			children = (
+				958E98412EC5484C0062E64D /* Venuu */,
+				958E984F2EC5484D0062E64D /* VenuuTests */,
+				958E98592EC5484D0062E64D /* VenuuUITests */,
+				958E98402EC5484C0062E64D /* Products */,
+				9FDBA4E0A1D62D8E9453EA4B /* AmplifyConfig */,
+				958E987F2EC579580062E64D /* Frameworks */,
+				A798477AC70329905E5C85D6 /* AmplifyModels */,
+			);
+			sourceTree = "<group>";
+		};
+		958E98402EC5484C0062E64D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				958E983F2EC5484C0062E64D /* Venuu.app */,
+				958E984C2EC5484D0062E64D /* VenuuTests.xctest */,
+				958E98562EC5484D0062E64D /* VenuuUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		958E987F2EC579580062E64D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		9FDBA4E0A1D62D8E9453EA4B /* AmplifyConfig */ = {
+			isa = PBXGroup;
+			children = (
+				B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */,
+				55ED99E75F8D23B1D4897D6F /* amplifyconfiguration.json */,
+			);
+			name = AmplifyConfig;
+			sourceTree = "<group>";
+		};
+		A798477AC70329905E5C85D6 /* AmplifyModels */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = AmplifyModels;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		958E983E2EC5484C0062E64D /* Venuu */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 958E98602EC5484D0062E64D /* Build configuration list for PBXNativeTarget "Venuu" */;
+			buildPhases = (
+				958E983B2EC5484C0062E64D /* Sources */,
+				958E983C2EC5484C0062E64D /* Frameworks */,
+				958E983D2EC5484C0062E64D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				958E98412EC5484C0062E64D /* Venuu */,
+			);
+			name = Venuu;
+			packageProductDependencies = (
+				958E98812EC57AC30062E64D /* Amplify */,
+				958E98832EC57AC30062E64D /* AWSAPIPlugin */,
+				958E98852EC57AC30062E64D /* AWSCloudWatchLoggingPlugin */,
+				958E98872EC57AC30062E64D /* AWSCognitoAuthPlugin */,
+				958E98892EC57AC30062E64D /* AWSDataStorePlugin */,
+				958E988B2EC57AC30062E64D /* AWSLocationGeoPlugin */,
+				958E988D2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin */,
+				958E988F2EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin */,
+				958E98912EC57AC30062E64D /* AWSPluginsCore */,
+				958E98932EC57AC30062E64D /* AWSPredictionsPlugin */,
+				958E98952EC57AC30062E64D /* AWSS3StoragePlugin */,
+				958E98972EC57AC30062E64D /* CoreMLPredictionsPlugin */,
+				958E98C82EC818270062E64D /* Authenticator */,
+			);
+			productName = Venuu;
+			productReference = 958E983F2EC5484C0062E64D /* Venuu.app */;
+			productType = "com.apple.product-type.application";
+		};
+		958E984B2EC5484D0062E64D /* VenuuTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 958E98632EC5484D0062E64D /* Build configuration list for PBXNativeTarget "VenuuTests" */;
+			buildPhases = (
+				958E98482EC5484D0062E64D /* Sources */,
+				958E98492EC5484D0062E64D /* Frameworks */,
+				958E984A2EC5484D0062E64D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				958E984E2EC5484D0062E64D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				958E984F2EC5484D0062E64D /* VenuuTests */,
+			);
+			name = VenuuTests;
+			packageProductDependencies = (
+			);
+			productName = VenuuTests;
+			productReference = 958E984C2EC5484D0062E64D /* VenuuTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		958E98552EC5484D0062E64D /* VenuuUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 958E98662EC5484D0062E64D /* Build configuration list for PBXNativeTarget "VenuuUITests" */;
+			buildPhases = (
+				958E98522EC5484D0062E64D /* Sources */,
+				958E98532EC5484D0062E64D /* Frameworks */,
+				958E98542EC5484D0062E64D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				958E98582EC5484D0062E64D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				958E98592EC5484D0062E64D /* VenuuUITests */,
+			);
+			name = VenuuUITests;
+			packageProductDependencies = (
+			);
+			productName = VenuuUITests;
+			productReference = 958E98562EC5484D0062E64D /* VenuuUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		958E98372EC5484C0062E64D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					958E983E2EC5484C0062E64D = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
+					958E984B2EC5484D0062E64D = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = 958E983E2EC5484C0062E64D;
+					};
+					958E98552EC5484D0062E64D = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = 958E983E2EC5484C0062E64D;
+					};
+				};
+			};
+			buildConfigurationList = 958E983A2EC5484C0062E64D /* Build configuration list for PBXProject "Venuu" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 958E98362EC5484C0062E64D;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */,
+				958E98C72EC8173C0062E64D /* XCRemoteSwiftPackageReference "amplify-ui-swift-authenticator" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 958E98402EC5484C0062E64D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				958E983E2EC5484C0062E64D /* Venuu */,
+				958E984B2EC5484D0062E64D /* VenuuTests */,
+				958E98552EC5484D0062E64D /* VenuuUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		958E983D2EC5484C0062E64D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AE7246EB46AF219E272C2507 /* awsconfiguration.json in Resources */,
+				32A45A345F000A236FA55064 /* amplifyconfiguration.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		958E984A2EC5484D0062E64D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		958E98542EC5484D0062E64D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		958E983B2EC5484C0062E64D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		958E98482EC5484D0062E64D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		958E98522EC5484D0062E64D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		958E984E2EC5484D0062E64D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 958E983E2EC5484C0062E64D /* Venuu */;
+			targetProxy = 958E984D2EC5484D0062E64D /* PBXContainerItemProxy */;
+		};
+		958E98582EC5484D0062E64D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 958E983E2EC5484C0062E64D /* Venuu */;
+			targetProxy = 958E98572EC5484D0062E64D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		958E985E2EC5484D0062E64D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		958E985F2EC5484D0062E64D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		958E98612EC5484D0062E64D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AWD6D9WN42;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Venuu;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location helps Venuu render an accurate live map nearby.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.venuu;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		958E98622EC5484D0062E64D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AWD6D9WN42;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Venuu;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location helps Venuu render an accurate live map nearby.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.venuu;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		958E98642EC5484D0062E64D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.VenuuTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Venuu.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Venuu";
+			};
+			name = Debug;
+		};
+		958E98652EC5484D0062E64D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.VenuuTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Venuu.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Venuu";
+			};
+			name = Release;
+		};
+		958E98672EC5484D0062E64D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.VenuuUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Venuu;
+			};
+			name = Debug;
+		};
+		958E98682EC5484D0062E64D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.VenuuUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Venuu;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		958E983A2EC5484C0062E64D /* Build configuration list for PBXProject "Venuu" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				958E985E2EC5484D0062E64D /* Debug */,
+				958E985F2EC5484D0062E64D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		958E98602EC5484D0062E64D /* Build configuration list for PBXNativeTarget "Venuu" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				958E98612EC5484D0062E64D /* Debug */,
+				958E98622EC5484D0062E64D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		958E98632EC5484D0062E64D /* Build configuration list for PBXNativeTarget "VenuuTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				958E98642EC5484D0062E64D /* Debug */,
+				958E98652EC5484D0062E64D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		958E98662EC5484D0062E64D /* Build configuration list for PBXNativeTarget "VenuuUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				958E98672EC5484D0062E64D /* Debug */,
+				958E98682EC5484D0062E64D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/aws-amplify/amplify-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.51.5;
+			};
+		};
+		958E98C72EC8173C0062E64D /* XCRemoteSwiftPackageReference "amplify-ui-swift-authenticator" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/aws-amplify/amplify-ui-swift-authenticator";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		958E98812EC57AC30062E64D /* Amplify */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = Amplify;
+		};
+		958E98832EC57AC30062E64D /* AWSAPIPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSAPIPlugin;
+		};
+		958E98852EC57AC30062E64D /* AWSCloudWatchLoggingPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSCloudWatchLoggingPlugin;
+		};
+		958E98872EC57AC30062E64D /* AWSCognitoAuthPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSCognitoAuthPlugin;
+		};
+		958E98892EC57AC30062E64D /* AWSDataStorePlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSDataStorePlugin;
+		};
+		958E988B2EC57AC30062E64D /* AWSLocationGeoPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSLocationGeoPlugin;
+		};
+		958E988D2EC57AC30062E64D /* AWSPinpointAnalyticsPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSPinpointAnalyticsPlugin;
+		};
+		958E988F2EC57AC30062E64D /* AWSPinpointPushNotificationsPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSPinpointPushNotificationsPlugin;
+		};
+		958E98912EC57AC30062E64D /* AWSPluginsCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSPluginsCore;
+		};
+		958E98932EC57AC30062E64D /* AWSPredictionsPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSPredictionsPlugin;
+		};
+		958E98952EC57AC30062E64D /* AWSS3StoragePlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSS3StoragePlugin;
+		};
+		958E98972EC57AC30062E64D /* CoreMLPredictionsPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98802EC57A160062E64D /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = CoreMLPredictionsPlugin;
+		};
+		958E98C82EC818270062E64D /* Authenticator */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 958E98C72EC8173C0062E64D /* XCRemoteSwiftPackageReference "amplify-ui-swift-authenticator" */;
+			productName = Authenticator;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 958E98372EC5484C0062E64D /* Project object */;
+}

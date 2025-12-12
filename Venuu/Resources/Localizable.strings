@@ -1,0 +1,35 @@
+/* 
+  Localizable.strings
+  Venuu
+
+  Created by Antigravity on 11/30/25.
+*/
+
+// Greetings
+"Good Morning" = "Good Morning";
+"Good Afternoon" = "Good Afternoon";
+"Good Evening" = "Good Evening";
+"Good Night" = "Good Night";
+
+// Headers
+"Find your vibe" = "Find your vibe";
+"Featured" = "Featured";
+"Categories" = "Categories";
+"Vibes" = "Vibes";
+"Nearby" = "Nearby";
+
+// Search
+"Search venues, vibes..." = "Search venues, vibes...";
+
+// Categories
+"Live Music" = "Live Music";
+"Bars" = "Bars";
+"Food" = "Food";
+"Clubs" = "Clubs";
+
+// Vibes
+"Chill" = "Chill";
+"Party" = "Party";
+"Date" = "Date";
+"Fancy" = "Fancy";
+"Good Mood" = "Good Mood";
