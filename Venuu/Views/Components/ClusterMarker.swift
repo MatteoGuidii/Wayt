@@ -114,40 +114,7 @@ struct ClusterMarker: View {
             }
             .shadow(color: dominantColor.opacity(0.6), radius: 16, x: 0, y: 8)
 
-            // Enhanced type indicators with better visibility
-            if venues.count <= 5 {
-                ForEach(Array(venues.prefix(5).enumerated()), id: \.element.id) { index, venue in
-                    ZStack {
-                        // Glow behind icon
-                        Circle()
-                            .fill(venue.themeColor.opacity(0.4))
-                            .frame(width: 28, height: 28)
-                            .blur(radius: 3)
 
-                        // Icon background
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [venue.themeColor.opacity(0.95), venue.themeColor],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 24, height: 24)
-                            .shadow(color: venue.themeColor.opacity(0.5), radius: 4, x: 0, y: 2)
-
-                        // Icon
-                        Image(systemName: venue.systemImage)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
-                    }
-                    .offset(
-                        x: cos(angle(for: index)) * 48,
-                        y: sin(angle(for: index)) * 48
-                    )
-                }
-            }
         }
         .onAppear {
             withAnimation(
@@ -157,12 +124,6 @@ struct ClusterMarker: View {
                 isPulsing = true
             }
         }
-    }
-
-    private func angle(for index: Int) -> Double {
-        let count = min(venues.count, 5)
-        let angleStep = 2 * .pi / Double(count)
-        return angleStep * Double(index) - .pi / 2 // Start from top
     }
 }
 

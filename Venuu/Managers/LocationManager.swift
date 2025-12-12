@@ -17,10 +17,9 @@ final class LocationManager: NSObject, ObservableObject {
     var userLocation: CLLocation? {
         manager.location
     }
-    
-    private let geocoder = CLGeocoder()
 
     private let manager: CLLocationManager
+    private var currentSearch: MKLocalSearch?
 
     override init() {
         manager = CLLocationManager()
@@ -149,13 +148,52 @@ extension LocationManager: CLLocationManagerDelegate {
         guard let location = locations.last else { return }
         updateRegion(with: location)
         
-        // Reverse geocode to get city name (debounce could be added if needed, but CLGeocoder handles basic throttling)
-        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
-            guard let self = self, let placemark = placemarks?.first, error == nil else { return }
+        // Cancel any ongoing search
+        currentSearch?.cancel()
+        
+        // Use MKLocalSearch to get city name from location (replaces deprecated CLGeocoder)
+        let searchRequest = MKLocalSearch.Request()
+        searchRequest.region = MKCoordinateRegion(
+            center: location.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        searchRequest.naturalLanguageQuery = "city"
+        searchRequest.resultTypes = [.address]
+        
+        let search = MKLocalSearch(request: searchRequest)
+        currentSearch = search
+        
+        search.start { [weak self] response, error in
+            guard let self = self else { return }
+            
+            // Clear the current search reference
+            if self.currentSearch === search {
+                self.currentSearch = nil
+            }
+            
+            guard error == nil, let mapItem = response?.mapItems.first else {
+                // Fallback to coordinate-based display if search fails
+                DispatchQueue.main.async {
+                    self.currentCity = "Unknown Location"
+                }
+                return
+            }
             
             DispatchQueue.main.async {
-                // Priority: Locality (City) -> SubLocality (Neighborhood) -> Name
-                self.currentCity = placemark.locality ?? placemark.subLocality ?? placemark.name ?? "Unknown Location"
+                // Use addressRepresentations for city name (iOS 26+)
+                if let addressRepresentations = mapItem.addressRepresentations {
+                    // Try cityWithContext first for better disambiguation
+                    if let cityWithContext = addressRepresentations.cityWithContext {
+                        self.currentCity = cityWithContext
+                    } else if let cityName = addressRepresentations.cityName {
+                        self.currentCity = cityName
+                    } else {
+                        self.currentCity = mapItem.name ?? "Unknown Location"
+                    }
+                } else {
+                    // Fallback to map item name
+                    self.currentCity = mapItem.name ?? "Unknown Location"
+                }
             }
         }
     }

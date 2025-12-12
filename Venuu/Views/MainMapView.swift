@@ -17,23 +17,30 @@ struct MainMapView: View {
     @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
     @State private var selectedVenue: Venue?
     @State private var peekVenue: Venue?
-    @State private var showClusters = true
-    @State private var clusterThreshold: CLLocationDistance = 150
-    @State private var disableClusteringTemporarily = false
     @State private var currentMapSpan: MKCoordinateSpan?
     @State private var isProgrammaticZoom = false
 
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
 
-    // Computed property for venue clusters
+    // Dynamic clustering based on zoom level
+    // As we zoom in (span gets smaller), the threshold for clustering (in meters) should decrease
+    // to allow items to separate.
     private var venueClusters: [VenueCluster] {
         guard !venueDiscoveryManager.venues.isEmpty else { return [] }
-        // If clustering is temporarily disabled, show all venues individually
-        if disableClusteringTemporarily {
-            return venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
+        
+        // Calculate threshold based on span
+        // 1 degree latitude ~ 111,000 meters
+        // We want to cluster if items are within ~10% of the visible map height
+        let span = currentMapSpan?.latitudeDelta ?? 0.05
+        let thresholdMeters = span * 111_000 * 0.12 // 12% factor
+        
+        // If threshold matches roughly the "zoomed in" state (e.g. < 50m), just uncluster everything for performance/UX
+        if thresholdMeters < 50 {
+             return venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
         }
-        return showClusters ? venueDiscoveryManager.venues.clustered(threshold: clusterThreshold) : venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
+        
+        return venueDiscoveryManager.venues.clustered(threshold: thresholdMeters)
     }
     
     var body: some View {
@@ -46,7 +53,7 @@ struct MainMapView: View {
                 let clustersToShow = venueClusters.isEmpty ? venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) } : venueClusters
 
                 ForEach(clustersToShow) { cluster in
-                    if cluster.venues.count > 1 && showClusters && !disableClusteringTemporarily {
+                    if cluster.venues.count > 1 {
                         // Show cluster marker
                         Annotation("", coordinate: cluster.coordinate) {
                             ClusterMarker(venues: cluster.venues, userLocation: currentCoordinate)
@@ -106,18 +113,9 @@ struct MainMapView: View {
                 currentPitch = context.camera.pitch
                 currentHeading = context.camera.heading
 
-                // Track the current map span
+                // Track the current map span for dynamic clustering
                 let region = context.region
                 currentMapSpan = region.span
-
-                // Re-enable clustering when zoomed out enough (only for user-initiated zooms)
-                // If latitude span is > 0.05 degrees (~5.5km), re-enable clustering
-                // Don't re-enable during programmatic zooms to prevent clustering during cluster tap zoom
-                if disableClusteringTemporarily && !isProgrammaticZoom && region.span.latitudeDelta > 0.05 {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        disableClusteringTemporarily = false
-                    }
-                }
             }
             
             VStack(spacing: 0) {
@@ -349,60 +347,70 @@ private extension MainMapView {
 
     /// Zooms into a cluster of venues with a smooth animation
     func zoomToCluster(_ cluster: VenueCluster) {
-        // Mark as programmatic zoom to prevent auto re-clustering
+        // Mark as programmatic zoom
         isProgrammaticZoom = true
-
-        // Stop following user immediately
         shouldFollowUser = false
-
-        // Disable clustering to show individual venues
-        // Use animation to ensure smooth transition
-        withAnimation(.easeInOut(duration: 0.2)) {
-            disableClusteringTemporarily = true
-        }
-
-        // Calculate bounding box for all venues in cluster
+        
+        // 1. Calculate the bounding MapRect
         let coordinates = cluster.venues.map { $0.coordinate }
-        let minLat = coordinates.map { $0.latitude }.min() ?? cluster.coordinate.latitude
-        let maxLat = coordinates.map { $0.latitude }.max() ?? cluster.coordinate.latitude
-        let minLon = coordinates.map { $0.longitude }.min() ?? cluster.coordinate.longitude
-        let maxLon = coordinates.map { $0.longitude }.max() ?? cluster.coordinate.longitude
-
-        let center = CLLocationCoordinate2D(
-            latitude: (minLat + maxLat) / 2,
-            longitude: (minLon + maxLon) / 2
-        )
-
-        // Calculate appropriate camera distance based on cluster size
-        let latDelta = max((maxLat - minLat) * 2.5, 0.01)
-        let lonDelta = max((maxLon - minLon) * 2.5, 0.01)
-        // Convert span to approximate distance in meters
-        // Using the larger of the two deltas to ensure all venues are visible
-        let distance = max(latDelta, lonDelta) * 111_000 / 2.0 // Rough conversion: 1 degree ≈ 111km
-
-        // Delay camera zoom to ensure view updates with individual markers first
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            withAnimation(.easeInOut(duration: 0.8)) {
-                // Use .camera() instead of .region() to preserve heading and pitch
-                cameraPosition = .camera(
-                    MapCamera(
-                        centerCoordinate: center,
-                        distance: distance,
-                        heading: currentHeading, // Preserve current map rotation
-                        pitch: currentPitch      // Preserve current pitch
-                    )
-                )
-            }
-
-            // Clear programmatic zoom flag after animation completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                isProgrammaticZoom = false
-            }
+        
+        guard !coordinates.isEmpty else { return }
+        
+        // Create the union of all points
+        var zoomRect = MKMapRect.null
+        for coordinate in coordinates {
+            let point = MKMapPoint(coordinate)
+            // Use a tiny point rect for union
+            let pointRect = MKMapRect(origin: point, size: MKMapSize(width: 1, height: 1))
+            zoomRect = zoomRect.union(pointRect)
         }
-
-        // Note: Clustering will automatically re-enable when user zooms out
-        // (see onMapCameraChange handler)
+        
+        // 2. Check if points are effectively at the same location (singular rect)
+        // If width and height are negligible, we can't "fit" a rect, we must just zoom to the coordinate.
+        if zoomRect.width < 10 && zoomRect.height < 10 {
+           // Case A: All items at same location. Zoom in very close.
+            let center = cluster.coordinate // or zoomRect.center coordinate
+             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.easeInOut(duration: 1.0)) {
+                    cameraPosition = .camera(
+                        MapCamera(
+                            centerCoordinate: center,
+                            distance: 500, // Close enough to clearly see them (and hopefully separate if jitter is applied elsewhere)
+                            heading: currentHeading,
+                            pitch: currentPitch
+                        )
+                    )
+                }
+                resetZoomStateAfterDelay()
+            }
+            return
+        }
+        
+        // 3. Normal Case: Fit the rect with padding
+        // Scale the rect slightly so pins aren't on the edge.
+        // A standard padding UIEdgeInsets is usually safer, but .rect(zoomRect) with automatic padding is often enough.
+        // However, we can also manually inflate the rect if we want more control.
+        let paddingScale: Double = 1.4 // 40% padding around the points
+        let paddedRect = zoomRect.insetBy(dx: -zoomRect.width * (paddingScale - 1) / 2,
+                                          dy: -zoomRect.height * (paddingScale - 1) / 2)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeInOut(duration: 1.0)) {
+                // Use .rect to let MapKit figure out the best altitude
+                cameraPosition = .rect(paddedRect)
+            }
+            resetZoomStateAfterDelay()
+        }
     }
+    
+    private func resetZoomStateAfterDelay() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            isProgrammaticZoom = false
+        }
+    }
+     // Note: Clustering will automatically re-enable when user zooms out
+        // (see onMapCameraChange handler)
+    
 
     /// Animates camera smoothly to a selected venue
     func animateCameraToVenue(_ venue: Venue) {
