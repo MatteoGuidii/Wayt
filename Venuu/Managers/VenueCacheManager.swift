@@ -65,7 +65,7 @@ actor VenueCacheManager {
         var venues: [Venue] = []
         for cached in cachedVenues {
             // Reconstruct a basic MKMapItem using modern API
-            let coordinate = CLLocationCoordinate2D(latitude: cached.latitude, longitude: cached.longitude)
+            _ = CLLocationCoordinate2D(latitude: cached.latitude, longitude: cached.longitude)
             let location = CLLocation(latitude: cached.latitude, longitude: cached.longitude)
 
             // Create MKMapItem using modern iOS 26+ API

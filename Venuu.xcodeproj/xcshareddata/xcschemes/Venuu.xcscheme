@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "958E983E2EC5484C0062E64D"
-               BuildableName = "Venuee.app"
-               BlueprintName = "Venuee"
+               BuildableName = "Venuu.app"
+               BlueprintName = "Venuu"
                ReferencedContainer = "container:Venuu.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -70,8 +70,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "958E983E2EC5484C0062E64D"
-            BuildableName = "Venuee.app"
-            BlueprintName = "Venuee"
+            BuildableName = "Venuu.app"
+            BlueprintName = "Venuu"
             ReferencedContainer = "container:Venuu.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -87,8 +87,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "958E983E2EC5484C0062E64D"
-            BuildableName = "Venuee.app"
-            BlueprintName = "Venuee"
+            BuildableName = "Venuu.app"
+            BlueprintName = "Venuu"
             ReferencedContainer = "container:Venuu.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
