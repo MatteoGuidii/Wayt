@@ -54,6 +54,7 @@ struct MainMapView: View {
                                     // Zoom into cluster
                                     zoomToCluster(cluster)
                                 }
+                                .zIndex(1) // Ensure clusters are above individual markers
                         }
                     } else {
                         // Show individual venue markers
@@ -62,6 +63,7 @@ struct MainMapView: View {
                                 VenueMarker(
                                     venue: venue,
                                     userLocation: currentCoordinate,
+                                    showTitle: (currentMapSpan?.latitudeDelta ?? 0) < 0.02, // Hide title when zoomed out
                                     onLongPress: {
                                         peekVenue = venue
                                     }
@@ -197,13 +199,18 @@ struct MainMapView: View {
             // Store the current coordinate
             currentCoordinate = newRegion.center
             
-            // Always update on the first location fix
-            if !hasInitialLocation && CLLocationCoordinate2DIsValid(newRegion.center) && (newRegion.center.latitude != 0 || newRegion.center.longitude != 0) {
-                hasInitialLocation = true
-                updateCameraPosition(
-                    coordinate: newRegion.center,
-                    heading: locationManager.heading
-                )
+            // Always update on the first location fix if valid
+            if !hasInitialLocation {
+                if CLLocationCoordinate2DIsValid(newRegion.center) &&
+                   newRegion.center.latitude != 0 &&
+                   newRegion.center.longitude != 0 {
+                    
+                    hasInitialLocation = true
+                    updateCameraPosition(
+                        coordinate: newRegion.center,
+                        heading: locationManager.heading
+                    )
+                }
                 return
             }
 
@@ -218,6 +225,14 @@ struct MainMapView: View {
         .onReceive(locationManager.$region) { region in
             // Trigger venue search when user location changes
             // We use the region center as a proxy for user location when tracking
+            
+            // Validate coordinates to prevent 0,0 clearing the map
+            guard CLLocationCoordinate2DIsValid(region.center),
+                  region.center.latitude != 0,
+                  region.center.longitude != 0 else {
+                return
+            }
+            
             // Ideally, LocationManager should expose the raw CLLocation for better accuracy
             let location = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
             venueDiscoveryManager.updateUserLocation(location)
