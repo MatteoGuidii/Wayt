@@ -6,22 +6,22 @@ struct NearbyVenuesList: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Nearby")
+            Text("Nearby & Trending")
                 .font(.title3.weight(.bold))
                 .padding(.horizontal, 20)
             
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: 24) {
                 // Show the rest of the venues
-                ForEach(Array(venueDiscoveryManager.venues.dropFirst(5).enumerated()), id: \.element.id) { index, venue in
-                    NearbyVenueRow(venue: venue)
-                        .onTapGesture {
-                            selectedVenue = venue
-                        }
-                        .transition(.opacity.combined(with: .slide))
-                        .animation(.easeOut.delay(Double(index) * 0.05), value: venueDiscoveryManager.venues)
+                ForEach(venueDiscoveryManager.venues) { venue in
+                    NearbyVenueBigCard(venue: venue, onSave: {
+                        // Handle save action
+                    })
+                    .onTapGesture {
+                        selectedVenue = venue
+                    }
+                    .padding(.horizontal, 20)
                 }
             }
-            .padding(.horizontal, 20)
         }
     }
 }

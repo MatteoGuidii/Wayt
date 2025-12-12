@@ -12,10 +12,13 @@ final class LocationManager: NSObject, ObservableObject {
     @Published var accuracyAuthorization: CLAccuracyAuthorization = .reducedAccuracy
     @Published var statusMessage: String?
     @Published var heading: CLLocationDirection = 0 // User's compass heading in degrees
+    @Published var currentCity: String = "Locating..."
 
     var userLocation: CLLocation? {
         manager.location
     }
+    
+    private let geocoder = CLGeocoder()
 
     private let manager: CLLocationManager
 
@@ -145,6 +148,16 @@ extension LocationManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         updateRegion(with: location)
+        
+        // Reverse geocode to get city name (debounce could be added if needed, but CLGeocoder handles basic throttling)
+        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
+            guard let self = self, let placemark = placemarks?.first, error == nil else { return }
+            
+            DispatchQueue.main.async {
+                // Priority: Locality (City) -> SubLocality (Neighborhood) -> Name
+                self.currentCity = placemark.locality ?? placemark.subLocality ?? placemark.name ?? "Unknown Location"
+            }
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
