@@ -11,35 +11,52 @@ struct CategoryFilterView: View {
             Text("Categories")
                 .font(.headline)
                 .padding(.horizontal, 20)
-                
+            
+            let categories = [
+                ("All", "square.grid.2x2.fill"),
+                ("Bar", "wineglass.fill"),
+                ("Club", "music.mic"),
+                ("Food", "fork.knife"),
+                ("Cafe", "cup.and.saucer.fill"), // Note: Might remove later based on previous chat, but keeping for now as example
+                ("Art", "paintpalette.fill")
+            ]
+            
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    Button {
-                        toggleCategory("Live Music")
-                    } label: {
-                        CategoryChip(icon: "music.mic", label: "Live Music", isSelected: selectedCategory == "Live Music")
-                    }
-                    
-                    Button {
-                        toggleCategory("Bars")
-                    } label: {
-                        CategoryChip(icon: "wineglass.fill", label: "Bars", isSelected: selectedCategory == "Bars")
-                    }
-                    
-                    Button {
-                        toggleCategory("Food")
-                    } label: {
-                        CategoryChip(icon: "fork.knife", label: "Food", isSelected: selectedCategory == "Food")
-                    }
-                    
-                    Button {
-                        toggleCategory("Clubs")
-                    } label: {
-                        CategoryChip(icon: "figure.dance", label: "Clubs", isSelected: selectedCategory == "Clubs")
+                    ForEach(categories, id: \.0) { category, icon in
+                        let isSelected = selectedCategory == (category == "All" ? nil : category)
+                        
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                if category == "All" {
+                                    selectedCategory = nil
+                                } else {
+                                    selectedCategory = category
+                                }
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: icon)
+                                    .font(.system(size: 14))
+                                Text(category)
+                                    .font(.system(size: 15, weight: .semibold))
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(isSelected ? Color.blue : Color(uiColor: .secondarySystemBackground))
+                            .foregroundStyle(isSelected ? .white : .primary)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(isSelected ? Color.clear : Color.primary.opacity(0.1), lineWidth: 1)
+                            )
+                            .scaleEffect(isSelected ? 1.05 : 1.0)
+                            .shadow(color: isSelected ? .blue.opacity(0.3) : .clear, radius: 8, x: 0, y: 4)
+                        }
                     }
                 }
-                .buttonStyle(.plain)
                 .padding(.horizontal, 20)
+                .padding(.vertical, 8) // Space for shadow
             }
         }
     }
