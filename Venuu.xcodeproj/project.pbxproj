@@ -30,39 +30,39 @@
 			containerPortal = 958E98372EC5484C0062E64D /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 958E983E2EC5484C0062E64D;
-			remoteInfo = zyvo;
+			remoteInfo = Venuu;
 		};
 		958E98572EC5484D0062E64D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 958E98372EC5484C0062E64D /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 958E983E2EC5484C0062E64D;
-			remoteInfo = zyvo;
+			remoteInfo = Venuu;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		55ED99E75F8D23B1D4897D6F /* amplifyconfiguration.json */ = {isa = PBXFileReference; explicitFileType = text.json; path = amplifyconfiguration.json; sourceTree = "<group>"; };
 		958E983F2EC5484C0062E64D /* Venuee.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Venuee.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		958E984C2EC5484D0062E64D /* zyvoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = zyvoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		958E98562EC5484D0062E64D /* zyvoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = zyvoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		958E984C2EC5484D0062E64D /* VenuuTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VenuuTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		958E98562EC5484D0062E64D /* VenuuUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VenuuUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6ED90CC7132F653B1BDDBBA /* awsconfiguration.json */ = {isa = PBXFileReference; explicitFileType = text.json; path = awsconfiguration.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		958E98412EC5484C0062E64D /* zyvo */ = {
+		958E98412EC5484C0062E64D /* Venuu */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = zyvo;
+			path = Venuu;
 			sourceTree = "<group>";
 		};
-		958E984F2EC5484D0062E64D /* zyvoTests */ = {
+		958E984F2EC5484D0062E64D /* VenuuTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = zyvoTests;
+			path = VenuuTests;
 			sourceTree = "<group>";
 		};
-		958E98592EC5484D0062E64D /* zyvoUITests */ = {
+		958E98592EC5484D0062E64D /* VenuuUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = zyvoUITests;
+			path = VenuuUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -108,9 +108,9 @@
 		958E98362EC5484C0062E64D = {
 			isa = PBXGroup;
 			children = (
-				958E98412EC5484C0062E64D /* zyvo */,
-				958E984F2EC5484D0062E64D /* zyvoTests */,
-				958E98592EC5484D0062E64D /* zyvoUITests */,
+				958E98412EC5484C0062E64D /* Venuu */,
+				958E984F2EC5484D0062E64D /* VenuuTests */,
+				958E98592EC5484D0062E64D /* VenuuUITests */,
 				958E98402EC5484C0062E64D /* Products */,
 				9FDBA4E0A1D62D8E9453EA4B /* AmplifyConfig */,
 				958E987F2EC579580062E64D /* Frameworks */,
@@ -121,8 +121,8 @@
 			isa = PBXGroup;
 			children = (
 				958E983F2EC5484C0062E64D /* Venuee.app */,
-				958E984C2EC5484D0062E64D /* zyvoTests.xctest */,
-				958E98562EC5484D0062E64D /* zyvoUITests.xctest */,
+				958E984C2EC5484D0062E64D /* VenuuTests.xctest */,
+				958E98562EC5484D0062E64D /* VenuuUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -159,7 +159,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				958E98412EC5484C0062E64D /* zyvo */,
+				958E98412EC5484C0062E64D /* Venuu */,
 			);
 			name = Venuee;
 			packageProductDependencies = (
@@ -177,13 +177,13 @@
 				958E98972EC57AC30062E64D /* CoreMLPredictionsPlugin */,
 				958E98C82EC818270062E64D /* Authenticator */,
 			);
-			productName = zyvo;
+			productName = Venuu;
 			productReference = 958E983F2EC5484C0062E64D /* Venuee.app */;
 			productType = "com.apple.product-type.application";
 		};
-		958E984B2EC5484D0062E64D /* zyvoTests */ = {
+		958E984B2EC5484D0062E64D /* VenuuTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 958E98632EC5484D0062E64D /* Build configuration list for PBXNativeTarget "zyvoTests" */;
+			buildConfigurationList = 958E98632EC5484D0062E64D /* Build configuration list for PBXNativeTarget "VenuuTests" */;
 			buildPhases = (
 				958E98482EC5484D0062E64D /* Sources */,
 				958E98492EC5484D0062E64D /* Frameworks */,
@@ -195,18 +195,18 @@
 				958E984E2EC5484D0062E64D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				958E984F2EC5484D0062E64D /* zyvoTests */,
+				958E984F2EC5484D0062E64D /* VenuuTests */,
 			);
-			name = zyvoTests;
+			name = VenuuTests;
 			packageProductDependencies = (
 			);
-			productName = zyvoTests;
-			productReference = 958E984C2EC5484D0062E64D /* zyvoTests.xctest */;
+			productName = VenuuTests;
+			productReference = 958E984C2EC5484D0062E64D /* VenuuTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		958E98552EC5484D0062E64D /* zyvoUITests */ = {
+		958E98552EC5484D0062E64D /* VenuuUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 958E98662EC5484D0062E64D /* Build configuration list for PBXNativeTarget "zyvoUITests" */;
+			buildConfigurationList = 958E98662EC5484D0062E64D /* Build configuration list for PBXNativeTarget "VenuuUITests" */;
 			buildPhases = (
 				958E98522EC5484D0062E64D /* Sources */,
 				958E98532EC5484D0062E64D /* Frameworks */,
@@ -218,13 +218,13 @@
 				958E98582EC5484D0062E64D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				958E98592EC5484D0062E64D /* zyvoUITests */,
+				958E98592EC5484D0062E64D /* VenuuUITests */,
 			);
-			name = zyvoUITests;
+			name = VenuuUITests;
 			packageProductDependencies = (
 			);
-			productName = zyvoUITests;
-			productReference = 958E98562EC5484D0062E64D /* zyvoUITests.xctest */;
+			productName = VenuuUITests;
+			productReference = 958E98562EC5484D0062E64D /* VenuuUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -250,7 +250,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 958E983A2EC5484C0062E64D /* Build configuration list for PBXProject "zyvo" */;
+			buildConfigurationList = 958E983A2EC5484C0062E64D /* Build configuration list for PBXProject "Venuu" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -269,8 +269,8 @@
 			projectRoot = "";
 			targets = (
 				958E983E2EC5484C0062E64D /* Venuee */,
-				958E984B2EC5484D0062E64D /* zyvoTests */,
-				958E98552EC5484D0062E64D /* zyvoUITests */,
+				958E984B2EC5484D0062E64D /* VenuuTests */,
+				958E98552EC5484D0062E64D /* VenuuUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -537,7 +537,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.zyvoTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.VenuuTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -545,7 +545,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/zyvo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/zyvo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Venuu.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Venuu";
 			};
 			name = Debug;
 		};
@@ -558,7 +558,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.zyvoTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.VenuuTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -566,7 +566,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/zyvo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/zyvo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Venuu.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Venuu";
 			};
 			name = Release;
 		};
@@ -577,7 +577,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.zyvoUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.VenuuUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -585,7 +585,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = zyvo;
+				TEST_TARGET_NAME = Venuu;
 			};
 			name = Debug;
 		};
@@ -596,7 +596,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.zyvoUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matteoguidi.VenuuUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -604,14 +604,14 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = zyvo;
+				TEST_TARGET_NAME = Venuu;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		958E983A2EC5484C0062E64D /* Build configuration list for PBXProject "zyvo" */ = {
+		958E983A2EC5484C0062E64D /* Build configuration list for PBXProject "Venuu" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				958E985E2EC5484D0062E64D /* Debug */,
@@ -629,7 +629,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		958E98632EC5484D0062E64D /* Build configuration list for PBXNativeTarget "zyvoTests" */ = {
+		958E98632EC5484D0062E64D /* Build configuration list for PBXNativeTarget "VenuuTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				958E98642EC5484D0062E64D /* Debug */,
@@ -638,7 +638,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		958E98662EC5484D0062E64D /* Build configuration list for PBXNativeTarget "zyvoUITests" */ = {
+		958E98662EC5484D0062E64D /* Build configuration list for PBXNativeTarget "VenuuUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				958E98672EC5484D0062E64D /* Debug */,

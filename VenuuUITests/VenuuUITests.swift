@@ -1,13 +1,13 @@
 //
-//  zyvoUITests.swift
-//  zyvoUITests
+//  VenuuUITests.swift
+//  VenuuUITests
 //
 //  Created by Matteo Guidi on 2025-11-12.
 //
 
 import XCTest
 
-final class zyvoUITests: XCTestCase {
+final class VenuuUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
