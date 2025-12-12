@@ -43,13 +43,13 @@ struct AuthRootView: View {
     var body: some View {
         ZStack {
             // Background gradient fills entire screen
-            ZyvoAuthTheme.backgroundGradient
+            VenuuAuthTheme.backgroundGradient
                 .ignoresSafeArea()
             
             // Authenticator on top
             Authenticator(
                 headerContent: {
-                    ZyvoAuthTheme.headerView
+                    VenuuAuthTheme.headerView
                 }
             ) { state in
                 MainTabView(username: state.user.username) {
@@ -59,7 +59,7 @@ struct AuthRootView: View {
                 }
                 .transition(.opacity.combined(with: .scale))
             }
-            .authenticatorTheme(ZyvoAuthTheme.authenticatorTheme)
+            .authenticatorTheme(VenuuAuthTheme.authenticatorTheme)
             .keyboardAccessoryPadding()
         }
     }

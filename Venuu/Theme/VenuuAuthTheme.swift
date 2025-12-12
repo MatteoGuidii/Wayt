@@ -1,5 +1,5 @@
 //
-//  ZyvoAuthTheme.swift
+//  VenuuAuthTheme.swift
 //  Venuu
 //
 //  Created by Matteo Guidi on 2025-11-14.
@@ -8,7 +8,7 @@
 import SwiftUI
 import Authenticator
 
-enum ZyvoAuthTheme {
+enum VenuuAuthTheme {
     // MARK: - Colors
 
     static let backgroundGradient = LinearGradient(

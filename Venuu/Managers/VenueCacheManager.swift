@@ -68,9 +68,8 @@ actor VenueCacheManager {
             let coordinate = CLLocationCoordinate2D(latitude: cached.latitude, longitude: cached.longitude)
             let location = CLLocation(latitude: cached.latitude, longitude: cached.longitude)
 
-            // Create MKMapItem using modern API to avoid MKPlacemark deprecation in iOS 26+
-            let mapItem = MKMapItem()
-            mapItem.placemark = MKPlacemark(coordinate: coordinate)
+            // Create MKMapItem using modern iOS 26+ API
+            let mapItem = MKMapItem(location: location, address: nil)
 
             mapItem.name = cached.name
             if let catRaw = cached.categoryRawValue {
