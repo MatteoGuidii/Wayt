@@ -130,7 +130,13 @@ struct VenueMarker: View {
         
         VenueMarker(
             venue: Venue(
-                 mapItem: MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0)))
+                 mapItem: {
+                     let coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+                     let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                     let item = MKMapItem(location: location, address: nil)
+                     item.name = "Sample Venue"
+                     return item
+                 }()
             ),
             userLocation: CLLocationCoordinate2D(latitude: 0, longitude: 0),
             onLongPress: {}
