@@ -1,6 +1,6 @@
 //
-//  zyvoApp.swift
-//  zyvo
+//  VenuuApp.swift
+//  Venuu
 //
 //  Created by Matteo Guidi on 2025-11-12.
 //
@@ -11,7 +11,7 @@ import Authenticator
 import AWSCognitoAuthPlugin
 
 @main
-struct zyvoApp: App {
+struct VenuuApp: App {
     @StateObject private var locationManager = LocationManager()
 
     init() {

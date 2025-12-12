@@ -1,13 +1,13 @@
 //
-//  zyvoUITestsLaunchTests.swift
-//  zyvoUITests
+//  VenuuUITestsLaunchTests.swift
+//  VenuuUITests
 //
 //  Created by Matteo Guidi on 2025-11-12.
 //
 
 import XCTest
 
-final class zyvoUITestsLaunchTests: XCTestCase {
+final class VenuuUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

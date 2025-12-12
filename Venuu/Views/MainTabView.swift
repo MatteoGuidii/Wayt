@@ -1,6 +1,6 @@
 //
 //  MainTabView.swift
-//  zyvo
+//  Venuu
 //
 //  Created by Claude Code
 //
