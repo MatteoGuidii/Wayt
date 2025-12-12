@@ -102,28 +102,22 @@ struct VenueDetailView: View {
     }
     
     private func getAddress(for mapItem: MKMapItem) -> String {
-        // Try modern postal address API (available iOS 16+)
-        if let postalAddress = mapItem.placemark.postalAddress {
-            let formatter = CNPostalAddressFormatter()
-            return formatter.string(from: postalAddress)
+        // Use modern iOS 26+ addressRepresentations API for formatted address
+        if let addressRepresentations = mapItem.addressRepresentations {
+            // Get full address with region, multi-line format
+            if let formattedAddress = addressRepresentations.fullAddress(includingRegion: true, singleLine: false) {
+                return formattedAddress
+            }
+        }
+        
+        // Fall back to address property (iOS 26+) which provides fullAddress string
+        if let address = mapItem.address {
+            return address.fullAddress
         }
 
-        // Fall back to placemark data
-        let placemark = mapItem.placemark
-        let components = [
-            placemark.subThoroughfare,
-            placemark.thoroughfare,
-            placemark.locality,
-            placemark.administrativeArea,
-            placemark.postalCode
-        ].compactMap { $0 }
-
-        if !components.isEmpty {
-            return components.joined(separator: ", ")
-        }
-
-        // Final fallback to coordinate representation
-        let coord = mapItem.placemark.coordinate
+        // Final fallback to coordinate representation using location
+        let location = mapItem.location
+        let coord = location.coordinate
         return String(format: "%.5f, %.5f", coord.latitude, coord.longitude)
     }
 }
