@@ -1,10 +1,10 @@
 {
   "version": "1",
   "cognitoConfig": {
-    "identityPoolName": "zyvof01d995f_identitypool_f01d995f",
+    "identityPoolName": "venuuf01d995f_identitypool_f01d995f",
     "allowUnauthenticatedIdentities": false,
-    "resourceNameTruncated": "zyvof01d995f",
-    "userPoolName": "zyvof01d995f_userpool_f01d995f",
+    "resourceNameTruncated": "venuuf01d995f",
+    "userPoolName": "venuuf01d995f_userpool_f01d995f",
     "autoVerifiedAttributes": [
       "email"
     ],
@@ -31,10 +31,10 @@
     "userpoolClientReadAttributes": [
       "email"
     ],
-    "userpoolClientLambdaRole": "zyvof0f01d995f_userpoolclient_lambda_role",
+    "userpoolClientLambdaRole": "venuuf0f01d995f_userpoolclient_lambda_role",
     "userpoolClientSetAttributes": false,
     "sharedId": "f01d995f",
-    "resourceName": "zyvof01d995f",
+    "resourceName": "venuuf01d995f",
     "authSelections": "identityPoolAndUserPool",
     "useDefault": "defaultSocial",
     "usernameAttributes": [
@@ -59,10 +59,10 @@
     "breakCircularDependency": true,
     "dependsOn": [],
     "hostedUI": true,
-    "hostedUIDomainName": "zyvoc38ef5d9-c38ef5d9",
+    "hostedUIDomainName": "venuuc38ef5d9-c38ef5d9",
     "authProvidersUserPool": [],
     "hostedUIProviderMeta": "[]",
-    "oAuthMetadata": "{\"AllowedOAuthFlows\":[\"code\"],\"AllowedOAuthScopes\":[\"phone\",\"email\",\"openid\",\"profile\",\"aws.cognito.signin.user.admin\"],\"CallbackURLs\":[\"com.matteoguidi.zyvo://\"],\"LogoutURLs\":[\"com.matteoguidi.zyvo://\"]}",
+    "oAuthMetadata": "{\"AllowedOAuthFlows\":[\"code\"],\"AllowedOAuthScopes\":[\"phone\",\"email\",\"openid\",\"profile\",\"aws.cognito.signin.user.admin\"],\"CallbackURLs\":[\"com.matteoguidi.venuu://\"],\"LogoutURLs\":[\"com.matteoguidi.venuu://\"]}",
     "authProviders": []
   }
 }
