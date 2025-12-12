@@ -4,6 +4,7 @@ import MapKit
 struct VenueMarker: View {
     let venue: Venue
     let userLocation: CLLocationCoordinate2D?
+    var showTitle: Bool = true
     let onLongPress: () -> Void
 
     @State private var isAnimating = false
@@ -43,15 +44,18 @@ struct VenueMarker: View {
                     }
                     
                     // Venue Name
-                    Text(venue.name)
-                        .font(.system(size: 13, weight: .bold)) // Bold for better readability
-                        .foregroundStyle(.primary) // Auto adapts to light/dark
-                        .lineLimit(1)
-                        .padding(.trailing, 4)
+                    if showTitle {
+                        Text(venue.name)
+                            .font(.system(size: 13, weight: .bold)) // Bold for better readability
+                            .foregroundStyle(.primary) // Auto adapts to light/dark
+                            .lineLimit(1)
+                            .padding(.trailing, 4)
+                            .transition(.opacity.combined(with: .scale))
+                    }
                 }
                 .padding(.leading, 4)
                 .padding(.vertical, 4)
-                .padding(.trailing, 10)
+                .padding(.trailing, showTitle ? 10 : 4) // Reduce padding when title is hidden
                 .background(Material.thick) // Thicker material for better contrast
                 .clipShape(Capsule())
                 .overlay(
@@ -69,6 +73,7 @@ struct VenueMarker: View {
                         )
                 )
                 .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
+                .animation(.easeInOut(duration: 0.2), value: showTitle)
                 
                 // Precision Pointer
                 Image(systemName: "triangle.fill")
@@ -139,6 +144,7 @@ struct VenueMarker: View {
                  }()
             ),
             userLocation: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+            showTitle: true,
             onLongPress: {}
         )
     }
