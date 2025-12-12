@@ -68,19 +68,9 @@ actor VenueCacheManager {
             let coordinate = CLLocationCoordinate2D(latitude: cached.latitude, longitude: cached.longitude)
             let location = CLLocation(latitude: cached.latitude, longitude: cached.longitude)
 
-            let mapItem: MKMapItem
-            if #available(iOS 16.0, *) {
-                // Actually, the easiest modern way that is also back-compatible-ish
-                // MKMapItem(placemark:) is NOT deprecated for initialization.
-                // MKPlacemark(coordinate:) IS deprecated in iOS 10->?? No wait, it's valid.
-                // It is 'init(placemark:)' on MKMapItem that is standard.
-                // The issue is MKPlacemark.init(coordinate:...)
-                let placemark = MKPlacemark(coordinate: coordinate)
-                mapItem = MKMapItem(placemark: placemark)
-            } else {
-                let placemark = MKPlacemark(coordinate: coordinate)
-                mapItem = MKMapItem(placemark: placemark)
-            }
+            // Create MKMapItem using modern API to avoid MKPlacemark deprecation in iOS 26+
+            let mapItem = MKMapItem()
+            mapItem.placemark = MKPlacemark(coordinate: coordinate)
 
             mapItem.name = cached.name
             if let catRaw = cached.categoryRawValue {
