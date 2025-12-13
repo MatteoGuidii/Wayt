@@ -44,7 +44,9 @@ struct MainMapView: View {
     }
     
     var body: some View {
-        ZStack(alignment: .top) {
+        let hasPendingImages = venueDiscoveryManager.venues.contains { $0.image == nil }
+
+        return ZStack(alignment: .top) {
             Map(position: $cameraPosition, interactionModes: .all, scope: mapScope) {
                 UserAnnotation()
 
@@ -118,7 +120,7 @@ struct MainMapView: View {
                 currentMapSpan = region.span
             }
             
-            VStack(spacing: 0) {
+            VStack(spacing: 10) {
                 // Searching indicator with enhanced design
                 if venueDiscoveryManager.isSearching {
                     HStack(spacing: 10) {
@@ -149,6 +151,31 @@ struct MainMapView: View {
                     .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 5)
                     .padding(.top, 12)
                     .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                if venueDiscoveryManager.didHitResultLimit {
+                    Text("Showing top \(AppConfiguration.Search.maxResultCount) spots nearby")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .background(
+                            Capsule()
+                                .fill(.ultraThinMaterial)
+                        )
+                        .accessibilityHint("Results are capped to reduce data usage")
+                }
+
+                if hasPendingImages {
+                    Text("Photos load gradually to save data.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
+                        .background(
+                            Capsule()
+                                .fill(.thinMaterial)
+                        )
                 }
 
                 Spacer()
@@ -193,6 +220,14 @@ struct MainMapView: View {
                 .presentationDragIndicator(.visible)
         }
         .task { locationManager.start() }
+        .onAppear {
+            locationManager.setHeadingUpdatesEnabled(true)
+            locationManager.setHighAccuracyTrackingEnabled(true)
+        }
+        .onDisappear {
+            locationManager.setHeadingUpdatesEnabled(false)
+            locationManager.setHighAccuracyTrackingEnabled(false)
+        }
         .onReceive(locationManager.$region) { newRegion in
             // Store the current coordinate
             currentCoordinate = newRegion.center

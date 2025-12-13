@@ -7,6 +7,7 @@ import UIKit
 class VenueDiscoveryManager: ObservableObject {
     @Published var venues: [Venue] = []
     @Published var isSearching = false
+    @Published var didHitResultLimit = false
 
     private var lastSearchLocation: CLLocation?
     private var lastSearchRadius: CLLocationDistance = AppConfiguration.Search.defaultSearchRadius
@@ -71,36 +72,62 @@ class VenueDiscoveryManager: ObservableObject {
     }
     
     private func performSearch(near center: CLLocationCoordinate2D, searchText: String = "", radius: CLLocationDistance) {
-        // Cancel previous search task
         searchTask?.cancel()
-        
         isSearching = true
-        
-        searchTask = Task {
+
+        let searchService = self.searchService
+        let cacheManager = self.cacheManager
+        let imageService = self.imageService
+        let searchCenter = center
+
+        searchTask = Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
             // Debounce for map interactions to prevent excessive searches during rapid zooming
             if searchText.isEmpty {
                 try? await Task.sleep(nanoseconds: AppConfiguration.Search.debounceDelayNanoseconds)
             }
-            
+
             if Task.isCancelled { return }
-            
+
             let searchRegion = MKCoordinateRegion(
-                center: center,
+                center: searchCenter,
                 latitudinalMeters: radius * 2,
                 longitudinalMeters: radius * 2
             )
-            
-            let queries = searchService.getQueries(for: searchText)
-            // Store venues with their search rank (index in the Apple Maps response)
-            // (Venue, Rank)
-            var scoredVenues: [(venue: Venue, rank: Int)] = []
-            var seenVenues: Set<Venue> = []
 
-            await withTaskGroup(of: [Venue].self) { group in
+            let queries = searchService.getQueries(for: searchText)
+            
+            // Use an actor to safely collect venues from concurrent tasks
+            actor VenueCollector {
+                private var scoredVenues: [(venue: Venue, rank: Int)] = []
+                private var seenVenueKeys: Set<String> = []
+                
+                func add(_ venues: [(venue: Venue, key: String)]) {
+                    for (index, item) in venues.enumerated() {
+                        if !seenVenueKeys.contains(item.key) {
+                            scoredVenues.append((item.venue, index))
+                            seenVenueKeys.insert(item.key)
+                        }
+                    }
+                }
+                
+                func getVenues() -> [(venue: Venue, rank: Int)] {
+                    return scoredVenues
+                }
+            }
+            
+            let collector = VenueCollector()
+
+            await withTaskGroup(of: [(venue: Venue, key: String)].self) { group in
                 for query in queries {
                     group.addTask {
                         do {
-                            return try await self.searchService.search(query: query, region: searchRegion)
+                            let venues = try await searchService.search(query: query, region: searchRegion)
+                            return await MainActor.run {
+                                venues.map { venue in
+                                    (venue: venue, key: "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)")
+                                }
+                            }
                         } catch {
                             return []
                         }
@@ -108,94 +135,93 @@ class VenueDiscoveryManager: ObservableObject {
                 }
 
                 for await venues in group {
-                    for (index, venue) in venues.enumerated() {
-                        // Use Venue's Hashable implementation for proper deduplication
-                        if !seenVenues.contains(venue) {
-                            scoredVenues.append((venue, index))
-                            seenVenues.insert(venue)
-                        }
-                    }
+                    await collector.add(venues)
                 }
             }
-            
+
             if Task.isCancelled { return }
-            
-            // Filter and Sort
-            let userLocation = CLLocation(latitude: center.latitude, longitude: center.longitude)
-            
-            // 1. Filter Check
-            let validVenues = scoredVenues.filter { item in
-                let venue = item.venue
-                let venueLoc = CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude)
+
+            let scoredVenues = await collector.getVenues()
+            let userLocation = CLLocation(latitude: searchCenter.latitude, longitude: searchCenter.longitude)
+
+            let enrichedVenues = await MainActor.run {
+                scoredVenues.map { item in
+                    RankedVenue(
+                        venue: item.venue,
+                        rank: item.rank,
+                        latitude: item.venue.coordinate.latitude,
+                        longitude: item.venue.coordinate.longitude,
+                        type: item.venue.type
+                    )
+                }
+            }
+
+            let validVenues = enrichedVenues.filter { item in
+                let venueLoc = CLLocation(latitude: item.latitude, longitude: item.longitude)
                 let distanceOk = venueLoc.distance(from: userLocation) <= radius
-                let typeOk = venue.type.isNightlife
+                let typeOk = item.type.isNightlife
                 return distanceOk && typeOk
             }
-            
-            // 2. Hybrid Sort: "Trust Apple, but Verify Distance"
-            // Primary Sort Key: Rank (Index from Apple response)
-            // Secondary Sort Key: Distance (Break ties between categories)
-            // Penalty: If distance is very far (> 5km), add a rank penalty so closer "mediocre" places might win
-            
+
             let sortedItemTuples = validVenues.sorted { item1, item2 in
-                let v1 = item1.venue
-                let v2 = item2.venue
-                
-                let loc1 = CLLocation(latitude: v1.coordinate.latitude, longitude: v1.coordinate.longitude)
-                let loc2 = CLLocation(latitude: v2.coordinate.latitude, longitude: v2.coordinate.longitude)
-                
+                let loc1 = CLLocation(latitude: item1.latitude, longitude: item1.longitude)
+                let loc2 = CLLocation(latitude: item2.latitude, longitude: item2.longitude)
+
                 let dist1 = loc1.distance(from: userLocation)
                 let dist2 = loc2.distance(from: userLocation)
-                
-                // Penalty for being very far (> 5km)
-                // We add 'penalty' to the Apple Rank.
-                // 1 Rank point ~= "1 position worse in list"
+
                 let penalty1 = dist1 > 5000 ? 20 : 0
                 let penalty2 = dist2 > 5000 ? 20 : 0
-                
+
                 let score1 = item1.rank + penalty1
                 let score2 = item2.rank + penalty2
-                
+
                 if score1 == score2 {
-                    // If Ranks are equal (e.g. Best Bar vs Best Club), choose the closer one
                     return dist1 < dist2
                 } else {
                     return score1 < score2
                 }
             }
-            
+
             let finalVenues = sortedItemTuples.map { $0.venue }
-            
-            await MainActor.run {
+            let limitedVenues = Array(finalVenues.prefix(AppConfiguration.Search.maxResultCount))
+            let trimmedResults = finalVenues.count > limitedVenues.count
+
+            let shouldPersistResults = await MainActor.run { [weak self] () -> Bool in
+                guard let self = self else { return false }
                 defer { self.isSearching = false }
-                
+
                 let searchLocation = userLocation
                 let hasExistingVenues = !self.venues.isEmpty
                 let isSameAreaAsLastSuccess: Bool = {
-                    guard let lastSuccessfulLocation else { return false }
+                    guard let lastSuccessfulLocation = self.lastSuccessfulLocation else { return false }
                     return lastSuccessfulLocation.distance(from: searchLocation) < AppConfiguration.Search.minimumDistanceForNewSearch
                 }()
-                
-                guard !finalVenues.isEmpty else {
+
+                guard !limitedVenues.isEmpty else {
                     if hasExistingVenues && isSameAreaAsLastSuccess {
-                        // Treat empty results in the same area as a transient failure.
-                        // Keep current pins on screen and retry on the next location update.
                         self.shouldRetryAfterEmptyResult = true
-                        return
                     } else {
                         self.shouldRetryAfterEmptyResult = false
                         self.venues = []
                         self.lastSuccessfulLocation = nil
-                        return
                     }
+                    self.didHitResultLimit = false
+                    return false
                 }
-                
+
                 self.shouldRetryAfterEmptyResult = false
-                self.venues = finalVenues
+                self.venues = limitedVenues
                 self.lastSuccessfulLocation = searchLocation
-                
-                // Save to cache
-                let cachedVenues = finalVenues.map { venue in
+                self.didHitResultLimit = trimmedResults
+                return true
+            }
+
+            guard shouldPersistResults else { return }
+            if Task.isCancelled { return }
+
+            let cachedVenues = await MainActor.run {
+                limitedVenues.map { venue in
                     VenueCacheManager.CachedVenue(
                         id: venue.id,
                         name: venue.name,
@@ -205,28 +231,33 @@ class VenueDiscoveryManager: ObservableObject {
                         imageData: nil
                     )
                 }
-                
-                Task {
-                    do {
-                        try await self.cacheManager.saveVenues(cachedVenues)
-                        try await self.cacheManager.saveImages(for: finalVenues)
-                    } catch {
-                        // Cache save failed, but continue - this is non-critical
-                    }
-                }
-                
-                // Start fetching images
-                Task {
-                    await self.imageService.fetchImages(for: finalVenues) { [weak self] id, image in
-                        guard let self = self else { return }
-                        if let index = self.venues.firstIndex(where: { $0.id == id }) {
-                            self.venues[index].image = image
-                        }
-                    }
+            }
+
+            do {
+                try await cacheManager.saveVenues(cachedVenues)
+                try await cacheManager.saveImages(for: limitedVenues)
+            } catch {
+                // Cache save failures are non-critical
+            }
+
+            if Task.isCancelled { return }
+
+            await imageService.fetchImages(for: limitedVenues) { [weak self] id, image in
+                guard let self = self else { return }
+                if let index = self.venues.firstIndex(where: { $0.id == id }) {
+                    self.venues[index].image = image
                 }
             }
         }
     }
+}
+
+private struct RankedVenue: Sendable {
+    let venue: Venue
+    let rank: Int
+    let latitude: Double
+    let longitude: Double
+    let type: VenueType
 }
 
 // MARK: - Helpers

@@ -1,7 +1,7 @@
 import Foundation
 import MapKit
 
-class VenueSearchService {
+struct VenueSearchService: Sendable {
     
     // Mapping "vibes" or keywords to MKLocalSearch queries
     private let vibeMappings: [String: [String]] = [
