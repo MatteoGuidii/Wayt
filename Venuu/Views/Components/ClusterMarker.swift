@@ -29,96 +29,45 @@ struct ClusterMarker: View {
 
     var body: some View {
         ZStack {
-            // Enhanced outer glow ring with more depth
+            // Subtle outer glow for depth
+            Circle()
+                .fill(dominantColor.opacity(0.15))
+                .frame(width: 68, height: 68)
+                .blur(radius: 4)
+                .scaleEffect(isPulsing ? 1.1 : 1.0)
+                .opacity(isPulsing ? 0.6 : 0.8)
+
+            // Main sphere
+            Circle()
+                .fill(dominantColor)
+                .frame(width: 60, height: 60)
+                .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                .shadow(color: dominantColor.opacity(0.3), radius: 8, x: 0, y: 4)
+
+            // Subtle highlight for dimension
             Circle()
                 .fill(
-                    RadialGradient(
+                    LinearGradient(
                         colors: [
-                            dominantColor.opacity(0.5),
-                            dominantColor.opacity(0.2),
-                            dominantColor.opacity(0.05),
-                            .clear
+                            Color.white.opacity(0.25),
+                            Color.white.opacity(0.05),
+                            Color.clear
                         ],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 60
+                        startPoint: .top,
+                        endPoint: .center
                     )
                 )
-                .frame(width: 120, height: 120)
-                .scaleEffect(isPulsing ? 1.3 : 1.0)
-                .opacity(isPulsing ? 0.4 : 0.7)
+                .frame(width: 60, height: 60)
 
-            // Secondary pulse layer for more dynamic effect
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            dominantColor.opacity(0.3),
-                            .clear
-                        ],
-                        center: .center,
-                        startRadius: 20,
-                        endRadius: 50
-                    )
-                )
-                .frame(width: 100, height: 100)
-                .scaleEffect(isPulsing ? 1.0 : 1.15)
-                .opacity(isPulsing ? 0.5 : 0.2)
-
-            // Main cluster circle with enhanced depth
-            ZStack {
-                // Outer shadow ring for depth
-                Circle()
-                    .fill(dominantColor.opacity(0.3))
-                    .frame(width: 76, height: 76)
-                    .blur(radius: 8)
-
-                // Enhanced gradient background with 3-color gradient
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                dominantColor.opacity(0.95),
-                                dominantColor,
-                                dominantColor.opacity(0.85)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 68, height: 68)
-
-                // Enhanced glassy highlight
-                Circle()
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [.white.opacity(0.6), .white.opacity(0.2), .clear],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 3
-                    )
-                    .frame(width: 68, height: 68)
-
-                // Enhanced count display
-                VStack(spacing: 1) {
-                    Text("\(venues.count)")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                    Text("venues")
-                        .font(.system(size: 9, weight: .semibold))
-                        .textCase(.uppercase)
-                        .tracking(0.5)
-                }
+            // Count display
+            Text("\(venues.count)")
+                .font(.system(size: 22, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 2)
-            }
-            .shadow(color: dominantColor.opacity(0.6), radius: 16, x: 0, y: 8)
-
-
+                .shadow(color: Color.black.opacity(0.2), radius: 1, x: 0, y: 1)
         }
         .onAppear {
             withAnimation(
-                .easeInOut(duration: 2.5)
+                .easeInOut(duration: 2.0)
                 .repeatForever(autoreverses: true)
             ) {
                 isPulsing = true
