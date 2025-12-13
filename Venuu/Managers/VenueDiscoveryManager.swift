@@ -10,6 +10,8 @@ class VenueDiscoveryManager: ObservableObject {
 
     private var lastSearchLocation: CLLocation?
     private var lastSearchRadius: CLLocationDistance = AppConfiguration.Search.defaultSearchRadius
+    private var lastSuccessfulLocation: CLLocation?
+    private var shouldRetryAfterEmptyResult = false
     
     private let searchService = VenueSearchService()
     private let cacheManager = VenueCacheManager.shared
@@ -32,6 +34,14 @@ class VenueDiscoveryManager: ObservableObject {
     /// Triggers a search around the user's location if they have moved significantly
     func updateUserLocation(_ location: CLLocation, radius: CLLocationDistance? = nil) {
         let searchRadius = radius ?? AppConfiguration.Search.defaultSearchRadius
+        
+        if shouldRetryAfterEmptyResult {
+            shouldRetryAfterEmptyResult = false
+            performSearch(near: location.coordinate, radius: searchRadius)
+            lastSearchLocation = location
+            lastSearchRadius = searchRadius
+            return
+        }
 
         // Only search if we haven't searched yet, or if we've moved significantly
         // OR if the radius has changed significantly
@@ -157,8 +167,32 @@ class VenueDiscoveryManager: ObservableObject {
             let finalVenues = sortedItemTuples.map { $0.venue }
             
             await MainActor.run {
+                defer { self.isSearching = false }
+                
+                let searchLocation = userLocation
+                let hasExistingVenues = !self.venues.isEmpty
+                let isSameAreaAsLastSuccess: Bool = {
+                    guard let lastSuccessfulLocation else { return false }
+                    return lastSuccessfulLocation.distance(from: searchLocation) < AppConfiguration.Search.minimumDistanceForNewSearch
+                }()
+                
+                guard !finalVenues.isEmpty else {
+                    if hasExistingVenues && isSameAreaAsLastSuccess {
+                        // Treat empty results in the same area as a transient failure.
+                        // Keep current pins on screen and retry on the next location update.
+                        self.shouldRetryAfterEmptyResult = true
+                        return
+                    } else {
+                        self.shouldRetryAfterEmptyResult = false
+                        self.venues = []
+                        self.lastSuccessfulLocation = nil
+                        return
+                    }
+                }
+                
+                self.shouldRetryAfterEmptyResult = false
                 self.venues = finalVenues
-                self.isSearching = false
+                self.lastSuccessfulLocation = searchLocation
                 
                 // Save to cache
                 let cachedVenues = finalVenues.map { venue in
@@ -204,4 +238,3 @@ extension Array {
         }
     }
 }
-
