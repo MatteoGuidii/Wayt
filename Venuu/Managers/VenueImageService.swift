@@ -2,117 +2,120 @@ import Foundation
 import MapKit
 import UIKit
 
-@MainActor
-class VenueImageService {
+actor VenueImageService {
     static let shared = VenueImageService()
 
-    private var imageCache: [String: UIImage] = [:]
     private let cacheManager = VenueCacheManager.shared
     private let maxImageFetchCount = AppConfiguration.ImageService.maxImageFetchCount
-    
-    func fetchImages(for venues: [Venue], onUpdate: @escaping (UUID, UIImage) -> Void) async {
-        // 0. Check memory cache first and identify candidates
+    private let memoryCache = NSCache<NSString, UIImage>()
+
+    private init() {
+        memoryCache.countLimit = 60
+        memoryCache.totalCostLimit = 32 * 1024 * 1024 // ~32MB
+    }
+
+    func fetchImages(
+        for venues: [Venue],
+        onUpdate: @MainActor @escaping (UUID, UIImage) -> Void
+    ) async {
         var venuesToProcess: [Venue] = []
 
         for (index, venue) in venues.enumerated() {
-            let cacheKey = venue.id.uuidString
+            let key = cacheKey(for: venue.id)
 
-            // Check memory cache
-            if let cachedImage = imageCache[cacheKey] {
+            if let cachedImage = memoryCache.object(forKey: key) {
                 if venue.image == nil {
-                    onUpdate(venue.id, cachedImage)
+                    await onUpdate(venue.id, cachedImage)
                 }
-            } else {
-                // Not in memory, so we need to process it (check disk, then network)
-                // Only queue if within limit
-                if index < AppConfiguration.ImageService.maxImageFetchCount {
-                    venuesToProcess.append(venue)
-                }
+                continue
+            }
+
+            if index < maxImageFetchCount {
+                venuesToProcess.append(venue)
             }
         }
-        
+
         guard !venuesToProcess.isEmpty else { return }
-        
-        // 1. Check disk cache for these venues
+
         var venuesNeedingNetwork: [Venue] = []
-        
+
         for venue in venuesToProcess {
             if Task.isCancelled { return }
-            
+
             if let diskImage = await cacheManager.loadImage(for: venue.id) {
-                // Found on disk, update UI and memory cache
-                let cacheKey = venue.id.uuidString
-                imageCache[cacheKey] = diskImage
-                onUpdate(venue.id, diskImage)
+                memoryCache.setObject(diskImage, forKey: cacheKey(for: venue.id), cost: imageCost(for: diskImage))
+                await onUpdate(venue.id, diskImage)
             } else {
-                // Not on disk, needs network
                 venuesNeedingNetwork.append(venue)
             }
         }
-        
+
         guard !venuesNeedingNetwork.isEmpty else { return }
-        
-        // 2. Prioritize the first venues (Visible on screen)
+
         let priorityVenues = Array(venuesNeedingNetwork.prefix(AppConfiguration.ImageService.priorityCount))
         let remainingVenues = Array(venuesNeedingNetwork.dropFirst(AppConfiguration.ImageService.priorityCount))
 
-        // Fetch priority batch immediately
         if !priorityVenues.isEmpty {
-            await fetchBatch(venues: priorityVenues, onUpdate: onUpdate)
+            await fetchSequentially(venues: priorityVenues, onUpdate: onUpdate)
         }
 
-        // 3. Fetch the rest in smaller, slower batches to avoid throttling
-        for chunk in remainingVenues.chunked(into: AppConfiguration.ImageService.batchSize) {
+        let batchSize = AppConfiguration.ImageService.batchSize
+        for i in stride(from: 0, to: remainingVenues.count, by: batchSize) {
             if Task.isCancelled { return }
             try? await Task.sleep(nanoseconds: AppConfiguration.ImageService.batchDelayNanoseconds)
-            await fetchBatch(venues: chunk, onUpdate: onUpdate)
+            let endIndex = Swift.min(i + batchSize, remainingVenues.count)
+            let chunk = Array(remainingVenues[i..<endIndex])
+            await fetchSequentially(venues: chunk, onUpdate: onUpdate)
         }
     }
-    
-    private func fetchBatch(venues: [Venue], onUpdate: @escaping (UUID, UIImage) -> Void) async {
-        await withTaskGroup(of: (UUID, UIImage?).self) { group in
-            for venue in venues {
-                group.addTask {
-                    if Task.isCancelled { return (venue.id, nil) }
 
-                    // Double check cache (though we checked before calling this, it might have been updated)
-                    let cacheKey = venue.id.uuidString
-                    if let cached = await MainActor.run(body: { self.imageCache[cacheKey] }) {
-                        return (venue.id, cached)
-                    }
-                    
-                    do {
-                        let request = await MKLookAroundSceneRequest(mapItem: venue.mapItem)
-                        if let scene = try await request.scene {
-                            let options = MKLookAroundSnapshotter.Options()
-                            options.size = CGSize(width: 300, height: 200)
+    private func fetchSequentially(
+        venues: [Venue],
+        onUpdate: @MainActor @escaping (UUID, UIImage) -> Void
+    ) async {
+        for venue in venues {
+            if Task.isCancelled { return }
 
-                            let snapshotter = MKLookAroundSnapshotter(scene: scene, options: options)
-                            let snapshot = try await snapshotter.snapshot
-                            return (venue.id, snapshot.image)
-                        }
-                    } catch {
-                        // Ignore errors
-                    }
-                    return (venue.id, nil)
-                }
+            guard let image = await loadSnapshot(for: venue) else {
+                continue
             }
 
-            for await (id, image) in group {
-                if let image = image {
-                    self.imageCache[id.uuidString] = image
-                    onUpdate(id, image)
-                    
-                    // Save image to disk cache
-                    Task {
-                        do {
-                            try await self.cacheManager.saveImage(image, for: id)
-                        } catch {
-                            // Cache save failed, but continue - this is non-critical
-                        }
-                    }
-                }
+            memoryCache.setObject(image, forKey: cacheKey(for: venue.id), cost: imageCost(for: image))
+
+            await onUpdate(venue.id, image)
+
+            do {
+                try await cacheManager.saveImage(image, for: venue.id)
+            } catch {
+                // Cache save failures are non-fatal
             }
         }
+    }
+
+    private func loadSnapshot(for venue: Venue) async -> UIImage? {
+        do {
+            let request = MKLookAroundSceneRequest(mapItem: venue.mapItem)
+            if let scene = try await request.scene {
+                let options = MKLookAroundSnapshotter.Options()
+                options.size = CGSize(width: 300, height: 200)
+
+                let snapshotter = MKLookAroundSnapshotter(scene: scene, options: options)
+                let snapshot = try await snapshotter.snapshot
+                return snapshot.image
+            }
+        } catch {
+            // Ignore network or Look Around coverage failures
+        }
+        return nil
+    }
+
+    private func cacheKey(for id: UUID) -> NSString {
+        NSString(string: id.uuidString)
+    }
+
+    private func imageCost(for image: UIImage) -> Int {
+        let scale = image.scale == 0 ? 1 : image.scale
+        let pixels = image.size.width * image.size.height * scale * scale
+        return Int(pixels)
     }
 }

@@ -20,6 +20,11 @@ final class LocationManager: NSObject, ObservableObject {
 
     private let manager: CLLocationManager
     private var currentSearch: MKLocalSearch?
+    private var lastCityLookupLocation: CLLocation?
+    private var lastCityLookupDate: Date?
+    private var lastCityLookupFailureDate: Date?
+    private var headingUpdatesEnabled = false
+    private var highAccuracyTrackingEnabled = false
 
     override init() {
         manager = CLLocationManager()
@@ -77,12 +82,12 @@ final class LocationManager: NSObject, ObservableObject {
     }
 
     private func configureManager() {
-        manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
-        manager.distanceFilter = 3
+        manager.desiredAccuracy = AppConfiguration.Location.desiredAccuracy
+        manager.distanceFilter = AppConfiguration.Location.distanceFilter
         manager.activityType = .otherNavigation
-        manager.pausesLocationUpdatesAutomatically = false
-        manager.showsBackgroundLocationIndicator = true
-        manager.headingFilter = 5 // Update heading when it changes by 5 degrees
+        manager.pausesLocationUpdatesAutomatically = true
+        manager.showsBackgroundLocationIndicator = false
+        manager.headingFilter = AppConfiguration.Location.headingFilterDegrees
         manager.delegate = self
 
         // Seed published properties from current manager state
@@ -94,7 +99,11 @@ final class LocationManager: NSObject, ObservableObject {
         switch status {
         case .authorizedAlways, .authorizedWhenInUse:
             manager.startUpdatingLocation()
-            manager.startUpdatingHeading() // Start tracking heading
+            if headingUpdatesEnabled {
+                manager.startUpdatingHeading()
+            } else {
+                manager.stopUpdatingHeading()
+            }
             manager.requestLocation()
 
         case .notDetermined:
@@ -147,55 +156,7 @@ extension LocationManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         updateRegion(with: location)
-        
-        // Cancel any ongoing search
-        currentSearch?.cancel()
-        
-        // Use MKLocalSearch to get city name from location (replaces deprecated CLGeocoder)
-        let searchRequest = MKLocalSearch.Request()
-        searchRequest.region = MKCoordinateRegion(
-            center: location.coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        )
-        searchRequest.naturalLanguageQuery = "city"
-        searchRequest.resultTypes = [.address]
-        
-        let search = MKLocalSearch(request: searchRequest)
-        currentSearch = search
-        
-        search.start { [weak self] response, error in
-            guard let self = self else { return }
-            
-            // Clear the current search reference
-            if self.currentSearch === search {
-                self.currentSearch = nil
-            }
-            
-            guard error == nil, let mapItem = response?.mapItems.first else {
-                // Fallback to coordinate-based display if search fails
-                DispatchQueue.main.async {
-                    self.currentCity = "Unknown Location"
-                }
-                return
-            }
-            
-            DispatchQueue.main.async {
-                // Use addressRepresentations for city name (iOS 26+)
-                if let addressRepresentations = mapItem.addressRepresentations {
-                    // Try cityWithContext first for better disambiguation
-                    if let cityWithContext = addressRepresentations.cityWithContext {
-                        self.currentCity = cityWithContext
-                    } else if let cityName = addressRepresentations.cityName {
-                        self.currentCity = cityName
-                    } else {
-                        self.currentCity = mapItem.name ?? "Unknown Location"
-                    }
-                } else {
-                    // Fallback to map item name
-                    self.currentCity = mapItem.name ?? "Unknown Location"
-                }
-            }
-        }
+        handleCityLookup(for: location)
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
@@ -211,5 +172,117 @@ extension LocationManager: CLLocationManagerDelegate {
         DispatchQueue.main.async {
             self.statusMessage = error.localizedDescription
         }
+    }
+}
+
+// MARK: - Heading Controls
+
+extension LocationManager {
+    func setHeadingUpdatesEnabled(_ enabled: Bool) {
+        guard enabled != headingUpdatesEnabled else { return }
+        headingUpdatesEnabled = enabled
+
+        switch manager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            if enabled {
+                manager.startUpdatingHeading()
+            } else {
+                manager.stopUpdatingHeading()
+            }
+        default:
+            if !enabled {
+                manager.stopUpdatingHeading()
+            }
+        }
+    }
+
+    func setHighAccuracyTrackingEnabled(_ enabled: Bool) {
+        guard enabled != highAccuracyTrackingEnabled else { return }
+        highAccuracyTrackingEnabled = enabled
+
+        let accuracy = enabled ? kCLLocationAccuracyBest : AppConfiguration.Location.desiredAccuracy
+        let filter = enabled ? AppConfiguration.Location.highAccuracyDistanceFilter : AppConfiguration.Location.distanceFilter
+
+        manager.desiredAccuracy = accuracy
+        manager.distanceFilter = filter
+        manager.pausesLocationUpdatesAutomatically = !enabled
+
+        if enabled {
+            manager.startUpdatingLocation()
+        }
+    }
+
+    private func handleCityLookup(for location: CLLocation) {
+        guard shouldPerformCityLookup(for: location) else { return }
+
+        currentSearch?.cancel()
+        let lookupLocation = location
+
+        let searchRequest = MKLocalSearch.Request()
+        searchRequest.region = MKCoordinateRegion(
+            center: location.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        searchRequest.naturalLanguageQuery = "city"
+        searchRequest.resultTypes = [.address]
+
+        let search = MKLocalSearch(request: searchRequest)
+        currentSearch = search
+
+        search.start { [weak self] response, error in
+            guard let self = self else { return }
+
+            if self.currentSearch === search {
+                self.currentSearch = nil
+            }
+
+            guard error == nil, let mapItem = response?.mapItems.first else {
+                DispatchQueue.main.async {
+                    if self.currentCity == "Locating..." {
+                        self.currentCity = "Unknown Location"
+                    }
+                    self.lastCityLookupFailureDate = Date()
+                }
+                return
+            }
+
+            DispatchQueue.main.async {
+                self.lastCityLookupFailureDate = nil
+                self.lastCityLookupLocation = lookupLocation
+                self.lastCityLookupDate = Date()
+
+                if let addressRepresentations = mapItem.addressRepresentations {
+                    if let cityWithContext = addressRepresentations.cityWithContext {
+                        self.currentCity = cityWithContext
+                    } else if let cityName = addressRepresentations.cityName {
+                        self.currentCity = cityName
+                    } else {
+                        self.currentCity = mapItem.name ?? "Unknown Location"
+                    }
+                } else {
+                    self.currentCity = mapItem.name ?? "Unknown Location"
+                }
+            }
+        }
+    }
+
+    private func shouldPerformCityLookup(for location: CLLocation) -> Bool {
+        if let lastFailureDate = lastCityLookupFailureDate {
+            let attemptInterval = Date().timeIntervalSince(lastFailureDate)
+            if attemptInterval < AppConfiguration.Location.cityRefreshRetryInterval {
+                return false
+            }
+        }
+
+        guard let lastLocation = lastCityLookupLocation,
+              let lastDate = lastCityLookupDate else {
+            return true
+        }
+
+        let distance = location.distance(from: lastLocation)
+        let timeInterval = Date().timeIntervalSince(lastDate)
+
+        return distance >= AppConfiguration.Location.cityRefreshDistance ||
+               timeInterval >= AppConfiguration.Location.cityRefreshInterval
     }
 }

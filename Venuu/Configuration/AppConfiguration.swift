@@ -37,6 +37,9 @@ enum AppConfiguration {
 
         /// Default search radius (meters)
         static let defaultSearchRadius: CLLocationDistance = 5000
+
+        /// Maximum number of venues we keep in memory and cache after each search
+        static let maxResultCount = 60
     }
 
     // MARK: - Map Configuration
@@ -47,5 +50,30 @@ enum AppConfiguration {
 
         /// Maximum radius in meters
         static let maximumRadius: CLLocationDistance = 50_000
+    }
+
+    // MARK: - Location Configuration
+
+    enum Location {
+        /// Balanced accuracy to avoid battery drain from navigation-grade tracking
+        static let desiredAccuracy: CLLocationAccuracy = kCLLocationAccuracyNearestTenMeters
+
+        /// Minimum distance change (meters) before requesting another location update
+        static let distanceFilter: CLLocationDistance = 25
+
+        /// Distance change used when we temporarily crank accuracy up for foreground tracking
+        static let highAccuracyDistanceFilter: CLLocationDistance = 5
+
+        /// Distance (meters) the user must move before we refresh the displayed city label
+        static let cityRefreshDistance: CLLocationDistance = 750
+
+        /// Minimum time (seconds) between reverse-geo lookups to cut network usage
+        static let cityRefreshInterval: TimeInterval = 120
+
+        /// Minimum time (seconds) we wait before retrying a failed reverse-geo lookup
+        static let cityRefreshRetryInterval: TimeInterval = 15
+
+        /// Heading filter so we only get callbacks when orientation changes meaningfully
+        static let headingFilterDegrees: CLLocationDegrees = 10
     }
 }

@@ -2,7 +2,9 @@ import Foundation
 import MapKit
 import SwiftUI
 
-struct Venue: Identifiable, Hashable {
+/// Value type backing each map annotation. `@unchecked Sendable` is required because
+/// `MKMapItem`/`UIImage` are not marked as Sendable even though we access them carefully.
+struct Venue: Identifiable, Hashable, @unchecked Sendable {
     let id = UUID()
     let mapItem: MKMapItem
     
