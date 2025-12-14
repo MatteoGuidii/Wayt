@@ -153,6 +153,38 @@ struct MainMapView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
+                // Error indicator
+                if let errorMessage = venueDiscoveryManager.searchError {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                        Text(errorMessage)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    .background(
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                    )
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [.orange.opacity(0.3), .orange.opacity(0.1)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1.5
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 5)
+                    .padding(.top, 12)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 if venueDiscoveryManager.didHitResultLimit {
                     Text("Showing top \(AppConfiguration.Search.maxResultCount) spots nearby")
                         .font(.caption.weight(.semibold))
