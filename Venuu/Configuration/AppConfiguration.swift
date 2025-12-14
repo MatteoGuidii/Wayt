@@ -26,11 +26,11 @@ enum AppConfiguration {
     // MARK: - Search Configuration
 
     enum Search {
-        /// Debounce delay for location-based searches in nanoseconds (0.5 seconds)
-        static let debounceDelayNanoseconds: UInt64 = 500_000_000
+        /// Debounce delay for location-based searches in nanoseconds (0.15 seconds)
+        static let debounceDelayNanoseconds: UInt64 = 150_000_000
 
         /// Minimum distance moved to trigger new search (meters)
-        static let minimumDistanceForNewSearch: CLLocationDistance = 500
+        static let minimumDistanceForNewSearch: CLLocationDistance = 200
 
         /// Minimum radius change ratio to trigger new search (20%)
         static let minimumRadiusChangeRatio: Double = 0.2

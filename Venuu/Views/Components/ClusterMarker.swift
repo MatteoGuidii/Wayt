@@ -97,7 +97,9 @@ struct VenueCluster: Identifiable {
 extension Array where Element == Venue {
     /// Clusters venues that are within the specified distance (in meters)
     func clustered(threshold: CLLocationDistance = 100) -> [VenueCluster] {
-        var remaining = self
+        // Sort venues by ID first to ensure deterministic clustering
+        // This prevents clusters from wobbling when venue array order changes
+        var remaining = self.sorted { $0.id.uuidString < $1.id.uuidString }
         var clusters: [VenueCluster] = []
 
         while !remaining.isEmpty {

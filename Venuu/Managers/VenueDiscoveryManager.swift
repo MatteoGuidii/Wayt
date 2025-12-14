@@ -8,6 +8,7 @@ class VenueDiscoveryManager: ObservableObject {
     @Published var venues: [Venue] = []
     @Published var isSearching = false
     @Published var didHitResultLimit = false
+    @Published var searchError: String?
 
     private var lastSearchLocation: CLLocation?
     private var lastSearchRadius: CLLocationDistance = AppConfiguration.Search.defaultSearchRadius
@@ -74,6 +75,7 @@ class VenueDiscoveryManager: ObservableObject {
     private func performSearch(near center: CLLocationCoordinate2D, searchText: String = "", radius: CLLocationDistance) {
         searchTask?.cancel()
         isSearching = true
+        searchError = nil  // Clear any previous errors
 
         let searchService = self.searchService
         let cacheManager = self.cacheManager
@@ -82,6 +84,13 @@ class VenueDiscoveryManager: ObservableObject {
 
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
+
+            // Ensure isSearching is always cleared when task exits (including cancellation)
+            defer {
+                Task { @MainActor in
+                    self.isSearching = false
+                }
+            }
             // Debounce for map interactions to prevent excessive searches during rapid zooming
             if searchText.isEmpty {
                 try? await Task.sleep(nanoseconds: AppConfiguration.Search.debounceDelayNanoseconds)
@@ -101,8 +110,11 @@ class VenueDiscoveryManager: ObservableObject {
             actor VenueCollector {
                 private var scoredVenues: [(venue: Venue, rank: Int)] = []
                 private var seenVenueKeys: Set<String> = []
-                
+                private var successCount = 0
+                private var failureCount = 0
+
                 func add(_ venues: [(venue: Venue, key: String)]) {
+                    successCount += 1
                     for (index, item) in venues.enumerated() {
                         if !seenVenueKeys.contains(item.key) {
                             scoredVenues.append((item.venue, index))
@@ -110,39 +122,61 @@ class VenueDiscoveryManager: ObservableObject {
                         }
                     }
                 }
-                
+
+                func recordFailure() {
+                    failureCount += 1
+                }
+
                 func getVenues() -> [(venue: Venue, rank: Int)] {
                     return scoredVenues
                 }
+
+                func getStats() -> (successCount: Int, failureCount: Int) {
+                    return (successCount, failureCount)
+                }
             }
-            
+
             let collector = VenueCollector()
 
-            await withTaskGroup(of: [(venue: Venue, key: String)].self) { group in
+            await withTaskGroup(of: (success: Bool, venues: [(venue: Venue, key: String)]).self) { group in
                 for query in queries {
                     group.addTask {
                         do {
                             let venues = try await searchService.search(query: query, region: searchRegion)
-                            return await MainActor.run {
+                            let mapped = await MainActor.run {
                                 venues.map { venue in
                                     (venue: venue, key: "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)")
                                 }
                             }
+                            return (success: true, venues: mapped)
                         } catch {
-                            return []
+                            return (success: false, venues: [])
                         }
                     }
                 }
 
-                for await venues in group {
-                    await collector.add(venues)
+                for await result in group {
+                    if result.success {
+                        await collector.add(result.venues)
+                    } else {
+                        await collector.recordFailure()
+                    }
                 }
             }
 
             if Task.isCancelled { return }
 
+            let stats = await collector.getStats()
             let scoredVenues = await collector.getVenues()
             let userLocation = CLLocation(latitude: searchCenter.latitude, longitude: searchCenter.longitude)
+
+            // Check if all searches failed
+            if stats.failureCount > 0 && stats.successCount == 0 {
+                await MainActor.run {
+                    self.searchError = "Unable to search for venues. Please check your connection."
+                }
+                return
+            }
 
             let enrichedVenues = await MainActor.run {
                 scoredVenues.map { item in
@@ -189,7 +223,6 @@ class VenueDiscoveryManager: ObservableObject {
 
             let shouldPersistResults = await MainActor.run { [weak self] () -> Bool in
                 guard let self = self else { return false }
-                defer { self.isSearching = false }
 
                 let searchLocation = userLocation
                 let hasExistingVenues = !self.venues.isEmpty

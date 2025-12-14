@@ -103,7 +103,18 @@ struct DiscoverView: View {
                     }
 
                     // Feed List
-                    if venueDiscoveryManager.isSearching && venueDiscoveryManager.venues.isEmpty {
+                    if let errorMessage = venueDiscoveryManager.searchError {
+                        VStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.orange)
+                            Text(errorMessage)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.vertical, 40)
+                    } else if venueDiscoveryManager.isSearching && venueDiscoveryManager.venues.isEmpty {
                         ProgressView()
                             .padding(.vertical, 40)
                     } else {
@@ -147,11 +158,6 @@ struct DiscoverView: View {
             VenueDetailView(venue: venueDiscoveryManager.venues.first(where: { $0.id == venue.id }) ?? venue)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-        }
-        .onReceive(locationManager.$region) { region in
-            let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
-            let radius = region.span.toRadius()
-            venueDiscoveryManager.updateUserLocation(center, radius: radius)
         }
         .onChange(of: showMap) { oldValue, newValue in
             if newValue {
