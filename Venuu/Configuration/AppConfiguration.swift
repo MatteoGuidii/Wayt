@@ -76,4 +76,23 @@ enum AppConfiguration {
         /// Heading filter so we only get callbacks when orientation changes meaningfully
         static let headingFilterDegrees: CLLocationDegrees = 10
     }
+
+    // MARK: - Venue Scoring Configuration
+
+    enum VenueScoring {
+        /// Minimum confidence score (0-100) for a venue to be shown as nightlife-relevant
+        /// 70 = Show restaurants with strong nightlife signals (keywords, location, hybrid category)
+        /// 50 = More permissive, includes generic restaurants in nightlife areas
+        /// 90 = Very strict, only explicit nightlife venues
+        static let minimumNightlifeScore = 70
+
+        /// Distance (meters) to search for nearby nightlife venues when calculating proximity score
+        static let proximitySearchRadius: CLLocationDistance = 200
+
+        /// Maximum proximity bonus points that can be awarded based on nearby venues
+        static let maxProximityBonus = 20
+
+        /// Points awarded per nearby nightlife venue (capped at maxProximityBonus)
+        static let pointsPerNearbyVenue = 5
+    }
 }

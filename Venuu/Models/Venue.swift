@@ -7,7 +7,7 @@ import SwiftUI
 struct Venue: Identifiable, Hashable, @unchecked Sendable {
     let id = UUID()
     let mapItem: MKMapItem
-    
+
     var name: String {
         mapItem.name ?? "Unknown Venue"
     }
@@ -15,6 +15,10 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     // Image is intentionally mutable and not included in equality/hash checks
     // This allows lazy loading of images without affecting venue identity
     var image: UIImage?
+
+    // Nightlife relevance score (0-100) - computed lazily or set during discovery
+    // Not included in equality/hash checks as it's metadata
+    var confidenceScore: Int = 0
     
     var coordinate: CLLocationCoordinate2D {
         if #available(iOS 17.0, *) {
