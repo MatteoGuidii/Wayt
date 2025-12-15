@@ -39,9 +39,13 @@ enum AppConfiguration {
         static let defaultSearchRadius: CLLocationDistance = 5000
 
         /// Maximum number of venues we keep in memory and cache after each search
-        /// Increased to 100 to ensure comprehensive coverage in dense urban areas (e.g., Toronto)
-        /// while still maintaining reasonable performance and memory usage
-        static let maxResultCount = 100
+        /// Increased to 200 to ensure comprehensive coverage in dense urban areas
+        /// Map clustering handles display of large venue counts efficiently
+        static let maxResultCount = 200
+
+        /// Grid size for multi-cell search (NxN grid)
+        /// 3x3 = 9 searches, providing better coverage in dense areas
+        static let searchGridSize = 3
     }
 
     // MARK: - Venue Scoring Configuration
@@ -49,20 +53,22 @@ enum AppConfiguration {
     enum VenueScoring {
         /// Number of venues in a result set considered "high density"
         /// Use a higher threshold in dense urban cores so we can be more selective
-        static let highDensityThreshold: Int = 60
+        static let highDensityThreshold: Int = 80
 
         /// Number of venues in a result set considered "low density"
         /// Be more inclusive when there are few candidates
-        static let lowDensityThreshold: Int = 15
+        static let lowDensityThreshold: Int = 20
 
         /// Minimum nightlife confidence score (0-100) required in high density areas
-        static let minimumNightlifeScoreHighDensity: Int = 70
+        /// Relaxed from 70 to 50 to include more legitimate venues
+        static let minimumNightlifeScoreHighDensity: Int = 50
 
         /// Minimum nightlife confidence score (0-100) required in low density areas
-        static let minimumNightlifeScoreLowDensity: Int = 40
+        static let minimumNightlifeScoreLowDensity: Int = 35
 
         /// Default minimum nightlife confidence score (0-100) for medium density areas
-        static let minimumNightlifeScore: Int = 55
+        /// Relaxed from 55 to 45 to include more legitimate venues
+        static let minimumNightlifeScore: Int = 45
     }
 
     // MARK: - Map Configuration
