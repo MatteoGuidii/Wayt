@@ -33,13 +33,4 @@ enum VenueType: String, CaseIterable, Codable, Hashable {
         case .other: return .gray
         }
     }
-    
-    var isNightlife: Bool {
-        switch self {
-        case .club, .bar, .pub, .lounge, .liveMusic, .restaurant:
-            return true
-        case .other:
-            return false
-        }
-    }
 }

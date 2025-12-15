@@ -208,11 +208,10 @@ class VenueDiscoveryManager: ObservableObject {
                 }
             }
 
+            // Filter by distance (confidence filtering already done above)
             let validVenues = enrichedVenues.filter { item in
                 let venueLoc = CLLocation(latitude: item.latitude, longitude: item.longitude)
-                let distanceOk = venueLoc.distance(from: userLocation) <= radius
-                let typeOk = item.type.isNightlife
-                return distanceOk && typeOk
+                return venueLoc.distance(from: userLocation) <= radius
             }
 
             let sortedItemTuples = validVenues.sorted { item1, item2 in
