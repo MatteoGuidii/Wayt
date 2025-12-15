@@ -20,6 +20,10 @@ struct MainMapView: View {
     @State private var currentMapSpan: MKCoordinateSpan?
     @State private var isProgrammaticZoom = false
 
+    // Cached clusters to prevent wobbling when recalculating
+    @State private var cachedClusters: [VenueCluster] = []
+    @State private var lastClusterThreshold: CLLocationDistance = 0
+
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
 
@@ -28,19 +32,38 @@ struct MainMapView: View {
     // to allow items to separate.
     private var venueClusters: [VenueCluster] {
         guard !venueDiscoveryManager.venues.isEmpty else { return [] }
-        
+
         // Calculate threshold based on span
         // 1 degree latitude ~ 111,000 meters
         // We want to cluster if items are within ~10% of the visible map height
         let span = currentMapSpan?.latitudeDelta ?? 0.05
         let thresholdMeters = span * 111_000 * 0.12 // 12% factor
-        
-        // If threshold matches roughly the "zoomed in" state (e.g. < 50m), just uncluster everything for performance/UX
-        if thresholdMeters < 50 {
-             return venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
+
+        // Only recalculate clusters if threshold changed by more than 20%
+        // This prevents constant reclustering from minor map movements
+        let thresholdChangeRatio = abs(thresholdMeters - lastClusterThreshold) / max(lastClusterThreshold, 1)
+        let shouldRecalculate = cachedClusters.isEmpty || thresholdChangeRatio > 0.2
+
+        if shouldRecalculate {
+            let newClusters: [VenueCluster]
+
+            // If threshold matches roughly the "zoomed in" state (e.g. < 50m), just uncluster everything for performance/UX
+            if thresholdMeters < 50 {
+                newClusters = venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
+            } else {
+                newClusters = venueDiscoveryManager.venues.clustered(threshold: thresholdMeters)
+            }
+
+            // Update cache on next render cycle to avoid state mutation during view update
+            DispatchQueue.main.async {
+                cachedClusters = newClusters
+                lastClusterThreshold = thresholdMeters
+            }
+
+            return newClusters
         }
-        
-        return venueDiscoveryManager.venues.clustered(threshold: thresholdMeters)
+
+        return cachedClusters
     }
     
     var body: some View {
@@ -290,17 +313,23 @@ struct MainMapView: View {
         .onReceive(locationManager.$region) { region in
             // Trigger venue search when user location changes
             // We use the region center as a proxy for user location when tracking
-            
+
             // Validate coordinates to prevent 0,0 clearing the map
             guard CLLocationCoordinate2DIsValid(region.center),
                   region.center.latitude != 0,
                   region.center.longitude != 0 else {
                 return
             }
-            
+
             // Ideally, LocationManager should expose the raw CLLocation for better accuracy
             let location = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
             venueDiscoveryManager.updateUserLocation(location)
+        }
+        .onChange(of: venueDiscoveryManager.venues) { oldVenues, newVenues in
+            // Invalidate cluster cache when venues change
+            if oldVenues.count != newVenues.count || oldVenues.map({ $0.id }) != newVenues.map({ $0.id }) {
+                cachedClusters = []
+            }
         }
     }
     
