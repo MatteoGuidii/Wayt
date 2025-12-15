@@ -123,7 +123,8 @@ class VenueDiscoveryManager: ObservableObject {
                 for query in queries {
                     group.addTask {
                         do {
-                            let venues = try await searchService.search(query: query, region: searchRegion)
+                            // Use grid-based search for comprehensive coverage
+                            let venues = try await searchService.searchWithGrid(query: query, region: searchRegion)
                             return await MainActor.run {
                                 venues.map { venue in
                                     (venue: venue, key: "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)")
