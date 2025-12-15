@@ -178,23 +178,68 @@ class VenueDiscoveryManager: ObservableObject {
                 return
             }
 
+            // Calculate proximity context for each venue to improve scoring accuracy
+            let venuesWithProximity = await MainActor.run {
+                scoredVenues.map { item -> (venue: Venue, rank: Int, nearbyCount: Int) in
+                    let venueLocation = CLLocation(
+                        latitude: item.venue.coordinate.latitude,
+                        longitude: item.venue.coordinate.longitude
+                    )
+
+                    // Count how many confirmed nightlife venues are nearby
+                    let nearbyCount = scoredVenues.filter { other in
+                        guard other.venue.id != item.venue.id else { return false }
+
+                        let otherLocation = CLLocation(
+                            latitude: other.venue.coordinate.latitude,
+                            longitude: other.venue.coordinate.longitude
+                        )
+                        let distance = venueLocation.distance(from: otherLocation)
+
+                        // Only count venues that are clearly nightlife (not generic restaurants)
+                        let otherType = other.venue.type
+                        let isConfirmedNightlife = otherType == .bar || otherType == .club ||
+                                                   otherType == .pub || otherType == .lounge ||
+                                                   otherType == .liveMusic
+
+                        return distance <= AppConfiguration.VenueScoring.proximitySearchRadius && isConfirmedNightlife
+                    }.count
+
+                    return (venue: item.venue, rank: item.rank, nearbyCount: nearbyCount)
+                }
+            }
+
+            // Score each venue with proximity context and filter by confidence
             let enrichedVenues = await MainActor.run {
-                scoredVenues.map { item in
-                    RankedVenue(
-                        venue: item.venue,
+                venuesWithProximity.compactMap { item -> RankedVenue? in
+                    let classification = VenueClassifier.classifyWithConfidence(
+                        mapItem: item.venue.mapItem,
+                        nearbyNightlifeCount: item.nearbyCount
+                    )
+
+                    // Filter out venues that don't meet the minimum nightlife score
+                    guard classification.isNightlifeRelevant else {
+                        return nil
+                    }
+
+                    var scoredVenue = item.venue
+                    scoredVenue.confidenceScore = classification.confidenceScore
+
+                    return RankedVenue(
+                        venue: scoredVenue,
                         rank: item.rank,
                         latitude: item.venue.coordinate.latitude,
                         longitude: item.venue.coordinate.longitude,
-                        type: item.venue.type
+                        type: classification.type,
+                        confidenceScore: classification.confidenceScore
                     )
                 }
             }
 
+            // Distance filter (already filtered by confidence above)
             let validVenues = enrichedVenues.filter { item in
                 let venueLoc = CLLocation(latitude: item.latitude, longitude: item.longitude)
-                let distanceOk = venueLoc.distance(from: userLocation) <= radius
-                let typeOk = item.type.isNightlife
-                return distanceOk && typeOk
+                return venueLoc.distance(from: userLocation) <= radius
             }
 
             let sortedItemTuples = validVenues.sorted { item1, item2 in
@@ -207,14 +252,22 @@ class VenueDiscoveryManager: ObservableObject {
                 let penalty1 = dist1 > 5000 ? 20 : 0
                 let penalty2 = dist2 > 5000 ? 20 : 0
 
+                // Adjust rank with penalties
                 let score1 = item1.rank + penalty1
                 let score2 = item2.rank + penalty2
 
-                if score1 == score2 {
-                    return dist1 < dist2
-                } else {
+                // Primary sort: by rank + penalties (lower is better)
+                if score1 != score2 {
                     return score1 < score2
                 }
+
+                // Secondary sort: by confidence score (higher is better for same rank)
+                if item1.confidenceScore != item2.confidenceScore {
+                    return item1.confidenceScore > item2.confidenceScore
+                }
+
+                // Tertiary sort: by distance (closer is better)
+                return dist1 < dist2
             }
 
             let finalVenues = sortedItemTuples.map { $0.venue }
@@ -291,6 +344,7 @@ private struct RankedVenue: Sendable {
     let latitude: Double
     let longitude: Double
     let type: VenueType
+    let confidenceScore: Int
 }
 
 // MARK: - Helpers
