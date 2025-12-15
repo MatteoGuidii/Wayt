@@ -7,8 +7,8 @@ import UIKit
 class VenueDiscoveryManager: ObservableObject {
     @Published var venues: [Venue] = []
     @Published var isSearching = false
-    @Published var didHitResultLimit = false
     @Published var searchError: String?
+    @Published var didHitResultLimit = false
 
     private var lastSearchLocation: CLLocation?
     private var lastSearchRadius: CLLocationDistance = AppConfiguration.Search.defaultSearchRadius
@@ -75,7 +75,6 @@ class VenueDiscoveryManager: ObservableObject {
     private func performSearch(near center: CLLocationCoordinate2D, searchText: String = "", radius: CLLocationDistance) {
         searchTask?.cancel()
         isSearching = true
-        searchError = nil  // Clear any previous errors
 
         let searchService = self.searchService
         let cacheManager = self.cacheManager
@@ -84,13 +83,6 @@ class VenueDiscoveryManager: ObservableObject {
 
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
-
-            // Ensure isSearching is always cleared when task exits (including cancellation)
-            defer {
-                Task { @MainActor in
-                    self.isSearching = false
-                }
-            }
             // Debounce for map interactions to prevent excessive searches during rapid zooming
             if searchText.isEmpty {
                 try? await Task.sleep(nanoseconds: AppConfiguration.Search.debounceDelayNanoseconds)
@@ -104,17 +96,14 @@ class VenueDiscoveryManager: ObservableObject {
                 longitudinalMeters: radius * 2
             )
 
-            let queries = searchService.getQueries(for: searchText)
+            let queries = await searchService.getQueries(for: searchText)
             
             // Use an actor to safely collect venues from concurrent tasks
             actor VenueCollector {
                 private var scoredVenues: [(venue: Venue, rank: Int)] = []
                 private var seenVenueKeys: Set<String> = []
-                private var successCount = 0
-                private var failureCount = 0
-
+                
                 func add(_ venues: [(venue: Venue, key: String)]) {
-                    successCount += 1
                     for (index, item) in venues.enumerated() {
                         if !seenVenueKeys.contains(item.key) {
                             scoredVenues.append((item.venue, index))
@@ -122,124 +111,108 @@ class VenueDiscoveryManager: ObservableObject {
                         }
                     }
                 }
-
-                func recordFailure() {
-                    failureCount += 1
-                }
-
+                
                 func getVenues() -> [(venue: Venue, rank: Int)] {
                     return scoredVenues
                 }
-
-                func getStats() -> (successCount: Int, failureCount: Int) {
-                    return (successCount, failureCount)
-                }
             }
-
+            
             let collector = VenueCollector()
 
-            await withTaskGroup(of: (success: Bool, venues: [(venue: Venue, key: String)]).self) { group in
+            await withTaskGroup(of: [(venue: Venue, key: String)].self) { group in
                 for query in queries {
                     group.addTask {
                         do {
                             let venues = try await searchService.search(query: query, region: searchRegion)
-                            let mapped = await MainActor.run {
+                            return await MainActor.run {
                                 venues.map { venue in
                                     (venue: venue, key: "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)")
                                 }
                             }
-                            return (success: true, venues: mapped)
                         } catch {
-                            return (success: false, venues: [])
+                            return []
                         }
                     }
                 }
 
-                for await result in group {
-                    if result.success {
-                        await collector.add(result.venues)
-                    } else {
-                        await collector.recordFailure()
-                    }
+                for await venues in group {
+                    await collector.add(venues)
                 }
             }
 
             if Task.isCancelled { return }
 
-            let stats = await collector.getStats()
             let scoredVenues = await collector.getVenues()
             let userLocation = CLLocation(latitude: searchCenter.latitude, longitude: searchCenter.longitude)
 
-            // Check if all searches failed
-            if stats.failureCount > 0 && stats.successCount == 0 {
-                await MainActor.run {
-                    self.searchError = "Unable to search for venues. Please check your connection."
-                }
-                return
-            }
-
-            // Calculate proximity context for each venue to improve scoring accuracy
+            // Fetch nearby venues for proximity-based scoring
             let venuesWithProximity = await MainActor.run {
-                scoredVenues.map { item -> (venue: Venue, rank: Int, nearbyCount: Int) in
-                    let venueLocation = CLLocation(
-                        latitude: item.venue.coordinate.latitude,
-                        longitude: item.venue.coordinate.longitude
-                    )
+                scoredVenues.compactMap { item -> (venue: Venue, rank: Int, nearbyCount: Int)? in
+                    let venueLocation = CLLocation(latitude: item.venue.coordinate.latitude, longitude: item.venue.coordinate.longitude)
+                    let distance = venueLocation.distance(from: userLocation)
 
-                    // Count how many confirmed nightlife venues are nearby
-                    let nearbyCount = scoredVenues.filter { other in
-                        guard other.venue.id != item.venue.id else { return false }
+                    // Consider venues within 5km as "nearby" for scoring purposes
+                    let isNearby = distance <= 5000
 
-                        let otherLocation = CLLocation(
-                            latitude: other.venue.coordinate.latitude,
-                            longitude: other.venue.coordinate.longitude
-                        )
-                        let distance = venueLocation.distance(from: otherLocation)
-
-                        // Only count venues that are clearly nightlife (not generic restaurants)
-                        let otherType = other.venue.type
-                        let isConfirmedNightlife = otherType == .bar || otherType == .club ||
-                                                   otherType == .pub || otherType == .lounge ||
-                                                   otherType == .liveMusic
-
-                        return distance <= AppConfiguration.VenueScoring.proximitySearchRadius && isConfirmedNightlife
-                    }.count
-
-                    return (venue: item.venue, rank: item.rank, nearbyCount: nearbyCount)
+                    return (venue: item.venue, rank: item.rank, nearbyCount: isNearby ? 1 : 0)
                 }
             }
 
-            // Score each venue with proximity context and filter by confidence
-            let enrichedVenues = await MainActor.run {
-                venuesWithProximity.compactMap { item -> RankedVenue? in
+            // Score each venue with proximity context
+            // First pass: Get all venues with scores to determine density
+            let allScoredVenues = await MainActor.run {
+                venuesWithProximity.compactMap { item -> (venue: Venue, rank: Int, classification: VenueClassification)? in
                     let classification = VenueClassifier.classifyWithConfidence(
                         mapItem: item.venue.mapItem,
                         nearbyNightlifeCount: item.nearbyCount
                     )
-
-                    // Filter out venues that don't meet the minimum nightlife score
-                    guard classification.isNightlifeRelevant else {
+                    
+                    var scoredVenue = item.venue
+                    scoredVenue.confidenceScore = classification.confidenceScore
+                    
+                    return (venue: scoredVenue, rank: item.rank, classification: classification)
+                }
+            }
+            
+            // Determine adaptive threshold based on venue density
+            // This ensures we don't filter out legitimate businesses in any area
+            let venueCount = allScoredVenues.count
+            let adaptiveThreshold: Int
+            if venueCount >= AppConfiguration.VenueScoring.highDensityThreshold {
+                // High density area (e.g., downtown Toronto) - be more selective
+                adaptiveThreshold = AppConfiguration.VenueScoring.minimumNightlifeScoreHighDensity
+            } else if venueCount <= AppConfiguration.VenueScoring.lowDensityThreshold {
+                // Low density area (e.g., suburbs) - be more inclusive
+                adaptiveThreshold = AppConfiguration.VenueScoring.minimumNightlifeScoreLowDensity
+            } else {
+                // Medium density - use default threshold
+                adaptiveThreshold = AppConfiguration.VenueScoring.minimumNightlifeScore
+            }
+            
+            // Second pass: Filter by adaptive threshold
+            let enrichedVenues = await MainActor.run {
+                allScoredVenues.compactMap { item -> RankedVenue? in
+                    // Filter out venues that don't meet the adaptive threshold
+                    guard item.classification.confidenceScore >= adaptiveThreshold else {
                         return nil
                     }
 
-                    var scoredVenue = item.venue
-                    scoredVenue.confidenceScore = classification.confidenceScore
-
                     return RankedVenue(
-                        venue: scoredVenue,
+                        venue: item.venue,
                         rank: item.rank,
                         latitude: item.venue.coordinate.latitude,
                         longitude: item.venue.coordinate.longitude,
-                        type: classification.type,
-                        confidenceScore: classification.confidenceScore
+                        type: item.classification.type,
+                        confidenceScore: Double(item.classification.confidenceScore)
                     )
                 }
             }
 
-            // Distance filter (already filtered by confidence above)
             let validVenues = enrichedVenues.filter { item in
                 let venueLoc = CLLocation(latitude: item.latitude, longitude: item.longitude)
-                return venueLoc.distance(from: userLocation) <= radius
+                let distanceOk = venueLoc.distance(from: userLocation) <= radius
+                let typeOk = item.type.isNightlife
+                return distanceOk && typeOk
             }
 
             let sortedItemTuples = validVenues.sorted { item1, item2 in
@@ -252,30 +225,22 @@ class VenueDiscoveryManager: ObservableObject {
                 let penalty1 = dist1 > 5000 ? 20 : 0
                 let penalty2 = dist2 > 5000 ? 20 : 0
 
-                // Adjust rank with penalties
                 let score1 = item1.rank + penalty1
                 let score2 = item2.rank + penalty2
 
-                // Primary sort: by rank + penalties (lower is better)
-                if score1 != score2 {
+                if score1 == score2 {
+                    return dist1 < dist2
+                } else {
                     return score1 < score2
                 }
-
-                // Secondary sort: by confidence score (higher is better for same rank)
-                if item1.confidenceScore != item2.confidenceScore {
-                    return item1.confidenceScore > item2.confidenceScore
-                }
-
-                // Tertiary sort: by distance (closer is better)
-                return dist1 < dist2
             }
 
             let finalVenues = sortedItemTuples.map { $0.venue }
             let limitedVenues = Array(finalVenues.prefix(AppConfiguration.Search.maxResultCount))
-            let trimmedResults = finalVenues.count > limitedVenues.count
 
             let shouldPersistResults = await MainActor.run { [weak self] () -> Bool in
                 guard let self = self else { return false }
+                defer { self.isSearching = false }
 
                 let searchLocation = userLocation
                 let hasExistingVenues = !self.venues.isEmpty
@@ -292,14 +257,12 @@ class VenueDiscoveryManager: ObservableObject {
                         self.venues = []
                         self.lastSuccessfulLocation = nil
                     }
-                    self.didHitResultLimit = false
                     return false
                 }
 
                 self.shouldRetryAfterEmptyResult = false
                 self.venues = limitedVenues
                 self.lastSuccessfulLocation = searchLocation
-                self.didHitResultLimit = trimmedResults
                 return true
             }
 
@@ -329,9 +292,11 @@ class VenueDiscoveryManager: ObservableObject {
             if Task.isCancelled { return }
 
             await imageService.fetchImages(for: limitedVenues) { [weak self] id, image in
-                guard let self = self else { return }
-                if let index = self.venues.firstIndex(where: { $0.id == id }) {
-                    self.venues[index].image = image
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    if let index = self.venues.firstIndex(where: { $0.id == id }) {
+                        self.venues[index].image = image
+                    }
                 }
             }
         }
@@ -344,7 +309,7 @@ private struct RankedVenue: Sendable {
     let latitude: Double
     let longitude: Double
     let type: VenueType
-    let confidenceScore: Int
+    let confidenceScore: Double
 }
 
 // MARK: - Helpers

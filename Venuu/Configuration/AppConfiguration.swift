@@ -26,11 +26,11 @@ enum AppConfiguration {
     // MARK: - Search Configuration
 
     enum Search {
-        /// Debounce delay for location-based searches in nanoseconds (0.15 seconds)
-        static let debounceDelayNanoseconds: UInt64 = 150_000_000
+        /// Debounce delay for location-based searches in nanoseconds (0.5 seconds)
+        static let debounceDelayNanoseconds: UInt64 = 500_000_000
 
         /// Minimum distance moved to trigger new search (meters)
-        static let minimumDistanceForNewSearch: CLLocationDistance = 200
+        static let minimumDistanceForNewSearch: CLLocationDistance = 500
 
         /// Minimum radius change ratio to trigger new search (20%)
         static let minimumRadiusChangeRatio: Double = 0.2
@@ -39,7 +39,30 @@ enum AppConfiguration {
         static let defaultSearchRadius: CLLocationDistance = 5000
 
         /// Maximum number of venues we keep in memory and cache after each search
-        static let maxResultCount = 60
+        /// Increased to 100 to ensure comprehensive coverage in dense urban areas (e.g., Toronto)
+        /// while still maintaining reasonable performance and memory usage
+        static let maxResultCount = 100
+    }
+
+    // MARK: - Venue Scoring Configuration
+
+    enum VenueScoring {
+        /// Number of venues in a result set considered "high density"
+        /// Use a higher threshold in dense urban cores so we can be more selective
+        static let highDensityThreshold: Int = 60
+
+        /// Number of venues in a result set considered "low density"
+        /// Be more inclusive when there are few candidates
+        static let lowDensityThreshold: Int = 15
+
+        /// Minimum nightlife confidence score (0-100) required in high density areas
+        static let minimumNightlifeScoreHighDensity: Int = 70
+
+        /// Minimum nightlife confidence score (0-100) required in low density areas
+        static let minimumNightlifeScoreLowDensity: Int = 40
+
+        /// Default minimum nightlife confidence score (0-100) for medium density areas
+        static let minimumNightlifeScore: Int = 55
     }
 
     // MARK: - Map Configuration
@@ -75,24 +98,5 @@ enum AppConfiguration {
 
         /// Heading filter so we only get callbacks when orientation changes meaningfully
         static let headingFilterDegrees: CLLocationDegrees = 10
-    }
-
-    // MARK: - Venue Scoring Configuration
-
-    enum VenueScoring {
-        /// Minimum confidence score (0-100) for a venue to be shown as nightlife-relevant
-        /// 70 = Show restaurants with strong nightlife signals (keywords, location, hybrid category)
-        /// 50 = More permissive, includes generic restaurants in nightlife areas
-        /// 90 = Very strict, only explicit nightlife venues
-        static let minimumNightlifeScore = 70
-
-        /// Distance (meters) to search for nearby nightlife venues when calculating proximity score
-        static let proximitySearchRadius: CLLocationDistance = 200
-
-        /// Maximum proximity bonus points that can be awarded based on nearby venues
-        static let maxProximityBonus = 20
-
-        /// Points awarded per nearby nightlife venue (capped at maxProximityBonus)
-        static let pointsPerNearbyVenue = 5
     }
 }
