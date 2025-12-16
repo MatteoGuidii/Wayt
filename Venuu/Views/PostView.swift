@@ -13,6 +13,10 @@ struct PostView: View {
     @State private var musicEnergy = 2
     @State private var waitTime = 1
     @State private var vibeText = ""
+    @State private var showValidationError = false
+    @State private var validationMessage = ""
+
+    private let maxVibeLength = 500
 
     var body: some View {
         ZStack {
@@ -149,10 +153,18 @@ private extension PostView {
 
     var vibeInput: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Describe the Vibe")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.7))
-                .padding(.horizontal, 20)
+            HStack {
+                Text("Describe the Vibe")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+
+                Spacer()
+
+                Text("\(vibeText.count)/\(maxVibeLength)")
+                    .font(.caption)
+                    .foregroundStyle(vibeText.count > maxVibeLength ? .red : .white.opacity(0.5))
+            }
+            .padding(.horizontal, 20)
 
             ZStack(alignment: .topLeading) {
                 if vibeText.isEmpty {
@@ -166,6 +178,11 @@ private extension PostView {
                     .scrollContentBackground(.hidden)
                     .frame(height: 100)
                     .padding(12)
+                    .onChange(of: vibeText) { oldValue, newValue in
+                        if newValue.count > maxVibeLength {
+                            vibeText = String(newValue.prefix(maxVibeLength))
+                        }
+                    }
             }
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .padding(.horizontal, 20)
@@ -173,29 +190,56 @@ private extension PostView {
     }
 
     var postButton: some View {
-        Button(action: {}) {
-            HStack {
-                Image(systemName: "paperplane.fill")
-                    .font(.body.weight(.semibold))
+        VStack(spacing: 8) {
+            Button(action: handlePostAction) {
+                HStack {
+                    Image(systemName: "paperplane.fill")
+                        .font(.body.weight(.semibold))
 
-                Text("Post Update")
-                    .font(.body.weight(.semibold))
+                    Text("Post Update")
+                        .font(.body.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    LinearGradient(
+                        colors: isPostValid ? [Color.purple, Color.blue] : [Color.gray, Color.gray.opacity(0.8)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+                .shadow(color: .purple.opacity(0.3), radius: 12, x: 0, y: 6)
             }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                LinearGradient(
-                    colors: [Color.purple, Color.blue],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ),
-                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-            )
-            .shadow(color: .purple.opacity(0.3), radius: 12, x: 0, y: 6)
+            .disabled(!isPostValid)
+
+            if showValidationError {
+                Text(validationMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 4)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
+    }
+
+    private var isPostValid: Bool {
+        selectedVenue != "Select Venue" && !vibeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func handlePostAction() {
+        guard isPostValid else {
+            validationMessage = "Please select a venue and add a description"
+            showValidationError = true
+            return
+        }
+
+        // TODO: Implement actual post submission logic here
+        // For now, just show success feedback
+        showValidationError = false
+        print("Post submitted: \(selectedVenue), Vibe: \(vibeText)")
     }
 }
 

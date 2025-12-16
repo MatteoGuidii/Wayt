@@ -79,6 +79,27 @@ enum AppConfiguration {
 
         /// Maximum radius in meters
         static let maximumRadius: CLLocationDistance = 50_000
+
+        /// Default camera distance when focusing on a location (meters)
+        static let defaultCameraDistance: CLLocationDistance = 500
+
+        /// Camera distance when viewing selected venue (meters)
+        static let selectedVenueCameraDistance: CLLocationDistance = 300
+
+        /// Clustering threshold factor (percentage of visible map span)
+        static let clusteringThresholdFactor: Double = 0.12
+
+        /// Minimum threshold change ratio to trigger cluster recalculation
+        static let clusterRecalculationThreshold: Double = 0.2
+
+        /// Minimum threshold in meters below which clustering is disabled
+        static let minimumClusteringThreshold: CLLocationDistance = 50
+
+        /// Zoom level threshold for showing venue titles (latitude delta)
+        static let showTitleZoomThreshold: Double = 0.02
+
+        /// Cluster zoom padding scale factor
+        static let clusterZoomPaddingScale: Double = 1.4
     }
 
     // MARK: - Location Configuration

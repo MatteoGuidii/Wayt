@@ -251,13 +251,14 @@ extension LocationManager {
                 self.lastCityLookupLocation = lookupLocation
                 self.lastCityLookupDate = Date()
 
-                if let addressRepresentations = mapItem.addressRepresentations {
-                    if let cityWithContext = addressRepresentations.cityWithContext {
-                        self.currentCity = cityWithContext
-                    } else if let cityName = addressRepresentations.cityName {
-                        self.currentCity = cityName
+                // Use placemark to get city information (iOS 18 compatible)
+                let placemark = mapItem.placemark
+                if let locality = placemark.locality {
+                    // If we have administrative area (state), include it for context
+                    if let administrativeArea = placemark.administrativeArea {
+                        self.currentCity = "\(locality), \(administrativeArea)"
                     } else {
-                        self.currentCity = mapItem.name ?? "Unknown Location"
+                        self.currentCity = locality
                     }
                 } else {
                     self.currentCity = mapItem.name ?? "Unknown Location"
