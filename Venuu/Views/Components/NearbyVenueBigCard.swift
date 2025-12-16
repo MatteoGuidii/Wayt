@@ -127,7 +127,9 @@ extension Color {
         NearbyVenueBigCard(
             venue: Venue(
                  mapItem: {
-                     let item = MKMapItem()
+                     let coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+                     let placemark = MKPlacemark(coordinate: coordinate)
+                     let item = MKMapItem(placemark: placemark)
                      item.name = "The Rooftop Lounge"
                      return item
                  }()

@@ -21,11 +21,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     var confidenceScore: Int = 0
     
     var coordinate: CLLocationCoordinate2D {
-        if #available(iOS 17.0, *) {
-            return mapItem.location.coordinate
-        } else {
-            return mapItem.placemark.coordinate
-        }
+        mapItem.placemark.coordinate
     }
     
     var title: String {

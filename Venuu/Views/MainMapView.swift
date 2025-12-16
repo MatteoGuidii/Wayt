@@ -33,37 +33,46 @@ struct MainMapView: View {
     private var venueClusters: [VenueCluster] {
         guard !venueDiscoveryManager.venues.isEmpty else { return [] }
 
-        // Calculate threshold based on span
-        // 1 degree latitude ~ 111,000 meters
-        // We want to cluster if items are within ~10% of the visible map height
-        let span = currentMapSpan?.latitudeDelta ?? 0.05
-        let thresholdMeters = span * 111_000 * 0.12 // 12% factor
-
-        // Only recalculate clusters if threshold changed by more than 20%
-        // This prevents constant reclustering from minor map movements
-        let thresholdChangeRatio = abs(thresholdMeters - lastClusterThreshold) / max(lastClusterThreshold, 1)
-        let shouldRecalculate = cachedClusters.isEmpty || thresholdChangeRatio > 0.2
-
-        if shouldRecalculate {
-            let newClusters: [VenueCluster]
-
-            // If threshold matches roughly the "zoomed in" state (e.g. < 50m), just uncluster everything for performance/UX
-            if thresholdMeters < 50 {
-                newClusters = venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
-            } else {
-                newClusters = venueDiscoveryManager.venues.clustered(threshold: thresholdMeters)
-            }
-
-            // Update cache on next render cycle to avoid state mutation during view update
-            DispatchQueue.main.async {
-                cachedClusters = newClusters
-                lastClusterThreshold = thresholdMeters
-            }
-
-            return newClusters
+        // If cache is valid, return it
+        if !cachedClusters.isEmpty {
+            return cachedClusters
         }
 
-        return cachedClusters
+        // Otherwise, calculate clusters without mutating state
+        let span = currentMapSpan?.latitudeDelta ?? 0.05
+        let thresholdMeters = span * 111_000 * AppConfiguration.Map.clusteringThresholdFactor
+
+        // If threshold is below minimum, disable clustering for better UX
+        if thresholdMeters < AppConfiguration.Map.minimumClusteringThreshold {
+            return venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
+        } else {
+            return venueDiscoveryManager.venues.clustered(threshold: thresholdMeters)
+        }
+    }
+
+    private func updateClustersIfNeeded() {
+        guard !venueDiscoveryManager.venues.isEmpty else {
+            cachedClusters = []
+            return
+        }
+
+        let span = currentMapSpan?.latitudeDelta ?? 0.05
+        let thresholdMeters = span * 111_000 * AppConfiguration.Map.clusteringThresholdFactor
+
+        // Only recalculate if threshold changed significantly
+        let thresholdChangeRatio = abs(thresholdMeters - lastClusterThreshold) / max(lastClusterThreshold, 1)
+        guard cachedClusters.isEmpty || thresholdChangeRatio > AppConfiguration.Map.clusterRecalculationThreshold else {
+            return
+        }
+
+        // Update cached clusters
+        if thresholdMeters < AppConfiguration.Map.minimumClusteringThreshold {
+            cachedClusters = venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
+        } else {
+            cachedClusters = venueDiscoveryManager.venues.clustered(threshold: thresholdMeters)
+        }
+
+        lastClusterThreshold = thresholdMeters
     }
     
     var body: some View {
@@ -95,7 +104,7 @@ struct MainMapView: View {
                                 VenueMarker(
                                     venue: venue,
                                     userLocation: currentCoordinate,
-                                    showTitle: (currentMapSpan?.latitudeDelta ?? 0) < 0.02, // Hide title when zoomed out
+                                    showTitle: (currentMapSpan?.latitudeDelta ?? 0) < AppConfiguration.Map.showTitleZoomThreshold,
                                     onLongPress: {
                                         peekVenue = venue
                                     }
@@ -141,6 +150,9 @@ struct MainMapView: View {
                 // Track the current map span for dynamic clustering
                 let region = context.region
                 currentMapSpan = region.span
+
+                // Update clusters when zoom level changes
+                updateClustersIfNeeded()
             }
             
             VStack(spacing: 10) {
@@ -329,6 +341,7 @@ struct MainMapView: View {
             // Invalidate cluster cache when venues change
             if oldVenues.count != newVenues.count || oldVenues.map({ $0.id }) != newVenues.map({ $0.id }) {
                 cachedClusters = []
+                updateClustersIfNeeded()
             }
         }
     }
@@ -346,7 +359,7 @@ struct MainMapView: View {
             cameraPosition = .camera(
                 MapCamera(
                     centerCoordinate: coordinate,
-                    distance: 500, // meters
+                    distance: AppConfiguration.Map.defaultCameraDistance,
                     heading: heading,
                     pitch: resolvedPitch
                 )
@@ -471,7 +484,7 @@ private extension MainMapView {
                     cameraPosition = .camera(
                         MapCamera(
                             centerCoordinate: center,
-                            distance: 500, // Close enough to clearly see them (and hopefully separate if jitter is applied elsewhere)
+                            distance: AppConfiguration.Map.defaultCameraDistance,
                             heading: currentHeading,
                             pitch: currentPitch
                         )
@@ -484,11 +497,8 @@ private extension MainMapView {
         
         // 3. Normal Case: Fit the rect with padding
         // Scale the rect slightly so pins aren't on the edge.
-        // A standard padding UIEdgeInsets is usually safer, but .rect(zoomRect) with automatic padding is often enough.
-        // However, we can also manually inflate the rect if we want more control.
-        let paddingScale: Double = 1.4 // 40% padding around the points
-        let paddedRect = zoomRect.insetBy(dx: -zoomRect.width * (paddingScale - 1) / 2,
-                                          dy: -zoomRect.height * (paddingScale - 1) / 2)
+        let paddedRect = zoomRect.insetBy(dx: -zoomRect.width * (AppConfiguration.Map.clusterZoomPaddingScale - 1) / 2,
+                                          dy: -zoomRect.height * (AppConfiguration.Map.clusterZoomPaddingScale - 1) / 2)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             withAnimation(.easeInOut(duration: 1.0)) {
@@ -514,7 +524,7 @@ private extension MainMapView {
             cameraPosition = .camera(
                 MapCamera(
                     centerCoordinate: venue.coordinate,
-                    distance: 300, // Closer zoom for selected venue
+                    distance: AppConfiguration.Map.selectedVenueCameraDistance,
                     heading: 0,
                     pitch: currentPitch
                 )
