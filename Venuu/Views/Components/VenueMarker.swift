@@ -13,9 +13,7 @@ struct VenueMarker: View {
 
     var isNearby: Bool {
         guard let userLocation = userLocation else { return false }
-        let venueLoc = CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude)
-        let userLoc = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
-        return venueLoc.distance(from: userLoc) < 150
+        return venue.coordinate.distance(to: userLocation) < 150
     }
 
     var body: some View {

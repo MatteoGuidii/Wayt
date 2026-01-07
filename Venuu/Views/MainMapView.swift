@@ -410,24 +410,6 @@ private extension MainMapView {
         .padding(.trailing, 18)
     }
     
-    var statusCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let message = locationManager.statusMessage {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.orange)
-            } else {
-                Label("Tracking your location", systemImage: "location.fill")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.blue)
-            }
-        }
-        .padding(16)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 8)
-    }
-    
     func recenter() {
         if let coordinate = currentCoordinate {
             updateCameraPosition(
@@ -443,17 +425,6 @@ private extension MainMapView {
         locationManager.recenterOnUser()
     }
     
-    var locationAccuracyDescription: String {
-        switch locationManager.accuracyAuthorization {
-        case .fullAccuracy:
-            return "Full-precision location enabled"
-        case .reducedAccuracy:
-            return "Reduced accuracy – enable Precise Location for best results"
-        @unknown default:
-            return "Location accuracy unavailable"
-        }
-    }
-
     /// Zooms into a cluster of venues with a smooth animation
     func zoomToCluster(_ cluster: VenueCluster) {
         // Mark as programmatic zoom
@@ -537,4 +508,5 @@ private extension MainMapView {
 #Preview {
     MainMapView(username: "matteo@example.com", onSignOut: {})
         .environmentObject(LocationManager())
+        .environmentObject(VenueDiscoveryManager())
 }
