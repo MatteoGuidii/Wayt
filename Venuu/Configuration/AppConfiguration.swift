@@ -38,6 +38,19 @@ enum AppConfiguration {
         /// Default search radius (meters)
         static let defaultSearchRadius: CLLocationDistance = 5000
 
+        /// Maximum search radius for dynamic expansion (meters)
+        static let maxSearchRadius: CLLocationDistance = 15000
+
+        /// Minimum venues before triggering radius expansion
+        static let minVenuesBeforeExpansion: Int = 10
+
+        /// Radius expansion multiplier when results are sparse
+        static let radiusExpansionMultiplier: Double = 1.5
+
+        /// Extended radius for text-based venue search (meters)
+        /// Allows finding specific venues further away
+        static let textSearchRadius: CLLocationDistance = 25000
+
         /// Maximum number of venues we keep in memory and cache after each search
         /// Increased to 200 to ensure comprehensive coverage in dense urban areas
         /// Map clustering handles display of large venue counts efficiently
@@ -60,15 +73,24 @@ enum AppConfiguration {
         static let lowDensityThreshold: Int = 20
 
         /// Minimum nightlife confidence score (0-100) required in high density areas
-        /// Relaxed from 70 to 50 to include more legitimate venues
-        static let minimumNightlifeScoreHighDensity: Int = 50
+        /// Relaxed to 40 to include more legitimate venues that may lack keywords
+        static let minimumNightlifeScoreHighDensity: Int = 40
 
         /// Minimum nightlife confidence score (0-100) required in low density areas
-        static let minimumNightlifeScoreLowDensity: Int = 35
+        /// Very inclusive to ensure sparse areas still show venues
+        static let minimumNightlifeScoreLowDensity: Int = 25
 
         /// Default minimum nightlife confidence score (0-100) for medium density areas
-        /// Relaxed from 55 to 45 to include more legitimate venues
-        static let minimumNightlifeScore: Int = 45
+        /// Relaxed to 35 to keep more borderline venues visible
+        static let minimumNightlifeScore: Int = 35
+
+        /// Distance at which venue score starts decaying (meters)
+        /// Venues closer than this get no penalty
+        static let distanceDecayStart: CLLocationDistance = 2000
+
+        /// Maximum distance penalty applied to venues (score points)
+        /// Applied gradually from distanceDecayStart to maxSearchRadius
+        static let maxDistancePenalty: Int = 15
     }
 
     // MARK: - Map Configuration
