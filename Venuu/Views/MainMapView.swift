@@ -18,6 +18,7 @@ struct MainMapView: View {
     @State private var selectedVenue: Venue?
     @State private var peekVenue: Venue?
     @State private var currentMapSpan: MKCoordinateSpan?
+    @State private var currentMapCenter: CLLocationCoordinate2D?
     @State private var isProgrammaticZoom = false
 
     // Cached clusters to prevent wobbling when recalculating
@@ -26,6 +27,28 @@ struct MainMapView: View {
 
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
+
+    /// Determines if the "Search This Area" button should be shown
+    /// Shows when user has panned significantly away from the last searched location
+    private var shouldShowSearchAreaButton: Bool {
+        guard !shouldFollowUser,
+              !venueDiscoveryManager.isSearching,
+              let mapCenter = currentMapCenter,
+              let userCoord = currentCoordinate,
+              currentMapSpan != nil else {
+            return false
+        }
+
+        // Show button if map center is > 500m from user location
+        let distance = mapCenter.distance(to: userCoord)
+        return distance > 500
+    }
+
+    /// The current visible region for "Search This Area"
+    private var visibleRegion: MKCoordinateRegion {
+        // Safe to force unwrap - shouldShowSearchAreaButton ensures these are set
+        MKCoordinateRegion(center: currentMapCenter!, span: currentMapSpan!)
+    }
 
     // Dynamic clustering based on zoom level
     // As we zoom in (span gets smaller), the threshold for clustering (in meters) should decrease
@@ -147,9 +170,10 @@ struct MainMapView: View {
                 currentPitch = context.camera.pitch
                 currentHeading = context.camera.heading
 
-                // Track the current map span for dynamic clustering
+                // Track the current map span and center for dynamic clustering and search area
                 let region = context.region
                 currentMapSpan = region.span
+                currentMapCenter = region.center
 
                 // Update clusters when zoom level changes
                 updateClustersIfNeeded()
@@ -245,6 +269,36 @@ struct MainMapView: View {
                         )
                 }
 
+                // "Search This Area" button
+                if shouldShowSearchAreaButton {
+                    Button {
+                        venueDiscoveryManager.searchRegion(visibleRegion)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.subheadline.weight(.semibold))
+                            Text("Search This Area")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 20)
+                        .background(
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue, .blue.opacity(0.8)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        )
+                        .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.scale.combined(with: .opacity))
+                }
+
                 Spacer()
 
                 // Map controls
@@ -254,6 +308,7 @@ struct MainMapView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.35), value: venueDiscoveryManager.isSearching)
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: shouldShowSearchAreaButton)
 
             // Quick peek card overlay
             if let peekVenue = peekVenue {
