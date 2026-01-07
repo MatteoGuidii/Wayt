@@ -108,10 +108,7 @@ extension Array where Element == Venue {
 
             // Find all venues within threshold distance
             remaining = remaining.filter { venue in
-                let currentLoc = CLLocation(latitude: current.coordinate.latitude, longitude: current.coordinate.longitude)
-                let venueLoc = CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude)
-                let distance = currentLoc.distance(from: venueLoc)
-
+                let distance = current.coordinate.distance(to: venue.coordinate)
                 if distance <= threshold {
                     clusterVenues.append(venue)
                     return false // Remove from remaining

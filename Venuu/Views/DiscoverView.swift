@@ -185,4 +185,5 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 #Preview {
     DiscoverView()
         .environmentObject(LocationManager())
+        .environmentObject(VenueDiscoveryManager())
 }

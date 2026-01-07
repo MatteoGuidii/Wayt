@@ -1,6 +1,5 @@
 import SwiftUI
 import MapKit
-import Contacts
 
 struct VenueDetailView: View {
     let venue: Venue
@@ -66,7 +65,9 @@ struct VenueDetailView: View {
                         
                         if let phone = venue.mapItem.phoneNumber {
                             ActionButton(title: "Call", icon: "phone.fill", color: .green) {
-                                if let url = URL(string: "tel://\(phone.replacingOccurrences(of: " ", with: ""))") {
+                                // Extract only digits and leading + for proper tel: URL
+                                let sanitized = phone.filter { $0.isNumber || $0 == "+" }
+                                if let url = URL(string: "tel:\(sanitized)") {
                                     UIApplication.shared.open(url)
                                 }
                             }
