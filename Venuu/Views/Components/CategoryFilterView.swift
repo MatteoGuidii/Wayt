@@ -66,11 +66,11 @@ struct CategoryFilterView: View {
         if selectedCategory == category {
             // Deselect and clear search
             selectedCategory = nil
-            venueDiscoveryManager.search(text: "", radius: radius)
+            venueDiscoveryManager.search(text: "")
         } else {
             // Select and search
             selectedCategory = category
-            venueDiscoveryManager.search(text: category, radius: radius)
+            venueDiscoveryManager.search(text: category)
         }
     }
 }

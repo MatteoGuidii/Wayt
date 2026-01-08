@@ -8,16 +8,21 @@ enum AppConfiguration {
 
     enum ImageService {
         /// Maximum number of images to fetch per search
-        static let maxImageFetchCount = 10
+        /// Conservative limit to avoid hitting Apple's 50 requests/60s throttle
+        static let maxImageFetchCount = 20
 
         /// Number of priority images to fetch first (visible on screen)
-        static let priorityCount = 6
+        /// Reduced to 2 to minimize initial API burst
+        static let priorityCount = 2
 
         /// Batch size for throttled image fetching
-        static let batchSize = 4
+        /// Small batches to spread requests over time
+        static let batchSize = 2
 
-        /// Delay between batches in nanoseconds (2 seconds)
-        static let batchDelayNanoseconds: UInt64 = 2_000_000_000
+        /// Delay between batches in nanoseconds (8 seconds)
+        /// Longer delay ensures we stay well under 50 requests/60s limit
+        /// 20 images ÷ 2 per batch = 10 batches × 8s = 80s total (< 1 request/sec average)
+        static let batchDelayNanoseconds: UInt64 = 8_000_000_000
 
         /// JPEG compression quality for cached images (0.0 - 1.0)
         static let compressionQuality: CGFloat = 0.7
@@ -26,11 +31,11 @@ enum AppConfiguration {
     // MARK: - Search Configuration
 
     enum Search {
-        /// Debounce delay for location-based searches in nanoseconds (0.15 seconds)
-        static let debounceDelayNanoseconds: UInt64 = 150_000_000
+        /// Debounce delay for location-based searches in nanoseconds (0.5 seconds)
+        static let debounceDelayNanoseconds: UInt64 = 500_000_000
 
         /// Minimum distance moved to trigger new search (meters)
-        static let minimumDistanceForNewSearch: CLLocationDistance = 200
+        static let minimumDistanceForNewSearch: CLLocationDistance = 500
 
         /// Minimum radius change ratio to trigger new search (20%)
         static let minimumRadiusChangeRatio: Double = 0.2
@@ -38,8 +43,59 @@ enum AppConfiguration {
         /// Default search radius (meters)
         static let defaultSearchRadius: CLLocationDistance = 5000
 
+        /// Maximum search radius for dynamic expansion (meters)
+        static let maxSearchRadius: CLLocationDistance = 15000
+
+        /// Minimum venues before triggering radius expansion
+        static let minVenuesBeforeExpansion: Int = 10
+
+        /// Radius expansion multiplier when results are sparse
+        static let radiusExpansionMultiplier: Double = 1.5
+
+        /// Extended radius for text-based venue search (meters)
+        /// Allows finding specific venues further away
+        static let textSearchRadius: CLLocationDistance = 25000
+
         /// Maximum number of venues we keep in memory and cache after each search
-        static let maxResultCount = 60
+        /// Increased to 200 to ensure comprehensive coverage in dense urban areas
+        /// Map clustering handles display of large venue counts efficiently
+        static let maxResultCount = 200
+
+        /// Grid size for multi-cell search (NxN grid)
+        /// 2x2 = 4 searches, providing balanced coverage while avoiding throttling
+        static let searchGridSize = 2
+    }
+
+    // MARK: - Venue Scoring Configuration
+
+    enum VenueScoring {
+        /// Number of venues in a result set considered "high density"
+        /// Use a higher threshold in dense urban cores so we can be more selective
+        static let highDensityThreshold: Int = 80
+
+        /// Number of venues in a result set considered "low density"
+        /// Be more inclusive when there are few candidates
+        static let lowDensityThreshold: Int = 20
+
+        /// Minimum nightlife confidence score (0-100) required in high density areas
+        /// Very inclusive - only filter obvious non-nightlife venues (like dentists)
+        static let minimumNightlifeScoreHighDensity: Int = 20
+
+        /// Minimum nightlife confidence score (0-100) required in low density areas
+        /// Extremely inclusive to ensure sparse areas show all possible venues
+        static let minimumNightlifeScoreLowDensity: Int = 10
+
+        /// Default minimum nightlife confidence score (0-100) for medium density areas
+        /// Very permissive to maximize venue discovery
+        static let minimumNightlifeScore: Int = 15
+
+        /// Distance at which venue score starts decaying (meters)
+        /// Venues closer than this get no penalty
+        static let distanceDecayStart: CLLocationDistance = 2000
+
+        /// Maximum distance penalty applied to venues (score points)
+        /// Applied gradually from distanceDecayStart to maxSearchRadius
+        static let maxDistancePenalty: Int = 15
     }
 
     // MARK: - Map Configuration
@@ -50,6 +106,27 @@ enum AppConfiguration {
 
         /// Maximum radius in meters
         static let maximumRadius: CLLocationDistance = 50_000
+
+        /// Default camera distance when focusing on a location (meters)
+        static let defaultCameraDistance: CLLocationDistance = 500
+
+        /// Camera distance when viewing selected venue (meters)
+        static let selectedVenueCameraDistance: CLLocationDistance = 300
+
+        /// Clustering threshold factor (percentage of visible map span)
+        static let clusteringThresholdFactor: Double = 0.12
+
+        /// Minimum threshold change ratio to trigger cluster recalculation
+        static let clusterRecalculationThreshold: Double = 0.2
+
+        /// Minimum threshold in meters below which clustering is disabled
+        static let minimumClusteringThreshold: CLLocationDistance = 50
+
+        /// Zoom level threshold for showing venue titles (latitude delta)
+        static let showTitleZoomThreshold: Double = 0.02
+
+        /// Cluster zoom padding scale factor
+        static let clusterZoomPaddingScale: Double = 1.4
     }
 
     // MARK: - Location Configuration
@@ -75,24 +152,5 @@ enum AppConfiguration {
 
         /// Heading filter so we only get callbacks when orientation changes meaningfully
         static let headingFilterDegrees: CLLocationDegrees = 10
-    }
-
-    // MARK: - Venue Scoring Configuration
-
-    enum VenueScoring {
-        /// Minimum confidence score (0-100) for a venue to be shown as nightlife-relevant
-        /// 70 = Show restaurants with strong nightlife signals (keywords, location, hybrid category)
-        /// 50 = More permissive, includes generic restaurants in nightlife areas
-        /// 90 = Very strict, only explicit nightlife venues
-        static let minimumNightlifeScore = 70
-
-        /// Distance (meters) to search for nearby nightlife venues when calculating proximity score
-        static let proximitySearchRadius: CLLocationDistance = 200
-
-        /// Maximum proximity bonus points that can be awarded based on nearby venues
-        static let maxProximityBonus = 20
-
-        /// Points awarded per nearby nightlife venue (capped at maxProximityBonus)
-        static let pointsPerNearbyVenue = 5
     }
 }

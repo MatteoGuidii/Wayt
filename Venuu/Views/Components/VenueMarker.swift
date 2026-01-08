@@ -13,9 +13,7 @@ struct VenueMarker: View {
 
     var isNearby: Bool {
         guard let userLocation = userLocation else { return false }
-        let venueLoc = CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude)
-        let userLoc = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
-        return venueLoc.distance(from: userLoc) < 150
+        return venue.coordinate.distance(to: userLocation) < 150
     }
 
     var body: some View {
@@ -132,13 +130,13 @@ struct VenueMarker: View {
 #Preview {
     ZStack {
         Color.gray.ignoresSafeArea()
-        
+
         VenueMarker(
             venue: Venue(
                  mapItem: {
                      let coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
-                     let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-                     let item = MKMapItem(location: location, address: nil)
+                     let placemark = MKPlacemark(coordinate: coordinate)
+                     let item = MKMapItem(placemark: placemark)
                      item.name = "Sample Venue"
                      return item
                  }()

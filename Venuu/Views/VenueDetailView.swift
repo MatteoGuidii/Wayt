@@ -1,6 +1,5 @@
 import SwiftUI
 import MapKit
-import Contacts
 
 struct VenueDetailView: View {
     let venue: Venue
@@ -66,7 +65,9 @@ struct VenueDetailView: View {
                         
                         if let phone = venue.mapItem.phoneNumber {
                             ActionButton(title: "Call", icon: "phone.fill", color: .green) {
-                                if let url = URL(string: "tel://\(phone.replacingOccurrences(of: " ", with: ""))") {
+                                // Extract only digits and leading + for proper tel: URL
+                                let sanitized = phone.filter { $0.isNumber || $0 == "+" }
+                                if let url = URL(string: "tel:\(sanitized)") {
                                     UIApplication.shared.open(url)
                                 }
                             }
@@ -102,22 +103,39 @@ struct VenueDetailView: View {
     }
     
     private func getAddress(for mapItem: MKMapItem) -> String {
-        // Use modern iOS 26+ addressRepresentations API for formatted address
-        if let addressRepresentations = mapItem.addressRepresentations {
-            // Get full address with region, multi-line format
-            if let formattedAddress = addressRepresentations.fullAddress(includingRegion: true, singleLine: false) {
-                return formattedAddress
+        // Use placemark for address information (iOS 18 compatible)
+        let placemark = mapItem.placemark
+
+        // Build address from placemark components
+        var addressComponents: [String] = []
+
+        if let thoroughfare = placemark.thoroughfare {
+            var street = thoroughfare
+            if let subThoroughfare = placemark.subThoroughfare {
+                street = "\(subThoroughfare) \(thoroughfare)"
             }
-        }
-        
-        // Fall back to address property (iOS 26+) which provides fullAddress string
-        if let address = mapItem.address {
-            return address.fullAddress
+            addressComponents.append(street)
         }
 
-        // Final fallback to coordinate representation using location
-        let location = mapItem.location
-        let coord = location.coordinate
+        if let locality = placemark.locality {
+            addressComponents.append(locality)
+        }
+
+        if let administrativeArea = placemark.administrativeArea {
+            addressComponents.append(administrativeArea)
+        }
+
+        if let postalCode = placemark.postalCode {
+            addressComponents.append(postalCode)
+        }
+
+        // If we have address components, return formatted address
+        if !addressComponents.isEmpty {
+            return addressComponents.joined(separator: ", ")
+        }
+
+        // Final fallback to coordinate representation
+        let coord = placemark.coordinate
         return String(format: "%.5f, %.5f", coord.latitude, coord.longitude)
     }
 }

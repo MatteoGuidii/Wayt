@@ -176,9 +176,7 @@ struct VenueQuickPeekCard: View {
 
     private var distanceText: String? {
         guard let userLocation = userLocation else { return nil }
-        let venueLoc = CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude)
-        let userLoc = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
-        let distance = venueLoc.distance(from: userLoc)
+        let distance = venue.coordinate.distance(to: userLocation)
 
         if distance < 1000 {
             return String(format: "%.0f m away", distance)
