@@ -8,16 +8,21 @@ enum AppConfiguration {
 
     enum ImageService {
         /// Maximum number of images to fetch per search
-        static let maxImageFetchCount = 10
+        /// Conservative limit to avoid hitting Apple's 50 requests/60s throttle
+        static let maxImageFetchCount = 20
 
         /// Number of priority images to fetch first (visible on screen)
-        static let priorityCount = 6
+        /// Reduced to 2 to minimize initial API burst
+        static let priorityCount = 2
 
         /// Batch size for throttled image fetching
-        static let batchSize = 4
+        /// Small batches to spread requests over time
+        static let batchSize = 2
 
-        /// Delay between batches in nanoseconds (2 seconds)
-        static let batchDelayNanoseconds: UInt64 = 2_000_000_000
+        /// Delay between batches in nanoseconds (8 seconds)
+        /// Longer delay ensures we stay well under 50 requests/60s limit
+        /// 20 images ÷ 2 per batch = 10 batches × 8s = 80s total (< 1 request/sec average)
+        static let batchDelayNanoseconds: UInt64 = 8_000_000_000
 
         /// JPEG compression quality for cached images (0.0 - 1.0)
         static let compressionQuality: CGFloat = 0.7
@@ -57,8 +62,8 @@ enum AppConfiguration {
         static let maxResultCount = 200
 
         /// Grid size for multi-cell search (NxN grid)
-        /// 3x3 = 9 searches, providing better coverage in dense areas
-        static let searchGridSize = 3
+        /// 2x2 = 4 searches, providing balanced coverage while avoiding throttling
+        static let searchGridSize = 2
     }
 
     // MARK: - Venue Scoring Configuration
@@ -73,16 +78,16 @@ enum AppConfiguration {
         static let lowDensityThreshold: Int = 20
 
         /// Minimum nightlife confidence score (0-100) required in high density areas
-        /// Relaxed to 40 to include more legitimate venues that may lack keywords
-        static let minimumNightlifeScoreHighDensity: Int = 40
+        /// Very inclusive - only filter obvious non-nightlife venues (like dentists)
+        static let minimumNightlifeScoreHighDensity: Int = 20
 
         /// Minimum nightlife confidence score (0-100) required in low density areas
-        /// Very inclusive to ensure sparse areas still show venues
-        static let minimumNightlifeScoreLowDensity: Int = 25
+        /// Extremely inclusive to ensure sparse areas show all possible venues
+        static let minimumNightlifeScoreLowDensity: Int = 10
 
         /// Default minimum nightlife confidence score (0-100) for medium density areas
-        /// Relaxed to 35 to keep more borderline venues visible
-        static let minimumNightlifeScore: Int = 35
+        /// Very permissive to maximize venue discovery
+        static let minimumNightlifeScore: Int = 15
 
         /// Distance at which venue score starts decaying (meters)
         /// Venues closer than this get no penalty

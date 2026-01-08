@@ -245,7 +245,7 @@ struct MainMapView: View {
                 }
 
                 if venueDiscoveryManager.didHitResultLimit {
-                    Text("Showing top \(AppConfiguration.Search.maxResultCount) spots nearby")
+                    Text("Showing \(AppConfiguration.Search.maxResultCount) venues nearby")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 6)
@@ -254,11 +254,11 @@ struct MainMapView: View {
                             Capsule()
                                 .fill(.ultraThinMaterial)
                         )
-                        .accessibilityHint("Results are capped to reduce data usage")
+                        .accessibilityHint("Zoom in or pan to discover more venues")
                 }
 
                 if hasPendingImages {
-                    Text("Photos load gradually to save data.")
+                    Text("Photos loading... Tap markers to explore venues")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
@@ -272,7 +272,8 @@ struct MainMapView: View {
                 // "Search This Area" button
                 if shouldShowSearchAreaButton {
                     Button {
-                        venueDiscoveryManager.searchRegion(visibleRegion)
+                        let region = visibleRegion
+                        venueDiscoveryManager.searchRegion(region)
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
@@ -293,6 +294,7 @@ struct MainMapView: View {
                                     )
                                 )
                         )
+                        .contentShape(Capsule())
                         .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
                     }
                     .buttonStyle(.plain)
@@ -466,6 +468,7 @@ private extension MainMapView {
     }
     
     func recenter() {
+        shouldFollowUser = true
         if let coordinate = currentCoordinate {
             updateCameraPosition(
                 coordinate: coordinate,
