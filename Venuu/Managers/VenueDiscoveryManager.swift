@@ -25,6 +25,10 @@ class VenueDiscoveryManager: ObservableObject {
 
     private var searchTask: Task<Void, Never>?
 
+    /// Throttle region searches to prevent hitting Apple's rate limit
+    private var lastRegionSearchTime: Date?
+    private let regionSearchThrottleInterval: TimeInterval = 3.0 // 3 seconds between searches
+
     init() {
         // Load cached venues on startup
         Task {
@@ -88,6 +92,29 @@ class VenueDiscoveryManager: ObservableObject {
 
     /// Search a specific region (for "Search This Area" functionality)
     func searchRegion(_ region: MKCoordinateRegion) {
+        // Throttle region searches to prevent hitting Apple's rate limit (50 requests/60s)
+        let now = Date()
+        if let lastSearch = lastRegionSearchTime {
+            let timeSinceLastSearch = now.timeIntervalSince(lastSearch)
+            if timeSinceLastSearch < regionSearchThrottleInterval {
+                let waitTime = Int(ceil(regionSearchThrottleInterval - timeSinceLastSearch))
+                searchError = "Please wait \(waitTime) second\(waitTime == 1 ? "" : "s") before searching again"
+                // Auto-clear error after the wait time
+                Task {
+                    try? await Task.sleep(nanoseconds: UInt64(waitTime) * 1_000_000_000)
+                    await MainActor.run {
+                        if self.searchError?.contains("Please wait") == true {
+                            self.searchError = nil
+                        }
+                    }
+                }
+                return
+            }
+        }
+
+        lastRegionSearchTime = now
+        searchError = nil // Clear any previous errors
+
         let radius = region.span.toRadius()
         performSearch(near: region.center, radius: radius, mode: .regionSearch)
         lastSearchLocation = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
@@ -172,7 +199,15 @@ class VenueDiscoveryManager: ObservableObject {
                     self.searchedRegion = searchRegion
                 }
 
-                let queries = await searchService.getQueries(for: searchText)
+                // Optimize queries for region searches to reduce API calls
+                let queries: [String]
+                if mode == .regionSearch {
+                    // For region search, use only 1 broad query to reduce API load
+                    // 1 query × 4 grid cells = 4 requests instead of 16
+                    queries = ["nightlife"]
+                } else {
+                    queries = await searchService.getQueries(for: searchText)
+                }
 
                 // Use an actor to safely collect venues from concurrent tasks
                 actor VenueCollector {
@@ -195,17 +230,33 @@ class VenueDiscoveryManager: ObservableObject {
 
                 let collector = VenueCollector()
 
+                var throttleError: Error?
+
                 await withTaskGroup(of: [(venue: Venue, key: String)].self) { group in
                     for query in queries {
                         group.addTask {
                             do {
-                                let venues = try await searchService.searchWithGrid(query: query, region: searchRegion)
+                                // For region searches, use single-cell search to minimize API calls
+                                // This reduces from 4 requests (2x2 grid) to 1 request per query
+                                let venues: [Venue]
+                                if mode == .regionSearch {
+                                    venues = try await searchService.search(query: query, region: searchRegion)
+                                } else {
+                                    venues = try await searchService.searchWithGrid(query: query, region: searchRegion)
+                                }
+
                                 return await MainActor.run {
                                     venues.map { venue in
                                         let key = "\(venue.name)_\(String(format: "%.5f", venue.coordinate.latitude))_\(String(format: "%.5f", venue.coordinate.longitude))"
                                         return (venue: venue, key: key)
                                     }
                                 }
+                            } catch let error as NSError {
+                                // Check for MapKit throttle error (GEOErrorDomain -3)
+                                if error.domain == "GEOErrorDomain" && error.code == -3 {
+                                    throttleError = error
+                                }
+                                return []
                             } catch {
                                 return []
                             }
@@ -215,6 +266,40 @@ class VenueDiscoveryManager: ObservableObject {
                     for await venues in group {
                         await collector.add(venues)
                     }
+                }
+
+                // If we hit a throttle error, show user-friendly message and abort
+                if let error = throttleError as? NSError,
+                   let timeUntilReset = error.userInfo["timeUntilReset"] as? Int {
+                    await MainActor.run {
+                        self.searchError = "Search limit reached. Please wait \(timeUntilReset) seconds before searching again."
+                        self.isSearching = false
+                        // Auto-clear error after the wait time
+                        Task {
+                            try? await Task.sleep(nanoseconds: UInt64(timeUntilReset) * 1_000_000_000)
+                            await MainActor.run {
+                                if self.searchError?.contains("Search limit reached") == true {
+                                    self.searchError = nil
+                                }
+                            }
+                        }
+                    }
+                    return
+                } else if throttleError != nil {
+                    await MainActor.run {
+                        self.searchError = "Search limit reached. Please wait a minute before searching again."
+                        self.isSearching = false
+                        // Auto-clear error after 60 seconds
+                        Task {
+                            try? await Task.sleep(nanoseconds: 60_000_000_000)
+                            await MainActor.run {
+                                if self.searchError?.contains("Search limit reached") == true {
+                                    self.searchError = nil
+                                }
+                            }
+                        }
+                    }
+                    return
                 }
 
                 if Task.isCancelled { return }

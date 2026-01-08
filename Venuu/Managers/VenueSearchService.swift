@@ -23,10 +23,7 @@ struct VenueSearchService: Sendable {
     private let broadDiscoveryTerms = [
         "bar",           // Catches all bar types
         "restaurant",    // Catches hybrid restaurant/bars
-        "pub",           // Traditional pubs
         "club",          // Night clubs, social clubs
-        "lounge",        // Lounges of all types
-        "brewery",       // Craft breweries, taprooms
         "nightlife"      // General nightlife venues
     ]
     
