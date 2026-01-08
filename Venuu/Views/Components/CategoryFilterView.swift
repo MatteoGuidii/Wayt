@@ -14,11 +14,11 @@ struct CategoryFilterView: View {
             
             let categories = [
                 ("All", "square.grid.2x2.fill"),
+                ("Restaurant", "fork.knife"),
+                ("Cafe", "cup.and.saucer.fill"),
+                ("Bakery", "birthday.cake.fill"),
                 ("Bar", "wineglass.fill"),
-                ("Club", "music.mic"),
-                ("Food", "fork.knife"),
-                ("Cafe", "cup.and.saucer.fill"), // Note: Might remove later based on previous chat, but keeping for now as example
-                ("Art", "paintpalette.fill")
+                ("Pub", "mug.fill")
             ]
             
             ScrollView(.horizontal, showsIndicators: false) {

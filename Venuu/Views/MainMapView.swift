@@ -244,19 +244,6 @@ struct MainMapView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                if venueDiscoveryManager.didHitResultLimit {
-                    Text("Showing \(AppConfiguration.Search.maxResultCount) venues nearby")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 12)
-                        .background(
-                            Capsule()
-                                .fill(.ultraThinMaterial)
-                        )
-                        .accessibilityHint("Zoom in or pan to discover more venues")
-                }
-
                 if hasPendingImages {
                     Text("Photos loading... Tap markers to explore venues")
                         .font(.caption2)
