@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import CoreLocation
 import MapKit
+import os.log
 
 actor VenueCacheManager {
     static let shared = VenueCacheManager()
@@ -10,7 +11,11 @@ actor VenueCacheManager {
         case imageCompressionFailed
         case fileWriteFailed
         case fileReadFailed
+        case encodingFailed
+        case decodingFailed
     }
+
+    private let logger = Logger(subsystem: "com.venuu.app", category: "VenueCacheManager")
 
     private let fileManager = FileManager.default
     private let cacheDirectory: URL
@@ -44,32 +49,55 @@ actor VenueCacheManager {
     }
     
     func saveVenues(_ venues: [CachedVenue]) async throws {
-        let data = try JSONEncoder().encode(venues)
-        try data.write(to: venuesFile, options: .atomic)
+        do {
+            let data = try JSONEncoder().encode(venues)
+            try data.write(to: venuesFile, options: .atomic)
+            logger.info("Successfully saved \(venues.count) venues to cache")
+        } catch let error as EncodingError {
+            logger.error("Failed to encode venues: \(error.localizedDescription)")
+            throw CacheError.encodingFailed
+        } catch {
+            logger.error("Failed to write venues to disk: \(error.localizedDescription)")
+            throw CacheError.fileWriteFailed
+        }
     }
     
     func saveImages(for venues: [Venue]) async throws {
+        var savedCount = 0
         for venue in venues {
             if let image = venue.image {
-                try await saveImage(image, for: venue.id)
+                do {
+                    try await saveImage(image, for: venue.id)
+                    savedCount += 1
+                } catch {
+                    logger.warning("Failed to save image for venue \(venue.id): \(error.localizedDescription)")
+                }
             }
         }
+        logger.info("Successfully saved \(savedCount) images out of \(venues.count) venues")
     }
     
     func loadVenues() async -> [Venue] {
-        guard let data = try? Data(contentsOf: venuesFile),
-              let cachedVenues = try? JSONDecoder().decode([CachedVenue].self, from: data) else {
+        guard let data = try? Data(contentsOf: venuesFile) else {
+            logger.info("No cached venues file found")
             return []
         }
+
+        guard let cachedVenues = try? JSONDecoder().decode([CachedVenue].self, from: data) else {
+            logger.error("Failed to decode cached venues")
+            return []
+        }
+
+        logger.info("Loading \(cachedVenues.count) cached venues")
         
         var venues: [Venue] = []
         for cached in cachedVenues {
-            // Reconstruct a basic MKMapItem using modern API
-            _ = CLLocationCoordinate2D(latitude: cached.latitude, longitude: cached.longitude)
-            let location = CLLocation(latitude: cached.latitude, longitude: cached.longitude)
+            // Reconstruct a basic MKMapItem using iOS 18 compatible API
+            let coordinate = CLLocationCoordinate2D(latitude: cached.latitude, longitude: cached.longitude)
 
-            // Create MKMapItem using modern iOS 26+ API
-            let mapItem = MKMapItem(location: location, address: nil)
+            // Create MKMapItem using MKPlacemark (iOS 18 compatible)
+            let placemark = MKPlacemark(coordinate: coordinate)
+            let mapItem = MKMapItem(placemark: placemark)
 
             mapItem.name = cached.name
             if let catRaw = cached.categoryRawValue {
@@ -94,9 +122,17 @@ actor VenueCacheManager {
     func saveImage(_ image: UIImage, for id: UUID) async throws {
         let fileURL = imagesDirectory.appendingPathComponent("\(id.uuidString).jpg")
         guard let data = await image.jpegData(compressionQuality: AppConfiguration.ImageService.compressionQuality) else {
+            logger.error("Failed to compress image for venue \(id)")
             throw CacheError.imageCompressionFailed
         }
-        try data.write(to: fileURL, options: .atomic)
+
+        do {
+            try data.write(to: fileURL, options: .atomic)
+            logger.debug("Saved image for venue \(id)")
+        } catch {
+            logger.error("Failed to write image for venue \(id): \(error.localizedDescription)")
+            throw CacheError.fileWriteFailed
+        }
     }
     
     func loadImage(for id: UUID) async -> UIImage? {
@@ -108,8 +144,13 @@ actor VenueCacheManager {
     }
     
     func clearCache() {
-        try? fileManager.removeItem(at: cacheDirectory)
-        try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: imagesDirectory, withIntermediateDirectories: true)
+        do {
+            try fileManager.removeItem(at: cacheDirectory)
+            try fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: imagesDirectory, withIntermediateDirectories: true)
+            logger.info("Successfully cleared venue cache")
+        } catch {
+            logger.error("Failed to clear cache: \(error.localizedDescription)")
+        }
     }
 }

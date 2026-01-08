@@ -13,15 +13,13 @@ struct DiscoverSearchBar: View {
             
             TextField("Search venues, vibes...", text: $searchText)
                 .onSubmit {
-                    let radius = locationManager.region.span.toRadius()
-                    venueDiscoveryManager.search(text: searchText, radius: radius)
+                    venueDiscoveryManager.search(text: searchText)
                 }
 
             if !searchText.isEmpty {
                 Button {
                     searchText = ""
-                    let radius = locationManager.region.span.toRadius()
-                    venueDiscoveryManager.search(text: "", radius: radius)
+                    venueDiscoveryManager.clearSearch()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)

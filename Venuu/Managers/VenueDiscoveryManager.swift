@@ -7,39 +7,55 @@ import UIKit
 class VenueDiscoveryManager: ObservableObject {
     @Published var venues: [Venue] = []
     @Published var isSearching = false
-    @Published var didHitResultLimit = false
     @Published var searchError: String?
+    @Published var didHitResultLimit = false
+    @Published var searchedRegion: MKCoordinateRegion?
 
     private var lastSearchLocation: CLLocation?
     private var lastSearchRadius: CLLocationDistance = AppConfiguration.Search.defaultSearchRadius
     private var lastSuccessfulLocation: CLLocation?
     private var shouldRetryAfterEmptyResult = false
-    
+
+    /// Stores previous venues to merge with new results for persistence
+    private var persistedVenues: [String: Venue] = [:]
+
     private let searchService = VenueSearchService()
     private let cacheManager = VenueCacheManager.shared
     private let imageService = VenueImageService.shared
-    
+
     private var searchTask: Task<Void, Never>?
-    
+
+    /// Throttle region searches to prevent hitting Apple's rate limit
+    private var lastRegionSearchTime: Date?
+    private let regionSearchThrottleInterval: TimeInterval = 3.0 // 3 seconds between searches
+
     init() {
         // Load cached venues on startup
         Task {
             let cached = await cacheManager.loadVenues()
             if !cached.isEmpty {
                 self.venues = cached
+                // Populate persisted venues from cache
+                for venue in cached {
+                    let key = venueKey(for: venue)
+                    persistedVenues[key] = venue
+                }
             }
         }
     }
-    
+
     // MARK: - Public API
-    
+
     /// Triggers a search around the user's location if they have moved significantly
     func updateUserLocation(_ location: CLLocation, radius: CLLocationDistance? = nil) {
+        // Don't interrupt an ongoing user-initiated search (text search or region search)
+        guard !isSearching else { return }
+
         let searchRadius = radius ?? AppConfiguration.Search.defaultSearchRadius
-        
+
         if shouldRetryAfterEmptyResult {
             shouldRetryAfterEmptyResult = false
-            performSearch(near: location.coordinate, radius: searchRadius)
+            performSearch(near: location.coordinate, radius: searchRadius, mode: .discovery)
             lastSearchLocation = location
             lastSearchRadius = searchRadius
             return
@@ -48,7 +64,7 @@ class VenueDiscoveryManager: ObservableObject {
         // Only search if we haven't searched yet, or if we've moved significantly
         // OR if the radius has changed significantly
         guard let lastLocation = lastSearchLocation else {
-            performSearch(near: location.coordinate, radius: searchRadius)
+            performSearch(near: location.coordinate, radius: searchRadius, mode: .discovery)
             lastSearchLocation = location
             lastSearchRadius = searchRadius
             return
@@ -59,225 +75,391 @@ class VenueDiscoveryManager: ObservableObject {
 
         if distance > AppConfiguration.Search.minimumDistanceForNewSearch ||
            radiusRatio > AppConfiguration.Search.minimumRadiusChangeRatio {
-            performSearch(near: location.coordinate, radius: searchRadius)
+            performSearch(near: location.coordinate, radius: searchRadius, mode: .discovery)
             lastSearchLocation = location
             lastSearchRadius = searchRadius
         }
     }
-    
+
     /// Performs a search with a specific query (e.g. from search bar)
-    func search(text: String, radius: CLLocationDistance? = nil) {
+    /// Uses extended radius to find venues further away
+    func search(text: String) {
         guard let location = lastSearchLocation else { return }
-        let searchRadius = radius ?? lastSearchRadius
-        performSearch(near: location.coordinate, searchText: text, radius: searchRadius)
+        // Use extended radius for text searches to find specific venues
+        let searchRadius = AppConfiguration.Search.textSearchRadius
+        performSearch(near: location.coordinate, searchText: text, radius: searchRadius, mode: .textSearch)
+    }
+
+    /// Search a specific region (for "Search This Area" functionality)
+    func searchRegion(_ region: MKCoordinateRegion) {
+        // Throttle region searches to prevent hitting Apple's rate limit (50 requests/60s)
+        let now = Date()
+        if let lastSearch = lastRegionSearchTime {
+            let timeSinceLastSearch = now.timeIntervalSince(lastSearch)
+            if timeSinceLastSearch < regionSearchThrottleInterval {
+                let waitTime = Int(ceil(regionSearchThrottleInterval - timeSinceLastSearch))
+                searchError = "Please wait \(waitTime) second\(waitTime == 1 ? "" : "s") before searching again"
+                // Auto-clear error after the wait time
+                Task {
+                    try? await Task.sleep(nanoseconds: UInt64(waitTime) * 1_000_000_000)
+                    await MainActor.run {
+                        if self.searchError?.contains("Please wait") == true {
+                            self.searchError = nil
+                        }
+                    }
+                }
+                return
+            }
+        }
+
+        lastRegionSearchTime = now
+        searchError = nil // Clear any previous errors
+
+        let radius = region.span.toRadius()
+        performSearch(near: region.center, radius: radius, mode: .regionSearch)
+        lastSearchLocation = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+        lastSearchRadius = radius
+    }
+
+    /// Clears text search and returns to discovery mode
+    func clearSearch() {
+        guard let location = lastSearchLocation else { return }
+        performSearch(near: location.coordinate, radius: lastSearchRadius, mode: .discovery)
+    }
+
+    // MARK: - Private
+
+    private enum SearchMode {
+        case discovery      // Normal location-based discovery
+        case textSearch     // Searching for specific venue by name
+        case regionSearch   // User-initiated "search this area"
+    }
+
+    private func venueKey(for venue: Venue) -> String {
+        "\(venue.name)_\(String(format: "%.5f", venue.coordinate.latitude))_\(String(format: "%.5f", venue.coordinate.longitude))"
+    }
+
+    /// Calculates soft distance penalty using decay curve
+    private func calculateDistancePenalty(distance: CLLocationDistance, maxRadius: CLLocationDistance) -> Int {
+        let decayStart = AppConfiguration.VenueScoring.distanceDecayStart
+        let maxPenalty = AppConfiguration.VenueScoring.maxDistancePenalty
+
+        guard distance > decayStart else { return 0 }
+
+        // Linear decay from decayStart to maxRadius
+        let decayRange = maxRadius - decayStart
+        guard decayRange > 0 else { return 0 }
+
+        let decayProgress = min((distance - decayStart) / decayRange, 1.0)
+        return Int(Double(maxPenalty) * decayProgress)
     }
     
-    private func performSearch(near center: CLLocationCoordinate2D, searchText: String = "", radius: CLLocationDistance) {
+    private func performSearch(
+        near center: CLLocationCoordinate2D,
+        searchText: String = "",
+        radius: CLLocationDistance,
+        mode: SearchMode
+    ) {
         searchTask?.cancel()
         isSearching = true
-        searchError = nil  // Clear any previous errors
 
         let searchService = self.searchService
         let cacheManager = self.cacheManager
         let imageService = self.imageService
         let searchCenter = center
+        let currentPersistedVenues = self.persistedVenues
 
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
 
-            // Ensure isSearching is always cleared when task exits (including cancellation)
-            defer {
-                Task { @MainActor in
-                    self.isSearching = false
-                }
-            }
-            // Debounce for map interactions to prevent excessive searches during rapid zooming
-            if searchText.isEmpty {
+            // Debounce only for discovery mode (not for explicit searches)
+            if mode == .discovery {
                 try? await Task.sleep(nanoseconds: AppConfiguration.Search.debounceDelayNanoseconds)
             }
 
             if Task.isCancelled { return }
 
-            let searchRegion = MKCoordinateRegion(
-                center: searchCenter,
-                latitudinalMeters: radius * 2,
-                longitudinalMeters: radius * 2
-            )
+            // Dynamic radius: start with requested, may expand if results are sparse
+            var currentRadius = radius
+            var allFoundVenues: [(venue: Venue, rank: Int)] = []
+            var searchAttempt = 0
+            let maxAttempts = mode == .discovery ? 2 : 1 // Only expand radius in discovery mode
 
-            let queries = searchService.getQueries(for: searchText)
-            
-            // Use an actor to safely collect venues from concurrent tasks
-            actor VenueCollector {
-                private var scoredVenues: [(venue: Venue, rank: Int)] = []
-                private var seenVenueKeys: Set<String> = []
-                private var successCount = 0
-                private var failureCount = 0
+            while searchAttempt < maxAttempts {
+                searchAttempt += 1
 
-                func add(_ venues: [(venue: Venue, key: String)]) {
-                    successCount += 1
-                    for (index, item) in venues.enumerated() {
-                        if !seenVenueKeys.contains(item.key) {
-                            scoredVenues.append((item.venue, index))
-                            seenVenueKeys.insert(item.key)
+                let searchRegion = MKCoordinateRegion(
+                    center: searchCenter,
+                    latitudinalMeters: currentRadius * 2,
+                    longitudinalMeters: currentRadius * 2
+                )
+
+                // Update searchedRegion for UI feedback
+                await MainActor.run {
+                    self.searchedRegion = searchRegion
+                }
+
+                // Optimize queries for region searches to reduce API calls
+                let queries: [String]
+                if mode == .regionSearch {
+                    // For region search, use only 1 broad query to reduce API load
+                    // 1 query × 4 grid cells = 4 requests instead of 16
+                    queries = ["nightlife"]
+                } else {
+                    queries = await searchService.getQueries(for: searchText)
+                }
+
+                // Use an actor to safely collect venues from concurrent tasks
+                actor VenueCollector {
+                    private var scoredVenues: [(venue: Venue, rank: Int)] = []
+                    private var seenVenueKeys: Set<String> = []
+
+                    func add(_ venues: [(venue: Venue, key: String)]) {
+                        for (index, item) in venues.enumerated() {
+                            if !seenVenueKeys.contains(item.key) {
+                                scoredVenues.append((item.venue, index))
+                                seenVenueKeys.insert(item.key)
+                            }
                         }
+                    }
+
+                    func getVenues() -> [(venue: Venue, rank: Int)] {
+                        return scoredVenues
                     }
                 }
 
-                func recordFailure() {
-                    failureCount += 1
+                let collector = VenueCollector()
+
+                var throttleError: Error?
+
+                await withTaskGroup(of: [(venue: Venue, key: String)].self) { group in
+                    for query in queries {
+                        group.addTask {
+                            do {
+                                // For region searches, use single-cell search to minimize API calls
+                                // This reduces from 4 requests (2x2 grid) to 1 request per query
+                                let venues: [Venue]
+                                if mode == .regionSearch {
+                                    venues = try await searchService.search(query: query, region: searchRegion)
+                                } else {
+                                    venues = try await searchService.searchWithGrid(query: query, region: searchRegion)
+                                }
+
+                                return await MainActor.run {
+                                    venues.map { venue in
+                                        let key = "\(venue.name)_\(String(format: "%.5f", venue.coordinate.latitude))_\(String(format: "%.5f", venue.coordinate.longitude))"
+                                        return (venue: venue, key: key)
+                                    }
+                                }
+                            } catch let error as NSError {
+                                // Check for MapKit throttle error (GEOErrorDomain -3)
+                                if error.domain == "GEOErrorDomain" && error.code == -3 {
+                                    throttleError = error
+                                }
+                                return []
+                            } catch {
+                                return []
+                            }
+                        }
+                    }
+
+                    for await venues in group {
+                        await collector.add(venues)
+                    }
                 }
 
-                func getVenues() -> [(venue: Venue, rank: Int)] {
-                    return scoredVenues
-                }
-
-                func getStats() -> (successCount: Int, failureCount: Int) {
-                    return (successCount, failureCount)
-                }
-            }
-
-            let collector = VenueCollector()
-
-            await withTaskGroup(of: (success: Bool, venues: [(venue: Venue, key: String)]).self) { group in
-                for query in queries {
-                    group.addTask {
-                        do {
-                            let venues = try await searchService.search(query: query, region: searchRegion)
-                            let mapped = await MainActor.run {
-                                venues.map { venue in
-                                    (venue: venue, key: "\(venue.name)_\(venue.coordinate.latitude)_\(venue.coordinate.longitude)")
+                // If we hit a throttle error, show user-friendly message and abort
+                if let error = throttleError as? NSError,
+                   let timeUntilReset = error.userInfo["timeUntilReset"] as? Int {
+                    await MainActor.run {
+                        self.searchError = "Search limit reached. Please wait \(timeUntilReset) seconds before searching again."
+                        self.isSearching = false
+                        // Auto-clear error after the wait time
+                        Task {
+                            try? await Task.sleep(nanoseconds: UInt64(timeUntilReset) * 1_000_000_000)
+                            await MainActor.run {
+                                if self.searchError?.contains("Search limit reached") == true {
+                                    self.searchError = nil
                                 }
                             }
-                            return (success: true, venues: mapped)
-                        } catch {
-                            return (success: false, venues: [])
                         }
                     }
+                    return
+                } else if throttleError != nil {
+                    await MainActor.run {
+                        self.searchError = "Search limit reached. Please wait a minute before searching again."
+                        self.isSearching = false
+                        // Auto-clear error after 60 seconds
+                        Task {
+                            try? await Task.sleep(nanoseconds: 60_000_000_000)
+                            await MainActor.run {
+                                if self.searchError?.contains("Search limit reached") == true {
+                                    self.searchError = nil
+                                }
+                            }
+                        }
+                    }
+                    return
                 }
 
-                for await result in group {
-                    if result.success {
-                        await collector.add(result.venues)
-                    } else {
-                        await collector.recordFailure()
-                    }
+                if Task.isCancelled { return }
+
+                allFoundVenues = await collector.getVenues()
+
+                // Check if we need to expand radius (only in discovery mode)
+                if mode == .discovery &&
+                   allFoundVenues.count < AppConfiguration.Search.minVenuesBeforeExpansion &&
+                   currentRadius < AppConfiguration.Search.maxSearchRadius {
+                    // Expand radius and retry
+                    currentRadius = min(
+                        currentRadius * AppConfiguration.Search.radiusExpansionMultiplier,
+                        AppConfiguration.Search.maxSearchRadius
+                    )
+                } else {
+                    break // Enough results or max radius reached
                 }
             }
 
             if Task.isCancelled { return }
 
-            let stats = await collector.getStats()
-            let scoredVenues = await collector.getVenues()
             let userLocation = CLLocation(latitude: searchCenter.latitude, longitude: searchCenter.longitude)
+            let effectiveRadius = currentRadius
 
-            // Check if all searches failed
-            if stats.failureCount > 0 && stats.successCount == 0 {
-                await MainActor.run {
-                    self.searchError = "Unable to search for venues. Please check your connection."
+            // For text search, also filter by name matching
+            var filteredByText: [(venue: Venue, rank: Int)]
+            if !searchText.isEmpty {
+                let searchLower = searchText.lowercased()
+                filteredByText = allFoundVenues.filter { item in
+                    item.venue.name.lowercased().contains(searchLower)
                 }
-                return
+                // If no exact matches, fall back to all results (API already filtered by query)
+                if filteredByText.isEmpty {
+                    filteredByText = allFoundVenues
+                }
+            } else {
+                filteredByText = allFoundVenues
             }
 
-            // Calculate proximity context for each venue to improve scoring accuracy
+            // Calculate proximity counts for scoring
             let venuesWithProximity = await MainActor.run {
-                scoredVenues.map { item -> (venue: Venue, rank: Int, nearbyCount: Int) in
-                    let venueLocation = CLLocation(
-                        latitude: item.venue.coordinate.latitude,
-                        longitude: item.venue.coordinate.longitude
-                    )
-
-                    // Count how many confirmed nightlife venues are nearby
-                    let nearbyCount = scoredVenues.filter { other in
-                        guard other.venue.id != item.venue.id else { return false }
-
-                        let otherLocation = CLLocation(
-                            latitude: other.venue.coordinate.latitude,
-                            longitude: other.venue.coordinate.longitude
-                        )
-                        let distance = venueLocation.distance(from: otherLocation)
-
-                        // Only count venues that are clearly nightlife (not generic restaurants)
-                        let otherType = other.venue.type
-                        let isConfirmedNightlife = otherType == .bar || otherType == .club ||
-                                                   otherType == .pub || otherType == .lounge ||
-                                                   otherType == .liveMusic
-
-                        return distance <= AppConfiguration.VenueScoring.proximitySearchRadius && isConfirmedNightlife
-                    }.count
-
-                    return (venue: item.venue, rank: item.rank, nearbyCount: nearbyCount)
+                filteredByText.compactMap { item -> (venue: Venue, rank: Int, nearbyCount: Int)? in
+                    let venueLocation = CLLocation(latitude: item.venue.coordinate.latitude, longitude: item.venue.coordinate.longitude)
+                    let distance = venueLocation.distance(from: userLocation)
+                    let isNearby = distance <= 5000
+                    return (venue: item.venue, rank: item.rank, nearbyCount: isNearby ? 1 : 0)
                 }
             }
 
-            // Score each venue with proximity context and filter by confidence
-            let enrichedVenues = await MainActor.run {
-                venuesWithProximity.compactMap { item -> RankedVenue? in
+            // Score each venue
+            let allScoredVenues = await MainActor.run {
+                venuesWithProximity.compactMap { item -> (venue: Venue, rank: Int, classification: VenueClassification)? in
                     let classification = VenueClassifier.classifyWithConfidence(
                         mapItem: item.venue.mapItem,
                         nearbyNightlifeCount: item.nearbyCount
                     )
 
-                    // Filter out venues that don't meet the minimum nightlife score
-                    guard classification.isNightlifeRelevant else {
-                        return nil
-                    }
-
                     var scoredVenue = item.venue
                     scoredVenue.confidenceScore = classification.confidenceScore
 
+                    return (venue: scoredVenue, rank: item.rank, classification: classification)
+                }
+            }
+
+            // Determine adaptive threshold based on venue density
+            let venueCount = allScoredVenues.count
+            let adaptiveThreshold: Int
+
+            // Text search mode is more permissive - user is looking for something specific
+            if mode == .textSearch {
+                adaptiveThreshold = 0 // No filtering for text search
+            } else if venueCount >= AppConfiguration.VenueScoring.highDensityThreshold {
+                adaptiveThreshold = AppConfiguration.VenueScoring.minimumNightlifeScoreHighDensity
+            } else if venueCount <= AppConfiguration.VenueScoring.lowDensityThreshold {
+                adaptiveThreshold = AppConfiguration.VenueScoring.minimumNightlifeScoreLowDensity
+            } else {
+                adaptiveThreshold = AppConfiguration.VenueScoring.minimumNightlifeScore
+            }
+
+            // Filter by threshold and create ranked venues
+            let enrichedVenues = await MainActor.run {
+                allScoredVenues.compactMap { item -> RankedVenue? in
+                    guard item.classification.confidenceScore >= adaptiveThreshold else {
+                        return nil
+                    }
+
                     return RankedVenue(
-                        venue: scoredVenue,
+                        venue: item.venue,
                         rank: item.rank,
                         latitude: item.venue.coordinate.latitude,
                         longitude: item.venue.coordinate.longitude,
-                        type: classification.type,
-                        confidenceScore: classification.confidenceScore
+                        type: item.classification.type,
+                        confidenceScore: Double(item.classification.confidenceScore)
                     )
                 }
             }
 
-            // Distance filter (already filtered by confidence above)
+            // Filter by distance
             let validVenues = enrichedVenues.filter { item in
                 let venueLoc = CLLocation(latitude: item.latitude, longitude: item.longitude)
-                return venueLoc.distance(from: userLocation) <= radius
+                return venueLoc.distance(from: userLocation) <= effectiveRadius
             }
 
-            let sortedItemTuples = validVenues.sorted { item1, item2 in
-                let loc1 = CLLocation(latitude: item1.latitude, longitude: item1.longitude)
-                let loc2 = CLLocation(latitude: item2.latitude, longitude: item2.longitude)
+            // Sort using soft distance penalty
+            let sortedItemTuples = await MainActor.run { [self] in
+                validVenues.sorted { item1, item2 in
+                    let loc1 = CLLocation(latitude: item1.latitude, longitude: item1.longitude)
+                    let loc2 = CLLocation(latitude: item2.latitude, longitude: item2.longitude)
 
-                let dist1 = loc1.distance(from: userLocation)
-                let dist2 = loc2.distance(from: userLocation)
+                    let dist1 = loc1.distance(from: userLocation)
+                    let dist2 = loc2.distance(from: userLocation)
 
-                let penalty1 = dist1 > 5000 ? 20 : 0
-                let penalty2 = dist2 > 5000 ? 20 : 0
+                    // Use soft distance penalty instead of hard cutoff
+                    let penalty1 = self.calculateDistancePenalty(distance: dist1, maxRadius: effectiveRadius)
+                    let penalty2 = self.calculateDistancePenalty(distance: dist2, maxRadius: effectiveRadius)
 
-                // Adjust rank with penalties
-                let score1 = item1.rank + penalty1
-                let score2 = item2.rank + penalty2
+                    let score1 = item1.rank + penalty1
+                    let score2 = item2.rank + penalty2
 
-                // Primary sort: by rank + penalties (lower is better)
-                if score1 != score2 {
-                    return score1 < score2
+                    if score1 == score2 {
+                        return dist1 < dist2
+                    } else {
+                        return score1 < score2
+                    }
                 }
-
-                // Secondary sort: by confidence score (higher is better for same rank)
-                if item1.confidenceScore != item2.confidenceScore {
-                    return item1.confidenceScore > item2.confidenceScore
-                }
-
-                // Tertiary sort: by distance (closer is better)
-                return dist1 < dist2
             }
 
             let finalVenues = sortedItemTuples.map { $0.venue }
-            let limitedVenues = Array(finalVenues.prefix(AppConfiguration.Search.maxResultCount))
-            let trimmedResults = finalVenues.count > limitedVenues.count
+            var limitedVenues = Array(finalVenues.prefix(AppConfiguration.Search.maxResultCount))
+
+            // Result persistence: merge with persisted venues that are still in range
+            if mode == .discovery && !currentPersistedVenues.isEmpty {
+                let existingKeys = Set(limitedVenues.map { venue in
+                    "\(venue.name)_\(String(format: "%.5f", venue.coordinate.latitude))_\(String(format: "%.5f", venue.coordinate.longitude))"
+                })
+
+                // Add persisted venues that are within expanded range and not already in results
+                for (key, venue) in currentPersistedVenues {
+                    if !existingKeys.contains(key) {
+                        let venueLoc = CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude)
+                        let distance = venueLoc.distance(from: userLocation)
+                        // Keep persisted venues within 1.5x the search radius
+                        if distance <= effectiveRadius * 1.5 {
+                            limitedVenues.append(venue)
+                        }
+                    }
+                }
+
+                // Re-limit after merging
+                limitedVenues = Array(limitedVenues.prefix(AppConfiguration.Search.maxResultCount))
+            }
 
             let shouldPersistResults = await MainActor.run { [weak self] () -> Bool in
                 guard let self = self else { return false }
+                defer { self.isSearching = false }
 
                 let searchLocation = userLocation
+                self.didHitResultLimit = limitedVenues.count >= AppConfiguration.Search.maxResultCount
+
                 let hasExistingVenues = !self.venues.isEmpty
                 let isSameAreaAsLastSuccess: Bool = {
                     guard let lastSuccessfulLocation = self.lastSuccessfulLocation else { return false }
@@ -289,17 +471,31 @@ class VenueDiscoveryManager: ObservableObject {
                         self.shouldRetryAfterEmptyResult = true
                     } else {
                         self.shouldRetryAfterEmptyResult = false
-                        self.venues = []
+                        // Don't clear venues - keep showing what we had
                         self.lastSuccessfulLocation = nil
                     }
-                    self.didHitResultLimit = false
                     return false
                 }
 
                 self.shouldRetryAfterEmptyResult = false
                 self.venues = limitedVenues
+
+                // Update persisted venues
+                for venue in limitedVenues {
+                    let key = self.venueKey(for: venue)
+                    self.persistedVenues[key] = venue
+                }
+
+                // Limit persisted venue cache size
+                if self.persistedVenues.count > 500 {
+                    // Remove oldest entries (arbitrary, could be improved with timestamps)
+                    let keysToRemove = Array(self.persistedVenues.keys.prefix(self.persistedVenues.count - 500))
+                    for key in keysToRemove {
+                        self.persistedVenues.removeValue(forKey: key)
+                    }
+                }
+
                 self.lastSuccessfulLocation = searchLocation
-                self.didHitResultLimit = trimmedResults
                 return true
             }
 
@@ -329,9 +525,19 @@ class VenueDiscoveryManager: ObservableObject {
             if Task.isCancelled { return }
 
             await imageService.fetchImages(for: limitedVenues) { [weak self] id, image in
-                guard let self = self else { return }
-                if let index = self.venues.firstIndex(where: { $0.id == id }) {
-                    self.venues[index].image = image
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    if let index = self.venues.firstIndex(where: { $0.id == id }) {
+                        self.venues[index].image = image
+                    }
+                    // Also update persisted venues with images
+                    for (key, var venue) in self.persistedVenues {
+                        if venue.id == id {
+                            venue.image = image
+                            self.persistedVenues[key] = venue
+                            break
+                        }
+                    }
                 }
             }
         }
@@ -344,7 +550,7 @@ private struct RankedVenue: Sendable {
     let latitude: Double
     let longitude: Double
     let type: VenueType
-    let confidenceScore: Int
+    let confidenceScore: Double
 }
 
 // MARK: - Helpers

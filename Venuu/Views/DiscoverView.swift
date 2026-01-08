@@ -49,7 +49,7 @@ struct DiscoverView: View {
                 VStack(spacing: 32) {
                     // Spacer for fixed header/search area
                     Spacer()
-                        .frame(height: 60) 
+                        .frame(height: 60)
                     
                     // Immersive Header
                     HStack(spacing: 6) {
@@ -159,7 +159,7 @@ struct DiscoverView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        .onChange(of: showMap) { oldValue, newValue in
+        .onChange(of: showMap) { newValue in
             if newValue {
                 if let location = locationManager.userLocation {
                     cameraPosition = .region(MKCoordinateRegion(
@@ -185,4 +185,5 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 #Preview {
     DiscoverView()
         .environmentObject(LocationManager())
+        .environmentObject(VenueDiscoveryManager())
 }

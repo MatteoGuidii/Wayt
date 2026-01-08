@@ -18,29 +18,84 @@ struct MainMapView: View {
     @State private var selectedVenue: Venue?
     @State private var peekVenue: Venue?
     @State private var currentMapSpan: MKCoordinateSpan?
+    @State private var currentMapCenter: CLLocationCoordinate2D?
     @State private var isProgrammaticZoom = false
+
+    // Cached clusters to prevent wobbling when recalculating
+    @State private var cachedClusters: [VenueCluster] = []
+    @State private var lastClusterThreshold: CLLocationDistance = 0
 
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
+
+    /// Determines if the "Search This Area" button should be shown
+    /// Shows when user has panned significantly away from the last searched location
+    private var shouldShowSearchAreaButton: Bool {
+        guard !shouldFollowUser,
+              !venueDiscoveryManager.isSearching,
+              let mapCenter = currentMapCenter,
+              let userCoord = currentCoordinate,
+              currentMapSpan != nil else {
+            return false
+        }
+
+        // Show button if map center is > 500m from user location
+        let distance = mapCenter.distance(to: userCoord)
+        return distance > 500
+    }
+
+    /// The current visible region for "Search This Area"
+    private var visibleRegion: MKCoordinateRegion {
+        // Safe to force unwrap - shouldShowSearchAreaButton ensures these are set
+        MKCoordinateRegion(center: currentMapCenter!, span: currentMapSpan!)
+    }
 
     // Dynamic clustering based on zoom level
     // As we zoom in (span gets smaller), the threshold for clustering (in meters) should decrease
     // to allow items to separate.
     private var venueClusters: [VenueCluster] {
         guard !venueDiscoveryManager.venues.isEmpty else { return [] }
-        
-        // Calculate threshold based on span
-        // 1 degree latitude ~ 111,000 meters
-        // We want to cluster if items are within ~10% of the visible map height
-        let span = currentMapSpan?.latitudeDelta ?? 0.05
-        let thresholdMeters = span * 111_000 * 0.12 // 12% factor
-        
-        // If threshold matches roughly the "zoomed in" state (e.g. < 50m), just uncluster everything for performance/UX
-        if thresholdMeters < 50 {
-             return venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
+
+        // If cache is valid, return it
+        if !cachedClusters.isEmpty {
+            return cachedClusters
         }
-        
-        return venueDiscoveryManager.venues.clustered(threshold: thresholdMeters)
+
+        // Otherwise, calculate clusters without mutating state
+        let span = currentMapSpan?.latitudeDelta ?? 0.05
+        let thresholdMeters = span * 111_000 * AppConfiguration.Map.clusteringThresholdFactor
+
+        // If threshold is below minimum, disable clustering for better UX
+        if thresholdMeters < AppConfiguration.Map.minimumClusteringThreshold {
+            return venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
+        } else {
+            return venueDiscoveryManager.venues.clustered(threshold: thresholdMeters)
+        }
+    }
+
+    private func updateClustersIfNeeded() {
+        guard !venueDiscoveryManager.venues.isEmpty else {
+            cachedClusters = []
+            return
+        }
+
+        let span = currentMapSpan?.latitudeDelta ?? 0.05
+        let thresholdMeters = span * 111_000 * AppConfiguration.Map.clusteringThresholdFactor
+
+        // Only recalculate if threshold changed significantly
+        let thresholdChangeRatio = abs(thresholdMeters - lastClusterThreshold) / max(lastClusterThreshold, 1)
+        guard cachedClusters.isEmpty || thresholdChangeRatio > AppConfiguration.Map.clusterRecalculationThreshold else {
+            return
+        }
+
+        // Update cached clusters
+        if thresholdMeters < AppConfiguration.Map.minimumClusteringThreshold {
+            cachedClusters = venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) }
+        } else {
+            cachedClusters = venueDiscoveryManager.venues.clustered(threshold: thresholdMeters)
+        }
+
+        lastClusterThreshold = thresholdMeters
     }
     
     var body: some View {
@@ -72,7 +127,7 @@ struct MainMapView: View {
                                 VenueMarker(
                                     venue: venue,
                                     userLocation: currentCoordinate,
-                                    showTitle: (currentMapSpan?.latitudeDelta ?? 0) < 0.02, // Hide title when zoomed out
+                                    showTitle: (currentMapSpan?.latitudeDelta ?? 0) < AppConfiguration.Map.showTitleZoomThreshold,
                                     onLongPress: {
                                         peekVenue = venue
                                     }
@@ -115,9 +170,13 @@ struct MainMapView: View {
                 currentPitch = context.camera.pitch
                 currentHeading = context.camera.heading
 
-                // Track the current map span for dynamic clustering
+                // Track the current map span and center for dynamic clustering and search area
                 let region = context.region
                 currentMapSpan = region.span
+                currentMapCenter = region.center
+
+                // Update clusters when zoom level changes
+                updateClustersIfNeeded()
             }
             
             VStack(spacing: 10) {
@@ -186,7 +245,7 @@ struct MainMapView: View {
                 }
 
                 if venueDiscoveryManager.didHitResultLimit {
-                    Text("Showing top \(AppConfiguration.Search.maxResultCount) spots nearby")
+                    Text("Showing \(AppConfiguration.Search.maxResultCount) venues nearby")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 6)
@@ -195,11 +254,11 @@ struct MainMapView: View {
                             Capsule()
                                 .fill(.ultraThinMaterial)
                         )
-                        .accessibilityHint("Results are capped to reduce data usage")
+                        .accessibilityHint("Zoom in or pan to discover more venues")
                 }
 
                 if hasPendingImages {
-                    Text("Photos load gradually to save data.")
+                    Text("Photos loading... Tap markers to explore venues")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
@@ -208,6 +267,38 @@ struct MainMapView: View {
                             Capsule()
                                 .fill(.thinMaterial)
                         )
+                }
+
+                // "Search This Area" button
+                if shouldShowSearchAreaButton {
+                    Button {
+                        let region = visibleRegion
+                        venueDiscoveryManager.searchRegion(region)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.subheadline.weight(.semibold))
+                            Text("Search This Area")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 20)
+                        .background(
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue, .blue.opacity(0.8)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        )
+                        .contentShape(Capsule())
+                        .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.scale.combined(with: .opacity))
                 }
 
                 Spacer()
@@ -219,6 +310,7 @@ struct MainMapView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.35), value: venueDiscoveryManager.isSearching)
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: shouldShowSearchAreaButton)
 
             // Quick peek card overlay
             if let peekVenue = peekVenue {
@@ -290,17 +382,24 @@ struct MainMapView: View {
         .onReceive(locationManager.$region) { region in
             // Trigger venue search when user location changes
             // We use the region center as a proxy for user location when tracking
-            
+
             // Validate coordinates to prevent 0,0 clearing the map
             guard CLLocationCoordinate2DIsValid(region.center),
                   region.center.latitude != 0,
                   region.center.longitude != 0 else {
                 return
             }
-            
+
             // Ideally, LocationManager should expose the raw CLLocation for better accuracy
             let location = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
             venueDiscoveryManager.updateUserLocation(location)
+        }
+        .onChange(of: venueDiscoveryManager.venues) { oldVenues, newVenues in
+            // Invalidate cluster cache when venues change
+            if oldVenues.count != newVenues.count || oldVenues.map({ $0.id }) != newVenues.map({ $0.id }) {
+                cachedClusters = []
+                updateClustersIfNeeded()
+            }
         }
     }
     
@@ -317,7 +416,7 @@ struct MainMapView: View {
             cameraPosition = .camera(
                 MapCamera(
                     centerCoordinate: coordinate,
-                    distance: 500, // meters
+                    distance: AppConfiguration.Map.defaultCameraDistance,
                     heading: heading,
                     pitch: resolvedPitch
                 )
@@ -368,25 +467,8 @@ private extension MainMapView {
         .padding(.trailing, 18)
     }
     
-    var statusCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let message = locationManager.statusMessage {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.orange)
-            } else {
-                Label("Tracking your location", systemImage: "location.fill")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.blue)
-            }
-        }
-        .padding(16)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 8)
-    }
-    
     func recenter() {
+        shouldFollowUser = true
         if let coordinate = currentCoordinate {
             updateCameraPosition(
                 coordinate: coordinate,
@@ -401,17 +483,6 @@ private extension MainMapView {
         locationManager.recenterOnUser()
     }
     
-    var locationAccuracyDescription: String {
-        switch locationManager.accuracyAuthorization {
-        case .fullAccuracy:
-            return "Full-precision location enabled"
-        case .reducedAccuracy:
-            return "Reduced accuracy – enable Precise Location for best results"
-        @unknown default:
-            return "Location accuracy unavailable"
-        }
-    }
-
     /// Zooms into a cluster of venues with a smooth animation
     func zoomToCluster(_ cluster: VenueCluster) {
         // Mark as programmatic zoom
@@ -442,7 +513,7 @@ private extension MainMapView {
                     cameraPosition = .camera(
                         MapCamera(
                             centerCoordinate: center,
-                            distance: 500, // Close enough to clearly see them (and hopefully separate if jitter is applied elsewhere)
+                            distance: AppConfiguration.Map.defaultCameraDistance,
                             heading: currentHeading,
                             pitch: currentPitch
                         )
@@ -455,11 +526,8 @@ private extension MainMapView {
         
         // 3. Normal Case: Fit the rect with padding
         // Scale the rect slightly so pins aren't on the edge.
-        // A standard padding UIEdgeInsets is usually safer, but .rect(zoomRect) with automatic padding is often enough.
-        // However, we can also manually inflate the rect if we want more control.
-        let paddingScale: Double = 1.4 // 40% padding around the points
-        let paddedRect = zoomRect.insetBy(dx: -zoomRect.width * (paddingScale - 1) / 2,
-                                          dy: -zoomRect.height * (paddingScale - 1) / 2)
+        let paddedRect = zoomRect.insetBy(dx: -zoomRect.width * (AppConfiguration.Map.clusterZoomPaddingScale - 1) / 2,
+                                          dy: -zoomRect.height * (AppConfiguration.Map.clusterZoomPaddingScale - 1) / 2)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             withAnimation(.easeInOut(duration: 1.0)) {
@@ -485,7 +553,7 @@ private extension MainMapView {
             cameraPosition = .camera(
                 MapCamera(
                     centerCoordinate: venue.coordinate,
-                    distance: 300, // Closer zoom for selected venue
+                    distance: AppConfiguration.Map.selectedVenueCameraDistance,
                     heading: 0,
                     pitch: currentPitch
                 )
@@ -498,4 +566,5 @@ private extension MainMapView {
 #Preview {
     MainMapView(username: "matteo@example.com", onSignOut: {})
         .environmentObject(LocationManager())
+        .environmentObject(VenueDiscoveryManager())
 }
