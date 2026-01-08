@@ -8,20 +8,15 @@ enum AppConfiguration {
 
     enum ImageService {
         /// Maximum number of images to fetch per search
-        /// Conservative limit to avoid hitting Apple's 50 requests/60s throttle
         static let maxImageFetchCount = 20
 
         /// Number of priority images to fetch first (visible on screen)
-        /// Reduced to 2 to minimize initial API burst
         static let priorityCount = 2
 
         /// Batch size for throttled image fetching
-        /// Small batches to spread requests over time
         static let batchSize = 2
 
         /// Delay between batches in nanoseconds (8 seconds)
-        /// Longer delay ensures we stay well under 50 requests/60s limit
-        /// 20 images ÷ 2 per batch = 10 batches × 8s = 80s total (< 1 request/sec average)
         static let batchDelayNanoseconds: UInt64 = 8_000_000_000
 
         /// JPEG compression quality for cached images (0.0 - 1.0)
@@ -53,49 +48,13 @@ enum AppConfiguration {
         static let radiusExpansionMultiplier: Double = 1.5
 
         /// Extended radius for text-based venue search (meters)
-        /// Allows finding specific venues further away
         static let textSearchRadius: CLLocationDistance = 25000
 
-        /// Maximum number of venues we keep in memory and cache after each search
-        /// Increased to 200 to ensure comprehensive coverage in dense urban areas
-        /// Map clustering handles display of large venue counts efficiently
-        static let maxResultCount = 200
+        /// Maximum number of venues to display
+        static let maxResultCount = 300
 
         /// Grid size for multi-cell search (NxN grid)
-        /// 2x2 = 4 searches, providing balanced coverage while avoiding throttling
         static let searchGridSize = 2
-    }
-
-    // MARK: - Venue Scoring Configuration
-
-    enum VenueScoring {
-        /// Number of venues in a result set considered "high density"
-        /// Use a higher threshold in dense urban cores so we can be more selective
-        static let highDensityThreshold: Int = 80
-
-        /// Number of venues in a result set considered "low density"
-        /// Be more inclusive when there are few candidates
-        static let lowDensityThreshold: Int = 20
-
-        /// Minimum nightlife confidence score (0-100) required in high density areas
-        /// Very inclusive - only filter obvious non-nightlife venues (like dentists)
-        static let minimumNightlifeScoreHighDensity: Int = 20
-
-        /// Minimum nightlife confidence score (0-100) required in low density areas
-        /// Extremely inclusive to ensure sparse areas show all possible venues
-        static let minimumNightlifeScoreLowDensity: Int = 10
-
-        /// Default minimum nightlife confidence score (0-100) for medium density areas
-        /// Very permissive to maximize venue discovery
-        static let minimumNightlifeScore: Int = 15
-
-        /// Distance at which venue score starts decaying (meters)
-        /// Venues closer than this get no penalty
-        static let distanceDecayStart: CLLocationDistance = 2000
-
-        /// Maximum distance penalty applied to venues (score points)
-        /// Applied gradually from distanceDecayStart to maxSearchRadius
-        static let maxDistancePenalty: Int = 15
     }
 
     // MARK: - Map Configuration
@@ -132,25 +91,25 @@ enum AppConfiguration {
     // MARK: - Location Configuration
 
     enum Location {
-        /// Balanced accuracy to avoid battery drain from navigation-grade tracking
+        /// Balanced accuracy to avoid battery drain
         static let desiredAccuracy: CLLocationAccuracy = kCLLocationAccuracyNearestTenMeters
 
         /// Minimum distance change (meters) before requesting another location update
         static let distanceFilter: CLLocationDistance = 25
 
-        /// Distance change used when we temporarily crank accuracy up for foreground tracking
+        /// Distance change used when tracking in foreground
         static let highAccuracyDistanceFilter: CLLocationDistance = 5
 
-        /// Distance (meters) the user must move before we refresh the displayed city label
+        /// Distance (meters) the user must move before refreshing the city label
         static let cityRefreshDistance: CLLocationDistance = 750
 
-        /// Minimum time (seconds) between reverse-geo lookups to cut network usage
+        /// Minimum time (seconds) between reverse-geo lookups
         static let cityRefreshInterval: TimeInterval = 120
 
-        /// Minimum time (seconds) we wait before retrying a failed reverse-geo lookup
+        /// Minimum time (seconds) before retrying a failed reverse-geo lookup
         static let cityRefreshRetryInterval: TimeInterval = 15
 
-        /// Heading filter so we only get callbacks when orientation changes meaningfully
+        /// Heading filter for orientation changes
         static let headingFilterDegrees: CLLocationDegrees = 10
     }
 }

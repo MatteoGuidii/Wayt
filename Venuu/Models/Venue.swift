@@ -13,53 +13,44 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     }
 
     // Image is intentionally mutable and not included in equality/hash checks
-    // This allows lazy loading of images without affecting venue identity
     var image: UIImage?
 
-    // Nightlife relevance score (0-100) - computed lazily or set during discovery
-    // Not included in equality/hash checks as it's metadata
-    var confidenceScore: Int = 0
-    
     var coordinate: CLLocationCoordinate2D {
         mapItem.placemark.coordinate
     }
-    
+
     var title: String {
         name
     }
-    
+
     var subtitle: String {
-        // Fallback to name or empty if address is not easily available without placemark
-        // Future iOS versions may provide simplified address APIs on MKMapItem
         mapItem.name ?? ""
     }
-    
-    // Helper to check category if needed, though we filter by search query
+
     var category: MKPointOfInterestCategory? {
         mapItem.pointOfInterestCategory
     }
-    
+
     func hash(into hasher: inout Hasher) {
-        // Use coordinate and name for uniqueness
         hasher.combine(name)
         hasher.combine(coordinate.latitude)
         hasher.combine(coordinate.longitude)
     }
-    
+
     static func == (lhs: Venue, rhs: Venue) -> Bool {
         lhs.name == rhs.name &&
         lhs.coordinate.latitude == rhs.coordinate.latitude &&
         lhs.coordinate.longitude == rhs.coordinate.longitude
     }
-    
+
     var type: VenueType {
         VenueClassifier.classify(mapItem: mapItem)
     }
-    
+
     var systemImage: String {
         type.icon
     }
-    
+
     var themeColor: Color {
         type.color
     }

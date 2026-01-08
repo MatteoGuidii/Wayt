@@ -2,35 +2,35 @@ import Foundation
 import SwiftUI
 
 enum VenueType: String, CaseIterable, Codable, Hashable {
-    case club = "Club"
+    case restaurant = "Restaurant"
+    case cafe = "Cafe"
+    case bakery = "Bakery"
     case bar = "Bar"
     case pub = "Pub"
     case lounge = "Lounge"
-    case liveMusic = "Live Music"
-    case restaurant = "Restaurant"
-    case other = "Other"
-    
+    case club = "Club"
+
     var icon: String {
         switch self {
-        case .club: return "figure.dance"
+        case .restaurant: return "fork.knife"
+        case .cafe: return "cup.and.saucer.fill"
+        case .bakery: return "birthday.cake.fill"
         case .bar: return "wineglass.fill"
         case .pub: return "mug.fill"
         case .lounge: return "sofa.fill"
-        case .liveMusic: return "music.mic"
-        case .restaurant: return "fork.knife"
-        case .other: return "mappin"
+        case .club: return "figure.dance"
         }
     }
-    
+
     var color: Color {
         switch self {
-        case .club: return .pink
+        case .restaurant: return .orange
+        case .cafe: return .brown
+        case .bakery: return .pink
         case .bar: return .purple
-        case .pub: return .orange
+        case .pub: return .yellow
         case .lounge: return .indigo
-        case .liveMusic: return .blue
-        case .restaurant: return .green
-        case .other: return .gray
+        case .club: return .red
         }
     }
 }

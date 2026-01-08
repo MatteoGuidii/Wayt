@@ -11,7 +11,7 @@ struct DiscoverSearchBar: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
             
-            TextField("Search venues, vibes...", text: $searchText)
+            TextField("Search restaurants, cafes, bars...", text: $searchText)
                 .onSubmit {
                     venueDiscoveryManager.search(text: searchText)
                 }
