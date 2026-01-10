@@ -180,36 +180,16 @@ struct MainMapView: View {
             }
             
             VStack(spacing: 10) {
-                // Searching indicator with enhanced design
-                if venueDiscoveryManager.isSearching {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(.blue)
-                        Text("Searching area...")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                    }
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 16)
-                    .background(
-                        Capsule()
-                            .fill(.ultraThinMaterial)
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [.white.opacity(0.3), .white.opacity(0.1)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 1.5
-                            )
-                    )
-                    .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 5)
-                    .padding(.top, 12)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                // Progressive loading indicator with enhanced design
+                if case .loadingFromCache = venueDiscoveryManager.loadingState {
+                    loadingIndicator(text: "Loading...", progress: nil)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                } else if case .loadingPrimary(let progress) = venueDiscoveryManager.loadingState {
+                    loadingIndicator(text: "Discovering venues...", progress: progress)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                } else if case .loadingSecondary(let progress) = venueDiscoveryManager.loadingState {
+                    loadingIndicator(text: "Finding more venues...", progress: progress)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 // Error indicator
@@ -296,7 +276,7 @@ struct MainMapView: View {
                     bottomControls
                 }
             }
-            .animation(.easeInOut(duration: 0.35), value: venueDiscoveryManager.isSearching)
+            .animation(.easeInOut(duration: 0.35), value: venueDiscoveryManager.loadingState)
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: shouldShowSearchAreaButton)
 
             // Quick peek card overlay
@@ -547,6 +527,52 @@ private extension MainMapView {
             )
             shouldFollowUser = false
         }
+    }
+
+    /// Creates a loading indicator with optional progress
+    @ViewBuilder
+    func loadingIndicator(text: String, progress: Double?) -> some View {
+        HStack(spacing: 10) {
+            if let progress = progress {
+                // Show progress ring
+                ZStack {
+                    Circle()
+                        .stroke(Color.blue.opacity(0.2), lineWidth: 2)
+                        .frame(width: 16, height: 16)
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .frame(width: 16, height: 16)
+                        .rotationEffect(.degrees(-90))
+                }
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(.blue)
+            }
+            Text(text)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.3), .white.opacity(0.1)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1.5
+                )
+        )
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 5)
+        .padding(.top, 12)
     }
 }
 
