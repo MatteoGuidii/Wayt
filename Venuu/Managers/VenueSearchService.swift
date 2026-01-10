@@ -4,26 +4,10 @@ import MapKit
 /// Service for searching food and dining venues using MapKit
 struct VenueSearchService: Sendable {
 
-    // MARK: - Food Categories
+    // MARK: - Configuration
 
-    /// All food-related MapKit categories to include in searches
-    private let foodCategories: [MKPointOfInterestCategory] = [
-        .restaurant,
-        .cafe,
-        .bakery,
-        .brewery,
-        .distillery,
-        .winery,
-        .nightlife,
-        .foodMarket
-    ]
-
-    /// Search terms for discovering food venues
-    private let discoveryTerms = [
-        "restaurant",
-        "food",
-        "dining"
-    ]
+    /// Grid overlap factor to catch venues at cell boundaries
+    private let gridOverlapFactor: Double = 0.1 // 10% overlap
 
     // MARK: - Public API
 
@@ -35,17 +19,33 @@ struct VenueSearchService: Sendable {
 
         if !trimmed.isEmpty {
             // User typed something specific - search for it directly
-            return [searchText]
+            return [trimmed]
         }
 
-        // Discovery mode - use broad food terms
-        return discoveryTerms
+        // Discovery mode - use primary queries from configuration
+        return VenueQueryConfiguration.primaryQueries
+    }
+
+    /// Get initial discovery queries
+    public func getInitialQueries() -> [String] {
+        return VenueQueryConfiguration.getInitialQueries()
+    }
+
+    /// Get secondary queries for expanded coverage
+    public func getSecondaryQueries() -> [String] {
+        return VenueQueryConfiguration.getSecondaryQueries()
+    }
+
+    /// Get cuisine-specific queries
+    public func getCuisineQueries() -> [String] {
+        return VenueQueryConfiguration.getCuisineQueries()
     }
 
     /// Performs a grid-based search to find more venues
     /// Divides the region into smaller cells and searches each independently
+    /// Uses overlapping cells to catch venues at boundaries
     public func searchWithGrid(query: String, region: MKCoordinateRegion, gridSize: Int = AppConfiguration.Search.searchGridSize) async throws -> [Venue] {
-        let gridCells = createGridCells(region: region, gridSize: gridSize)
+        let gridCells = createGridCellsWithOverlap(region: region, gridSize: gridSize, overlapFactor: gridOverlapFactor)
 
         // Search each grid cell concurrently
         let venueArrays = await withTaskGroup(of: [Venue].self) { group in
@@ -97,8 +97,8 @@ struct VenueSearchService: Sendable {
         request.region = region
         request.resultTypes = .pointOfInterest
 
-        // Include all food-related categories
-        request.pointOfInterestFilter = MKPointOfInterestFilter(including: foodCategories)
+        // Include all venue-related categories from configuration
+        request.pointOfInterestFilter = MKPointOfInterestFilter(including: VenueQueryConfiguration.venueCategories)
 
         let search = MKLocalSearch(request: request)
         let response = try await search.start()
@@ -113,11 +113,25 @@ struct VenueSearchService: Sendable {
         }
     }
 
-    private func createGridCells(region: MKCoordinateRegion, gridSize: Int) -> [MKCoordinateRegion] {
+    /// Create grid cells with overlap to catch venues at boundaries
+    /// - Parameters:
+    ///   - region: The overall region to divide
+    ///   - gridSize: Number of cells per dimension (2 = 2x2 = 4 cells)
+    ///   - overlapFactor: How much cells should overlap (0.1 = 10%)
+    /// - Returns: Array of overlapping grid cell regions
+    private func createGridCellsWithOverlap(
+        region: MKCoordinateRegion,
+        gridSize: Int,
+        overlapFactor: Double = 0.1
+    ) -> [MKCoordinateRegion] {
         guard gridSize > 0 else { return [region] }
 
         let latDelta = region.span.latitudeDelta / Double(gridSize)
         let lngDelta = region.span.longitudeDelta / Double(gridSize)
+
+        // Expand each cell by the overlap factor
+        let expandedLatDelta = latDelta * (1 + overlapFactor)
+        let expandedLngDelta = lngDelta * (1 + overlapFactor)
 
         let startLat = region.center.latitude + (region.span.latitudeDelta / 2.0)
         let startLng = region.center.longitude - (region.span.longitudeDelta / 2.0)
@@ -134,9 +148,10 @@ struct VenueSearchService: Sendable {
                     longitude: cellCenterLng
                 )
 
+                // Use expanded span for overlap
                 let cellSpan = MKCoordinateSpan(
-                    latitudeDelta: latDelta,
-                    longitudeDelta: lngDelta
+                    latitudeDelta: expandedLatDelta,
+                    longitudeDelta: expandedLngDelta
                 )
 
                 let cellRegion = MKCoordinateRegion(center: cellCenter, span: cellSpan)
@@ -145,5 +160,12 @@ struct VenueSearchService: Sendable {
         }
 
         return cells
+    }
+
+    // MARK: - Legacy Support
+
+    /// Create grid cells without overlap (for backwards compatibility)
+    private func createGridCells(region: MKCoordinateRegion, gridSize: Int) -> [MKCoordinateRegion] {
+        return createGridCellsWithOverlap(region: region, gridSize: gridSize, overlapFactor: 0)
     }
 }
