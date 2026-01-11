@@ -6,73 +6,41 @@ struct ClusterMarker: View {
     let venues: [Venue]
     let userLocation: CLLocationCoordinate2D?
 
-    @State private var isPulsing = false
-
-    var dominantColor: Color {
-        // Use a stable color calculation to prevent flickering
+    var dominantTypes: [VenueType] {
+        // Use a stable type calculation to prevent flickering
         // Sort venues by ID first for deterministic ordering
         let sortedVenues = venues.sorted { $0.id.uuidString < $1.id.uuidString }
         let types = sortedVenues.map { $0.type }
         let grouped = Dictionary(grouping: types) { $0 }
 
-        // Find the most common type, using sorted keys for tie-breaking
-        let mostCommon = grouped.sorted { first, second in
+        // Sort by frequency, then alphabetically for stability
+        return grouped.sorted { first, second in
             if first.value.count != second.value.count {
                 return first.value.count > second.value.count
             }
-            // Tie-breaker: use alphabetical order of rawValue for stability
             return first.key.rawValue < second.key.rawValue
-        }.first
+        }.map { $0.key }
+    }
 
-        return mostCommon?.key.color ?? .blue
+    var dominantColor: Color {
+        return dominantTypes.first?.color ?? .blue
     }
 
     var body: some View {
-        ZStack {
-            // Subtle outer glow for depth
-            Circle()
-                .fill(dominantColor.opacity(0.15))
-                .frame(width: 68, height: 68)
-                .blur(radius: 4)
-                .scaleEffect(isPulsing ? 1.1 : 1.0)
-                .opacity(isPulsing ? 0.6 : 0.8)
-
-            // Main sphere
-            Circle()
-                .fill(dominantColor)
-                .frame(width: 60, height: 60)
-                .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
-                .shadow(color: dominantColor.opacity(0.3), radius: 8, x: 0, y: 4)
-
-            // Subtle highlight for dimension
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.25),
-                            Color.white.opacity(0.05),
-                            Color.clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-                .frame(width: 60, height: 60)
-
-            // Count display
-            Text("\(venues.count)")
-                .font(.system(size: 22, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
-                .shadow(color: Color.black.opacity(0.2), radius: 1, x: 0, y: 1)
-        }
-        .onAppear {
-            withAnimation(
-                .easeInOut(duration: 2.0)
-                .repeatForever(autoreverses: true)
-            ) {
-                isPulsing = true
-            }
-        }
+        Circle()
+            .fill(dominantColor)
+            .frame(width: 50, height: 50)
+            .overlay(
+                Circle()
+                    .stroke(Color.white, lineWidth: 3)
+            )
+            .overlay(
+                Text("\(venues.count)")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: Color.black.opacity(0.2), radius: 1, x: 0, y: 1)
+            )
+            .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
     }
 }
 

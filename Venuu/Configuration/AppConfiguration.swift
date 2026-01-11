@@ -86,6 +86,20 @@ enum AppConfiguration {
 
         /// Cluster zoom padding scale factor
         static let clusterZoomPaddingScale: Double = 1.4
+
+        // MARK: - Adaptive Marker Display Thresholds
+
+        /// Zoom threshold for dot-only markers (latitude delta)
+        /// Above this threshold, markers display as small colored dots
+        static let dotOnlyZoomThreshold: Double = 0.05
+
+        /// Zoom threshold for icon-only markers (latitude delta)
+        /// Between this and dotOnlyZoomThreshold, markers show icon without title
+        static let iconOnlyZoomThreshold: Double = 0.025
+
+        /// Zoom threshold for full markers with titles (latitude delta)
+        /// Below this threshold, markers show icon + venue name
+        static let fullMarkerZoomThreshold: Double = 0.012
     }
 
     // MARK: - Location Configuration

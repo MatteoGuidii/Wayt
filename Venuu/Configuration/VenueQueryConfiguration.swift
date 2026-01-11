@@ -59,15 +59,14 @@ enum VenueQueryConfiguration {
 
     /// All venue-related MapKit categories to include in searches
     /// Note: MapKit does not have a dedicated .bar category; bars are found via .nightlife or queries
+    /// Excludes .bakery and .foodMarket to reduce clutter from unwanted venues (bakeries, supermarkets, stores)
     static let venueCategories: [MKPointOfInterestCategory] = [
         .restaurant,
         .cafe,
-        .bakery,
         .brewery,
         .distillery,
         .winery,
-        .nightlife,
-        .foodMarket
+        .nightlife
     ]
 
     // MARK: - Execution Parameters

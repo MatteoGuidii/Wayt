@@ -132,7 +132,7 @@ actor SpatialVenueCache {
 
         // Prefer new venues (fresher data)
         for venue in newVenues {
-            let key = venueKey(for: venue)
+            let key = venue.deduplicationKey
             if !seen.contains(key) {
                 seen.insert(key)
                 merged.append(venue)
@@ -141,7 +141,7 @@ actor SpatialVenueCache {
 
         // Add existing venues not in new set
         for venue in existingVenues {
-            let key = venueKey(for: venue)
+            let key = venue.deduplicationKey
             if !seen.contains(key) {
                 seen.insert(key)
                 merged.append(venue)
@@ -306,11 +306,5 @@ actor SpatialVenueCache {
         // Remove oldest regions
         regionCache.sort { $0.timestamp < $1.timestamp }
         regionCache = Array(regionCache.suffix(maxRegions))
-    }
-
-    private func venueKey(for venue: Venue) -> String {
-        let lat = String(format: "%.5f", venue.coordinate.latitude)
-        let lng = String(format: "%.5f", venue.coordinate.longitude)
-        return "\(venue.name)_\(lat)_\(lng)"
     }
 }

@@ -15,8 +15,6 @@ struct MainMapView: View {
     @State private var currentHeading: CLLocationDirection = 0
     
     @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
-    @State private var selectedVenue: Venue?
-    @State private var peekVenue: Venue?
     @State private var currentMapSpan: MKCoordinateSpan?
     @State private var currentMapCenter: CLLocationCoordinate2D?
     @State private var isProgrammaticZoom = false
@@ -24,6 +22,9 @@ struct MainMapView: View {
     // Cached clusters to prevent wobbling when recalculating
     @State private var cachedClusters: [VenueCluster] = []
     @State private var lastClusterThreshold: CLLocationDistance = 0
+
+    // Visual-based clustering calculator
+    private let clusterCalculator = VisualClusterCalculator()
 
     // Map scope to bind controls to this specific map
     @Namespace private var mapScope
@@ -45,14 +46,15 @@ struct MainMapView: View {
     }
 
     /// The current visible region for "Search This Area"
-    private var visibleRegion: MKCoordinateRegion {
-        // Safe to force unwrap - shouldShowSearchAreaButton ensures these are set
-        MKCoordinateRegion(center: currentMapCenter!, span: currentMapSpan!)
+    private var visibleRegion: MKCoordinateRegion? {
+        guard let center = currentMapCenter, let span = currentMapSpan else {
+            return nil
+        }
+        return MKCoordinateRegion(center: center, span: span)
     }
 
-    // Dynamic clustering based on zoom level
-    // As we zoom in (span gets smaller), the threshold for clustering (in meters) should decrease
-    // to allow items to separate.
+    // Dynamic clustering based on visual overlap
+    // Uses VisualClusterCalculator to determine when markers would actually overlap on screen
     private var venueClusters: [VenueCluster] {
         guard !venueDiscoveryManager.venues.isEmpty else { return [] }
 
@@ -61,9 +63,9 @@ struct MainMapView: View {
             return cachedClusters
         }
 
-        // Otherwise, calculate clusters without mutating state
+        // Calculate threshold based on visual overlap
         let span = currentMapSpan?.latitudeDelta ?? 0.05
-        let thresholdMeters = span * 111_000 * AppConfiguration.Map.clusteringThresholdFactor
+        let thresholdMeters = clusterCalculator.calculateClusteringThreshold(latitudeDelta: span)
 
         // If threshold is below minimum, disable clustering for better UX
         if thresholdMeters < AppConfiguration.Map.minimumClusteringThreshold {
@@ -80,7 +82,7 @@ struct MainMapView: View {
         }
 
         let span = currentMapSpan?.latitudeDelta ?? 0.05
-        let thresholdMeters = span * 111_000 * AppConfiguration.Map.clusteringThresholdFactor
+        let thresholdMeters = clusterCalculator.calculateClusteringThreshold(latitudeDelta: span)
 
         // Only recalculate if threshold changed significantly
         let thresholdChangeRatio = abs(thresholdMeters - lastClusterThreshold) / max(lastClusterThreshold, 1)
@@ -97,218 +99,37 @@ struct MainMapView: View {
 
         lastClusterThreshold = thresholdMeters
     }
-    
+
+    /// Determines marker display mode based on current zoom level
+    private var markerDisplayMode: MarkerDisplayMode {
+        let span = currentMapSpan?.latitudeDelta ?? 0.05
+        if span > AppConfiguration.Map.dotOnlyZoomThreshold {
+            return .dot
+        } else if span > AppConfiguration.Map.iconOnlyZoomThreshold {
+            return .icon
+        } else {
+            return .full
+        }
+    }
+
     var body: some View {
         let hasPendingImages = venueDiscoveryManager.venues.contains { $0.image == nil }
 
         return ZStack(alignment: .top) {
-            Map(position: $cameraPosition, interactionModes: .all, scope: mapScope) {
-                UserAnnotation()
-
-                // Venue clusters and markers
-                // Fallback: if clustering fails or is empty, show all venues directly
-                let clustersToShow = venueClusters.isEmpty ? venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) } : venueClusters
-
-                ForEach(clustersToShow) { cluster in
-                    if cluster.venues.count > 1 {
-                        // Show cluster marker
-                        Annotation("", coordinate: cluster.coordinate) {
-                            ClusterMarker(venues: cluster.venues, userLocation: currentCoordinate)
-                                .onTapGesture {
-                                    // Zoom into cluster
-                                    zoomToCluster(cluster)
-                                }
-                                .zIndex(1) // Ensure clusters are above individual markers
-                        }
-                    } else {
-                        // Show individual venue markers
-                        ForEach(cluster.venues) { venue in
-                            Annotation(venue.name, coordinate: venue.coordinate) {
-                                VenueMarker(
-                                    venue: venue,
-                                    userLocation: currentCoordinate,
-                                    showTitle: (currentMapSpan?.latitudeDelta ?? 0) < AppConfiguration.Map.showTitleZoomThreshold,
-                                    onLongPress: {
-                                        peekVenue = venue
-                                    }
-                                )
-                                .onTapGesture {
-                                    selectedVenue = venue
-                                    // Smooth camera animation to venue
-                                    animateCameraToVenue(venue)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .mapControls { }
-            .ignoresSafeArea(edges: .top)
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 8)
-            }
-            .mapStyle(.standard(elevation: .realistic))
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 5).onChanged { _ in
-                    shouldFollowUser = false
-                    isProgrammaticZoom = false
-                }
-            )
-            .simultaneousGesture(
-                MagnificationGesture().onChanged { _ in
-                    shouldFollowUser = false
-                    isProgrammaticZoom = false
-                }
-            )
-            .simultaneousGesture(
-                RotationGesture().onChanged { _ in
-                    shouldFollowUser = false
-                    isProgrammaticZoom = false
-                }
-            )
-            .onMapCameraChange(frequency: .continuous) { context in
-                currentPitch = context.camera.pitch
-                currentHeading = context.camera.heading
-
-                // Track the current map span and center for dynamic clustering and search area
-                let region = context.region
-                currentMapSpan = region.span
-                currentMapCenter = region.center
-
-                // Update clusters when zoom level changes
-                updateClustersIfNeeded()
-            }
-            
-            VStack(spacing: 10) {
-                // Progressive loading indicator with enhanced design
-                if case .loadingFromCache = venueDiscoveryManager.loadingState {
-                    loadingIndicator(text: "Loading...", progress: nil)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                } else if case .loadingPrimary(let progress) = venueDiscoveryManager.loadingState {
-                    loadingIndicator(text: "Discovering venues...", progress: progress)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                } else if case .loadingSecondary(let progress) = venueDiscoveryManager.loadingState {
-                    loadingIndicator(text: "Finding more venues...", progress: progress)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                // Error indicator
-                if let errorMessage = venueDiscoveryManager.searchError {
-                    HStack(spacing: 10) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(.orange)
-                        Text(errorMessage)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.primary)
-                    }
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 16)
-                    .background(
-                        Capsule()
-                            .fill(.ultraThinMaterial)
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [.orange.opacity(0.3), .orange.opacity(0.1)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 1.5
-                            )
-                    )
-                    .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 5)
-                    .padding(.top, 12)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                if hasPendingImages {
-                    Text("Photos loading... Tap markers to explore venues")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
-                        .background(
-                            Capsule()
-                                .fill(.thinMaterial)
-                        )
-                }
-
-                // "Search This Area" button
-                if shouldShowSearchAreaButton {
-                    Button {
-                        let region = visibleRegion
-                        venueDiscoveryManager.searchRegion(region)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.subheadline.weight(.semibold))
-                            Text("Search This Area")
-                                .font(.subheadline.weight(.semibold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 20)
-                        .background(
-                            Capsule()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.blue, .blue.opacity(0.8)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                        )
-                        .contentShape(Capsule())
-                        .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.scale.combined(with: .opacity))
-                }
-
-                Spacer()
-
-                // Map controls
-                HStack {
-                    Spacer()
-                    bottomControls
-                }
-            }
-            .animation(.easeInOut(duration: 0.35), value: venueDiscoveryManager.loadingState)
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: shouldShowSearchAreaButton)
-
-            // Quick peek card overlay
-            if let peekVenue = peekVenue {
-                ZStack {
-                    // Dimmed background
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                self.peekVenue = nil
-                            }
-                        }
-
-                    VenueQuickPeekCard(
-                        venue: peekVenue,
-                        userLocation: currentCoordinate,
-                        onDismiss: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                self.peekVenue = nil
-                            }
-                        }
-                    )
-                }
-                .transition(.opacity)
-            }
+            mapView
+            overlayContent(hasPendingImages: hasPendingImages)
         }
         .mapScope(mapScope)
-        .sheet(item: $selectedVenue) { venue in
+        .sheet(item: $venueDiscoveryManager.selectedVenue) { venue in
             VenueDetailView(venue: venueDiscoveryManager.venues.first(where: { $0.id == venue.id }) ?? venue)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .onChange(of: venueDiscoveryManager.selectedVenue) { _, newValue in
+            // Clear highlight when sheet is dismissed
+            if newValue == nil {
+                venueDiscoveryManager.highlightedVenueId = nil
+            }
         }
         .task { locationManager.start() }
         .onAppear {
@@ -320,46 +141,37 @@ struct MainMapView: View {
             locationManager.setHighAccuracyTrackingEnabled(false)
         }
         .onReceive(locationManager.$region) { newRegion in
-            // Store the current coordinate
-            currentCoordinate = newRegion.center
-            
-            // Always update on the first location fix if valid
-            if !hasInitialLocation {
-                if CLLocationCoordinate2DIsValid(newRegion.center) &&
-                   newRegion.center.latitude != 0 &&
-                   newRegion.center.longitude != 0 {
-                    
-                    hasInitialLocation = true
-                    updateCameraPosition(
-                        coordinate: newRegion.center,
-                        heading: locationManager.heading
-                    )
-                }
+            // Validate coordinates to prevent 0,0 clearing the map
+            guard CLLocationCoordinate2DIsValid(newRegion.center),
+                  newRegion.center.latitude != 0,
+                  newRegion.center.longitude != 0 else {
                 return
             }
 
-            // After initial location, only update if following user
+            // Store the current coordinate
+            currentCoordinate = newRegion.center
+
+            // Trigger venue search when user location changes
+            let location = CLLocation(latitude: newRegion.center.latitude, longitude: newRegion.center.longitude)
+            venueDiscoveryManager.updateUserLocation(location)
+
+            // Always update camera on the first location fix if valid
+            if !hasInitialLocation {
+                hasInitialLocation = true
+                updateCameraPosition(
+                    coordinate: newRegion.center,
+                    heading: locationManager.heading
+                )
+                return
+            }
+
+            // After initial location, only update camera if following user
             guard shouldFollowUser else { return }
 
             updateCameraPosition(
                 coordinate: newRegion.center,
                 heading: 0 // North-up orientation
             )
-        }
-        .onReceive(locationManager.$region) { region in
-            // Trigger venue search when user location changes
-            // We use the region center as a proxy for user location when tracking
-
-            // Validate coordinates to prevent 0,0 clearing the map
-            guard CLLocationCoordinate2DIsValid(region.center),
-                  region.center.latitude != 0,
-                  region.center.longitude != 0 else {
-                return
-            }
-
-            // Ideally, LocationManager should expose the raw CLLocation for better accuracy
-            let location = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
-            venueDiscoveryManager.updateUserLocation(location)
         }
         .onChange(of: venueDiscoveryManager.venues) { oldVenues, newVenues in
             // Invalidate cluster cache when venues change
@@ -393,6 +205,211 @@ struct MainMapView: View {
 }
 
 private extension MainMapView {
+    /// Clusters to show on map (with fallback)
+    private var clustersToShow: [VenueCluster] {
+        venueClusters.isEmpty ? venueDiscoveryManager.venues.map { VenueCluster(venues: [$0]) } : venueClusters
+    }
+
+    /// Main map view with annotations
+    var mapView: some View {
+        Map(position: $cameraPosition, interactionModes: .all, scope: mapScope) {
+            UserAnnotation()
+
+            // Venue clusters and markers
+            ForEach(clustersToShow) { cluster in
+                if cluster.venues.count > 1 {
+                    // Show cluster marker
+                    Annotation("", coordinate: cluster.coordinate) {
+                        ClusterMarker(venues: cluster.venues, userLocation: currentCoordinate)
+                            .onTapGesture {
+                                // Zoom into cluster
+                                zoomToCluster(cluster)
+                            }
+                            .zIndex(1) // Ensure clusters are above individual markers
+                    }
+                } else {
+                    // Show individual venue markers with adaptive display
+                    ForEach(cluster.venues) { venue in
+                        Annotation(venue.name, coordinate: venue.coordinate) {
+                            AdaptiveVenueMarker(
+                                venue: venue,
+                                displayMode: markerDisplayMode,
+                                userLocation: currentCoordinate,
+                                isSelected: venueDiscoveryManager.highlightedVenueId == venue.id
+                            )
+                            .onTapGesture {
+                                // 1. IMMEDIATE: Visual highlight
+                                venueDiscoveryManager.highlightedVenueId = venue.id
+
+                                // 2. IMMEDIATE: Haptic feedback
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                impactFeedback.impactOccurred()
+
+                                // 3. PARALLEL: Camera animation + sheet presentation
+                                animateCameraToVenue(venue)
+                                venueDiscoveryManager.selectedVenue = venue
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .mapControls { }
+        .ignoresSafeArea(edges: [.top])
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: 8)
+        }
+        .mapStyle(MapStyle.standard(elevation: .realistic))
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 5).onChanged { _ in
+                shouldFollowUser = false
+                isProgrammaticZoom = false
+            }
+        )
+        .simultaneousGesture(
+            MagnificationGesture().onChanged { _ in
+                shouldFollowUser = false
+                isProgrammaticZoom = false
+            }
+        )
+        .simultaneousGesture(
+            RotationGesture().onChanged { _ in
+                shouldFollowUser = false
+                isProgrammaticZoom = false
+            }
+        )
+        .onMapCameraChange(frequency: MapCameraUpdateFrequency.continuous) { context in
+            currentPitch = context.camera.pitch
+            currentHeading = context.camera.heading
+
+            // Track the current map span and center for dynamic clustering and search area
+            let region = context.region
+            currentMapSpan = region.span
+            currentMapCenter = region.center
+
+            // Update clusters when zoom level changes
+            updateClustersIfNeeded()
+        }
+    }
+
+    /// Overlay content including loading indicators and controls
+    func overlayContent(hasPendingImages: Bool) -> some View {
+        VStack(spacing: 10) {
+            // Progressive loading indicator with enhanced design
+            if case .loadingFromCache = venueDiscoveryManager.loadingState {
+                loadingIndicator(text: "Loading...", progress: nil)
+                    .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
+            } else if case .loadingPrimary(let progress) = venueDiscoveryManager.loadingState {
+                loadingIndicator(text: "Discovering venues...", progress: progress)
+                    .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
+            } else if case .loadingSecondary(let progress) = venueDiscoveryManager.loadingState {
+                loadingIndicator(text: "Finding more venues...", progress: progress)
+                    .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
+            }
+
+            // Error indicator
+            if let errorMessage = venueDiscoveryManager.searchError {
+                errorIndicator(message: errorMessage)
+            }
+
+            if hasPendingImages {
+                pendingImagesIndicator
+            }
+
+            // "Search This Area" button
+            if shouldShowSearchAreaButton {
+                searchAreaButton
+            }
+
+            Spacer()
+
+            // Map controls
+            HStack {
+                Spacer()
+                bottomControls
+            }
+        }
+        .animation(.easeInOut(duration: 0.35), value: venueDiscoveryManager.loadingState)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: shouldShowSearchAreaButton)
+    }
+
+    /// Error indicator view
+    func errorIndicator(message: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.subheadline)
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.orange.opacity(0.3), .orange.opacity(0.1)],
+                        startPoint: UnitPoint.top,
+                        endPoint: UnitPoint.bottom
+                    ),
+                    lineWidth: 1.5
+                )
+        )
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 5)
+        .padding(.top, 12)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    /// Pending images indicator
+    var pendingImagesIndicator: some View {
+        Text("Photos loading... Tap markers to explore venues")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .background(
+                Capsule()
+                    .fill(.thinMaterial)
+            )
+    }
+
+    /// Search this area button
+    var searchAreaButton: some View {
+        Button {
+            guard let region = visibleRegion else { return }
+            venueDiscoveryManager.searchRegion(region)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.subheadline.weight(.semibold))
+                Text("Search This Area")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.vertical, 12)
+            .padding(.horizontal, 20)
+            .background(
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [.blue, .blue.opacity(0.8)],
+                            startPoint: UnitPoint.top,
+                            endPoint: UnitPoint.bottom
+                        )
+                    )
+            )
+            .contentShape(Capsule())
+            .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
+        }
+        .buttonStyle(.plain)
+        .transition(AnyTransition.scale.combined(with: .opacity))
+    }
+
     /// Enhanced map controls with glass pill background
     var bottomControls: some View {
         VStack(spacing: 12) {
@@ -423,8 +440,8 @@ private extension MainMapView {
                 .strokeBorder(
                     LinearGradient(
                         colors: [.white.opacity(0.3), .white.opacity(0.1)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                        startPoint: UnitPoint.topLeading,
+                        endPoint: UnitPoint.bottomTrailing
                     ),
                     lineWidth: 1.5
                 )
@@ -476,7 +493,7 @@ private extension MainMapView {
            // Case A: All items at same location. Zoom in very close.
             let center = cluster.coordinate // or zoomRect.center coordinate
              DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.easeInOut(duration: 1.0)) {
+                withAnimation(.easeInOut(duration: 0.5)) {
                     cameraPosition = .camera(
                         MapCamera(
                             centerCoordinate: center,
@@ -490,23 +507,23 @@ private extension MainMapView {
             }
             return
         }
-        
+
         // 3. Normal Case: Fit the rect with padding
         // Scale the rect slightly so pins aren't on the edge.
         let paddedRect = zoomRect.insetBy(dx: -zoomRect.width * (AppConfiguration.Map.clusterZoomPaddingScale - 1) / 2,
                                           dy: -zoomRect.height * (AppConfiguration.Map.clusterZoomPaddingScale - 1) / 2)
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation(.easeInOut(duration: 1.0)) {
+            withAnimation(.easeInOut(duration: 0.5)) {
                 // Use .rect to let MapKit figure out the best altitude
                 cameraPosition = .rect(paddedRect)
             }
             resetZoomStateAfterDelay()
         }
     }
-    
+
     private func resetZoomStateAfterDelay() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             isProgrammaticZoom = false
         }
     }
@@ -516,7 +533,7 @@ private extension MainMapView {
 
     /// Animates camera smoothly to a selected venue
     func animateCameraToVenue(_ venue: Venue) {
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             cameraPosition = .camera(
                 MapCamera(
                     centerCoordinate: venue.coordinate,
@@ -565,8 +582,8 @@ private extension MainMapView {
                 .strokeBorder(
                     LinearGradient(
                         colors: [.white.opacity(0.3), .white.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
+                        startPoint: UnitPoint.top,
+                        endPoint: UnitPoint.bottom
                     ),
                     lineWidth: 1.5
                 )

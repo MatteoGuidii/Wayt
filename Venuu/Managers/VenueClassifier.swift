@@ -73,6 +73,29 @@ struct VenueClassifier {
         "cold stone", "marble slab", "rita's italian ice"
     ]
 
+    // MARK: - Unwanted Category Exclusions
+
+    /// Non-food/drink venues to exclude (spas, stores, hotels, etc.)
+    static let unwantedCategoryExclusions: Set<String> = [
+        // Beauty & wellness
+        "spa", "salon", "hair", "beauty", "barber", "nail",
+        "massage", "wellness", "facial", "aesthetics",
+
+        // Retail & stores
+        "supermarket", "grocery", "market", "store",
+        "pharmacy", "drugstore", "cvs", "walgreens", "rite aid",
+
+        // Accommodation
+        "hotel", "motel", "resort", "inn", "lodge",
+
+        // Auto & gas
+        "gas station", "fuel", "petrol", "auto",
+        "car wash", "repair shop", "service station",
+
+        // Other non-food venues
+        "gym", "fitness", "bank", "atm"
+    ]
+
     // MARK: - Public API
 
     /// Check if a venue should be excluded (is fast food)
@@ -82,6 +105,21 @@ struct VenueClassifier {
         let name = mapItem.name?.lowercased() ?? ""
 
         for exclusion in fastFoodExclusions {
+            if name.contains(exclusion) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Check if a venue is an unwanted category (spa, store, hotel, etc.)
+    /// - Parameter mapItem: The MapKit item to check
+    /// - Returns: true if the venue should be excluded
+    static func isUnwantedCategory(_ mapItem: MKMapItem) -> Bool {
+        let name = mapItem.name?.lowercased() ?? ""
+
+        for exclusion in unwantedCategoryExclusions {
             if name.contains(exclusion) {
                 return true
             }
