@@ -103,12 +103,18 @@ struct VenueSearchService: Sendable {
         let search = MKLocalSearch(request: request)
         let response = try await search.start()
 
-        // Filter out fast food and convert to Venue objects
+        // Filter out fast food, unwanted categories, and convert to Venue objects
         return response.mapItems.compactMap { mapItem in
             // Exclude fast food chains
             guard !VenueClassifier.isFastFood(mapItem) else {
                 return nil
             }
+
+            // Exclude unwanted categories (spas, stores, hotels, etc.)
+            guard !VenueClassifier.isUnwantedCategory(mapItem) else {
+                return nil
+            }
+
             return Venue(mapItem: mapItem)
         }
     }

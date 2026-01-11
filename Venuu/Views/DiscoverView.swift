@@ -5,7 +5,6 @@ import CoreLocation
 struct DiscoverView: View {
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var venueDiscoveryManager: VenueDiscoveryManager
-    @State private var selectedVenue: Venue?
     @State private var searchText = ""
     @State private var showMap = true
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
@@ -65,7 +64,7 @@ struct DiscoverView: View {
                     
                     // Featured / Top Picks
                     if !venueDiscoveryManager.venues.isEmpty {
-                        FeaturedVenuesView(selectedVenue: $selectedVenue)
+                        FeaturedVenuesView(selectedVenue: $venueDiscoveryManager.selectedVenue)
                     }
                     
                     // Categories
@@ -92,7 +91,7 @@ struct DiscoverView: View {
                             DiscoverMapPreview(
                                 cameraPosition: $cameraPosition,
                                 userLocation: locationManager.userLocation?.coordinate,
-                                selectedVenue: $selectedVenue
+                                selectedVenue: $venueDiscoveryManager.selectedVenue
                             )
                             .frame(height: 220)
                             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -118,7 +117,7 @@ struct DiscoverView: View {
                         ProgressView()
                             .padding(.vertical, 40)
                     } else {
-                        NearbyVenuesList(selectedVenue: $selectedVenue)
+                        NearbyVenuesList(selectedVenue: $venueDiscoveryManager.selectedVenue)
                     }
                     
                     Spacer(minLength: 120) // Bottom padding tab bar
@@ -154,7 +153,7 @@ struct DiscoverView: View {
                     .opacity(scrollOffset < -50 ? 1 : 0)
             }
         }
-        .sheet(item: $selectedVenue) { venue in
+        .sheet(item: $venueDiscoveryManager.selectedVenue) { venue in
             VenueDetailView(venue: venueDiscoveryManager.venues.first(where: { $0.id == venue.id }) ?? venue)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)

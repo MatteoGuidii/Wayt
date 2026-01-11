@@ -5,11 +5,7 @@ struct VenueMarker: View {
     let venue: Venue
     let userLocation: CLLocationCoordinate2D?
     var showTitle: Bool = true
-    let onLongPress: () -> Void
-
-    @State private var isAnimating = false
-    @State private var isPressed = false
-    @State private var appearAnimation = false
+    var isSelected: Bool = false
 
     var isNearby: Bool {
         guard let userLocation = userLocation else { return false }
@@ -17,113 +13,54 @@ struct VenueMarker: View {
     }
 
     var body: some View {
-        Button(action: onLongPress) {
-            VStack(spacing: -2) { // Negative spacing to connect pill and pointer
-                HStack(spacing: 8) {
-                    // Icon Circle
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        venue.themeColor.opacity(0.9),
-                                        venue.themeColor
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 32, height: 32)
-                            .shadow(color: venue.themeColor.opacity(0.4), radius: 4, x: 0, y: 2)
-                        
-                        Image(systemName: venue.systemImage)
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                    
-                    // Venue Name
-                    if showTitle {
-                        Text(venue.name)
-                            .font(.system(size: 13, weight: .bold)) // Bold for better readability
-                            .foregroundStyle(.primary) // Auto adapts to light/dark
-                            .lineLimit(1)
-                            .padding(.trailing, 4)
-                            .transition(.opacity.combined(with: .scale))
-                    }
-                }
-                .padding(.leading, 4)
-                .padding(.vertical, 4)
-                .padding(.trailing, showTitle ? 10 : 4) // Reduce padding when title is hidden
-                .background(Material.thick) // Thicker material for better contrast
-                .clipShape(Capsule())
+        VStack(spacing: 6) {
+            // Main circle marker
+            Circle()
+                .fill(venue.themeColor)
+                .frame(width: 36, height: 36)
                 .overlay(
-                    Capsule()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    .white.opacity(0.6),
-                                    .white.opacity(0.2)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
+                    Image(systemName: venue.systemImage)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
                 )
-                .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
-                .animation(.easeInOut(duration: 0.2), value: showTitle)
-                
-                // Precision Pointer
-                Image(systemName: "triangle.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Material.thick) // Match the pill background
-                    .rotationEffect(.degrees(180))
-                    .offset(y: -4) // Tuck it up into the pill
-                    .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 2)
-                    .overlay(
-                        // Optional: Add a colored tip to the pointer for extra precision styling
-                         Image(systemName: "triangle.fill")
-                             .font(.system(size: 6))
-                             .foregroundStyle(venue.themeColor)
-                             .rotationEffect(.degrees(180))
-                             .offset(y: -3)
-                             .opacity(0.8)
-                    )
-            }
-            // Nearyby subtle pulse - applied to the whole stack or just the pill
-            .overlay(
-                Group {
-                    if isNearby {
-                        Capsule() // Pulse follows the main shape loosely
-                            .stroke(venue.themeColor.opacity(0.5), lineWidth: 2)
-                            .frame(height: 40) // Approximate height of the pill part
-                            .offset(y: -5) // Shift up to match pill position
-                            .scaleEffect(isAnimating ? 1.1 : 1.0)
-                            .opacity(isAnimating ? 0.0 : 0.5)
-                            .onAppear {
-                                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: false)) {
-                                    isAnimating = true
-                                }
-                            }
+                .overlay(
+                    Group {
+                        if isSelected {
+                            Circle()
+                                .stroke(Color.white, lineWidth: 3)
+                        } else if isNearby {
+                            Circle()
+                                .stroke(venue.themeColor.opacity(0.4), lineWidth: 1.5)
+                        }
                     }
-                }
-            )
+                )
+                .shadow(
+                    color: Color.black.opacity(0.15),
+                    radius: isSelected ? 6 : 4,
+                    x: 0,
+                    y: 2
+                )
+                .scaleEffect(isSelected ? 1.2 : 1.0)
+
+            // Name label - only when selected
+            if showTitle && isSelected {
+                Text(venue.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: 180)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(uiColor: .systemBackground))
+                    )
+                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    .transition(.scale.combined(with: .opacity))
+            }
         }
-        .buttonStyle(PlainButtonStyle())
-        .scaleEffect(isPressed ? 0.95 : 1.0)
-        .scaleEffect(appearAnimation ? 1.0 : 0.1)
-        .offset(y: -20) // Shift entire marker up so the pointer tip is at the coordinate
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
-        .onAppear {
-             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                 appearAnimation = true
-             }
-        }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in isPressed = true }
-                .onEnded { _ in isPressed = false }
-        )
+        .offset(y: -18)
+        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isSelected)
     }
 }
 
@@ -143,7 +80,7 @@ struct VenueMarker: View {
             ),
             userLocation: CLLocationCoordinate2D(latitude: 0, longitude: 0),
             showTitle: true,
-            onLongPress: {}
+            isSelected: false
         )
     }
 }

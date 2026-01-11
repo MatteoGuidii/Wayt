@@ -15,6 +15,14 @@ class VenueDiscoveryManager: ObservableObject {
     @Published var searchedRegion: MKCoordinateRegion?
     @Published var loadingState: LoadingState = .idle
 
+    // MARK: - Selection State (Centralized)
+
+    /// Currently selected venue for detail sheet presentation
+    @Published var selectedVenue: Venue?
+
+    /// Venue ID for instant visual highlight feedback (before sheet appears)
+    @Published var highlightedVenueId: UUID?
+
     // MARK: - Loading State
 
     enum LoadingState: Equatable {
@@ -58,8 +66,7 @@ class VenueDiscoveryManager: ObservableObject {
             if !cached.isEmpty {
                 self.venues = cached
                 for venue in cached {
-                    let key = venueKey(for: venue)
-                    persistedVenues[key] = venue
+                    persistedVenues[venue.deduplicationKey] = venue
                 }
             }
         }
@@ -141,9 +148,6 @@ class VenueDiscoveryManager: ObservableObject {
         case regionSearch
     }
 
-    private func venueKey(for venue: Venue) -> String {
-        "\(venue.name)_\(String(format: "%.5f", venue.coordinate.latitude))_\(String(format: "%.5f", venue.coordinate.longitude))"
-    }
 
     private func performSearch(
         near center: CLLocationCoordinate2D,
@@ -357,8 +361,7 @@ class VenueDiscoveryManager: ObservableObject {
                 self.venues = limitedVenues
 
                 for venue in limitedVenues {
-                    let key = self.venueKey(for: venue)
-                    self.persistedVenues[key] = venue
+                    self.persistedVenues[venue.deduplicationKey] = venue
                 }
 
                 // Limit persisted venue cache size
@@ -425,7 +428,7 @@ class VenueDiscoveryManager: ObservableObject {
         var unique: [Venue] = []
 
         for venue in venues {
-            let key = venueKey(for: venue)
+            let key = venue.deduplicationKey
             if !seen.contains(key) {
                 seen.insert(key)
                 unique.append(venue)

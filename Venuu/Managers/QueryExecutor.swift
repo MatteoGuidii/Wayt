@@ -84,7 +84,7 @@ actor QueryExecutor {
                 }
 
                 for venue in result.venues {
-                    let key = venueKey(for: venue)
+                    let key = venue.deduplicationKey
                     if !seenKeys.contains(key) {
                         seenKeys.insert(key)
                         allVenues.append(venue)
@@ -196,12 +196,6 @@ actor QueryExecutor {
     private func cleanupOldRequests() {
         let oneMinuteAgo = Date().addingTimeInterval(-60)
         requestHistory.removeAll { $0 < oneMinuteAgo }
-    }
-
-    private func venueKey(for venue: Venue) -> String {
-        let lat = String(format: "%.5f", venue.coordinate.latitude)
-        let lng = String(format: "%.5f", venue.coordinate.longitude)
-        return "\(venue.name)_\(lat)_\(lng)"
     }
 
     private func chunked<T>(_ array: [T], into size: Int) -> [[T]] {

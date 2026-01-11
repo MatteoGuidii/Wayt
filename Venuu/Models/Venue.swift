@@ -19,6 +19,14 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         mapItem.placemark.coordinate
     }
 
+    /// Unique key for deduplication across searches
+    /// Uses name + 5-decimal coordinate precision (~1.1m accuracy)
+    var deduplicationKey: String {
+        let lat = String(format: "%.5f", coordinate.latitude)
+        let lng = String(format: "%.5f", coordinate.longitude)
+        return "\(name)_\(lat)_\(lng)"
+    }
+
     var title: String {
         name
     }
