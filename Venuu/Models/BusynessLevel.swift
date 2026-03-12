@@ -41,14 +41,4 @@ enum BusynessLevel: Int, Codable, CaseIterable, Hashable, Sendable {
         VenuuTheme.busynessColor(for: rawValue)
     }
 
-    /// Emoji for quick visual in lists
-    var emoji: String {
-        switch self {
-        case .empty:    return "🟢"
-        case .quiet:    return "🟡"
-        case .moderate: return "🟠"
-        case .busy:     return "🔴"
-        case .packed:   return "🔥"
-        }
-    }
 }

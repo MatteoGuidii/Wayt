@@ -92,8 +92,8 @@ final class MapViewModel: ObservableObject {
         let latDelta = abs(region.center.latitude - last.center.latitude)
         let lngDelta = abs(region.center.longitude - last.center.longitude)
 
-        if latDelta > AppConstants.searchThiAreaThreshold
-            || lngDelta > AppConstants.searchThiAreaThreshold {
+        if latDelta > AppConstants.searchThisAreaThreshold
+            || lngDelta > AppConstants.searchThisAreaThreshold {
             showSearchThisArea = true
         }
     }

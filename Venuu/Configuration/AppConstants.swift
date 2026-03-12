@@ -2,15 +2,12 @@ import Foundation
 import CoreLocation
 
 /// App-wide constants. Accessible from any isolation domain.
-///
-/// All properties are `nonisolated(unsafe)` so they can be read from
-/// actors, the main actor, or any other concurrency context without warnings.
 enum AppConstants {
 
     // MARK: - API
 
-    /// Base URL for API Gateway — replace with your deployed endpoint
-    static let apiBaseURL = "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/prod"
+    /// Base URL for the deployed API Gateway endpoint
+    static let apiBaseURL = "https://36w1q7mbqg.execute-api.ca-central-1.amazonaws.com/dev"
 
     // MARK: - Search
 
@@ -20,11 +17,8 @@ enum AppConstants {
     /// Maximum venues to display on the map at once
     static let maxVisibleVenues = 100
 
-    /// Debounce interval for region-change searches (seconds)
-    static let searchDebounceInterval: TimeInterval = 0.8
-
     /// Minimum camera movement before "Search This Area" appears (degrees)
-    static let searchThiAreaThreshold: Double = 0.005
+    static let searchThisAreaThreshold: Double = 0.005
 
     // MARK: - Busyness
 

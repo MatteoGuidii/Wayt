@@ -35,9 +35,6 @@ final class LocationService: NSObject, ObservableObject {
         manager.startUpdatingLocation()
     }
 
-    func stopUpdating() {
-        manager.stopUpdatingLocation()
-    }
 }
 
 // MARK: - CLLocationManagerDelegate
