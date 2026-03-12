@@ -8,7 +8,6 @@ enum VenuuTheme {
 
     static let primaryPurple = Color(red: 0.45, green: 0.20, blue: 0.90)
     static let primaryBlue   = Color(red: 0.25, green: 0.45, blue: 0.95)
-    static let accent        = Color(red: 0.95, green: 0.40, blue: 0.55)
 
     // MARK: - Backgrounds
 
@@ -19,7 +18,6 @@ enum VenuuTheme {
     )
 
     static let cardBackground = Color(.systemBackground)
-    static let secondaryBackground = Color(.secondarySystemBackground)
 
     // MARK: - Busyness Colors (green → red spectrum)
 
@@ -36,7 +34,6 @@ enum VenuuTheme {
 
     // MARK: - Typography
 
-    static let titleFont   = Font.system(size: 28, weight: .bold, design: .rounded)
     static let headlineFont = Font.system(size: 20, weight: .semibold, design: .rounded)
     static let bodyFont    = Font.system(size: 16, weight: .regular, design: .default)
     static let captionFont = Font.system(size: 13, weight: .medium, design: .default)

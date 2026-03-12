@@ -56,7 +56,7 @@ struct BusynessEngine: Sendable {
     // MARK: - Heuristic Algorithm
 
     /// Estimate busyness purely from venue type + current time.
-    func heuristicBusyness(for type: VenueType, at date: Date = Date()) -> BusynessLevel {
+    private func heuristicBusyness(for type: VenueType, at date: Date = Date()) -> BusynessLevel {
         let score = heuristicScore(for: type, at: date)
         return BusynessLevel(closestTo: score * 5.0)
     }
