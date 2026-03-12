@@ -1,0 +1,20 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-venuu-dev-8eb31-authRole",
+      "UnauthRoleArn": "arn:aws:iam::274828214214:role/amplify-venuu-dev-8eb31-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::274828214214:role/amplify-venuu-dev-8eb31-authRole",
+      "Region": "ca-central-1",
+      "DeploymentBucketName": "amplify-venuu-dev-8eb31-deployment",
+      "UnauthRoleName": "amplify-venuu-dev-8eb31-unauthRole",
+      "StackName": "amplify-venuu-dev-8eb31",
+      "StackId": "arn:aws:cloudformation:ca-central-1:274828214214:stack/amplify-venuu-dev-8eb31/6bf81650-1d61-11f1-9682-0e7406945f61",
+      "AmplifyAppId": "d39ifi8zl1sy9g"
+    },
+    "categories": {
+      "auth": {
+        "venuu5ced5433": {}
+      }
+    }
+  }
+}
