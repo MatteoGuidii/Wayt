@@ -1,0 +1,19 @@
+{
+  "name": "venuu-backend",
+  "version": "1.0.0",
+  "description": "Venuu backend Lambda functions",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.500.0",
+    "@aws-sdk/lib-dynamodb": "^3.500.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.140",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

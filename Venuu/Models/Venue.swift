@@ -2,64 +2,92 @@ import Foundation
 import MapKit
 import SwiftUI
 
-/// Value type backing each map annotation. `@unchecked Sendable` is required because
-/// `MKMapItem`/`UIImage` are not marked as Sendable even though we access them carefully.
 struct Venue: Identifiable, Hashable, @unchecked Sendable {
-    let id = UUID()
+
+    // MARK: - Identity
+
+    /// Deduplication key: lowercased name + 5‑decimal lat/lng (~1 m accuracy)
+    let id: String
+    let name: String
+    let coordinate: CLLocationCoordinate2D
+    let type: VenueType
+
+    // MARK: - Metadata (from MapKit)
+
+    let address: String?
+    let phoneNumber: String?
+    let url: URL?
     let mapItem: MKMapItem
 
-    var name: String {
-        mapItem.name ?? "Unknown Venue"
+    // MARK: - Busyness (mutable, updated at runtime)
+
+    var busyness: BusynessLevel?
+    var busynessConfidence: BusynessConfidence = .none
+    var reportCount: Int = 0
+    var lastReportedAt: Date?
+    var estimatedWaitMinutes: Int?
+
+    // MARK: - Init from MKMapItem
+
+    @MainActor
+    init(mapItem: MKMapItem, type: VenueType) {
+        let venueName = mapItem.name ?? "Unknown Venue"
+        let coord = mapItem.placemark.coordinate
+        let lat = String(format: "%.5f", coord.latitude)
+        let lng = String(format: "%.5f", coord.longitude)
+
+        self.id = "\(venueName.lowercased())_\(lat)_\(lng)"
+        self.name = venueName
+        self.coordinate = coord
+        self.type = type
+        self.address = mapItem.placemark.formattedAddress
+        self.phoneNumber = mapItem.phoneNumber
+        self.url = mapItem.url
+        self.mapItem = mapItem
     }
 
-    // Image is intentionally mutable and not included in equality/hash checks
-    var image: UIImage?
+    // MARK: - Hashable
 
-    var coordinate: CLLocationCoordinate2D {
-        mapItem.placemark.coordinate
-    }
-
-    /// Unique key for deduplication across searches
-    /// Uses name + 5-decimal coordinate precision (~1.1m accuracy)
-    var deduplicationKey: String {
-        let lat = String(format: "%.5f", coordinate.latitude)
-        let lng = String(format: "%.5f", coordinate.longitude)
-        return "\(name)_\(lat)_\(lng)"
-    }
-
-    var title: String {
-        name
-    }
-
-    var subtitle: String {
-        mapItem.name ?? ""
-    }
-
-    var category: MKPointOfInterestCategory? {
-        mapItem.pointOfInterestCategory
+    static func == (lhs: Venue, rhs: Venue) -> Bool {
+        lhs.id == rhs.id
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(name)
-        hasher.combine(coordinate.latitude)
-        hasher.combine(coordinate.longitude)
+        hasher.combine(id)
     }
+}
 
-    static func == (lhs: Venue, rhs: Venue) -> Bool {
-        lhs.name == rhs.name &&
-        lhs.coordinate.latitude == rhs.coordinate.latitude &&
-        lhs.coordinate.longitude == rhs.coordinate.longitude
+// MARK: - Busyness Confidence
+
+enum BusynessConfidence: String, Sendable {
+    case none      // No data at all
+    case estimated // Heuristic only
+    case low       // 1-2 user reports
+    case high      // 3+ user reports
+
+    var label: String {
+        switch self {
+        case .none:      return ""
+        case .estimated: return "Estimated"
+        case .low:       return "Few reports"
+        case .high:      return "Reported"
+        }
     }
+}
 
-    var type: VenueType {
-        VenueClassifier.classify(mapItem: mapItem)
+// MARK: - CLPlacemark Helper
+
+extension CLPlacemark {
+    var formattedAddress: String? {
+        [subThoroughfare, thoroughfare, locality]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .nilIfEmpty
     }
+}
 
-    var systemImage: String {
-        type.icon
-    }
-
-    var themeColor: Color {
-        type.color
+extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }
