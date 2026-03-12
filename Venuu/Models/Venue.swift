@@ -2,65 +2,92 @@ import Foundation
 import MapKit
 import SwiftUI
 
-/// Value type backing each map annotation. `@unchecked Sendable` is required because
-/// `MKMapItem`/`UIImage` are not marked as Sendable even though we access them carefully.
 struct Venue: Identifiable, Hashable, @unchecked Sendable {
-    let id = UUID()
+
+    // MARK: - Identity
+
+    /// Deduplication key: lowercased name + 5‑decimal lat/lng (~1 m accuracy)
+    let id: String
+    let name: String
+    let coordinate: CLLocationCoordinate2D
+    let type: VenueType
+
+    // MARK: - Metadata (from MapKit)
+
+    let address: String?
+    let phoneNumber: String?
+    let url: URL?
     let mapItem: MKMapItem
 
-    var name: String {
-        mapItem.name ?? "Unknown Venue"
+    // MARK: - Busyness (mutable, updated at runtime)
+
+    var busyness: BusynessLevel?
+    var busynessConfidence: BusynessConfidence = .none
+    var reportCount: Int = 0
+    var lastReportedAt: Date?
+    var estimatedWaitMinutes: Int?
+
+    // MARK: - Init from MKMapItem
+
+    @MainActor
+    init(mapItem: MKMapItem, type: VenueType) {
+        let venueName = mapItem.name ?? "Unknown Venue"
+        let coord = mapItem.placemark.coordinate
+        let lat = String(format: "%.5f", coord.latitude)
+        let lng = String(format: "%.5f", coord.longitude)
+
+        self.id = "\(venueName.lowercased())_\(lat)_\(lng)"
+        self.name = venueName
+        self.coordinate = coord
+        self.type = type
+        self.address = mapItem.placemark.formattedAddress
+        self.phoneNumber = mapItem.phoneNumber
+        self.url = mapItem.url
+        self.mapItem = mapItem
     }
 
-    // Image is intentionally mutable and not included in equality/hash checks
-    // This allows lazy loading of images without affecting venue identity
-    var image: UIImage?
+    // MARK: - Hashable
 
-    // Nightlife relevance score (0-100) - computed lazily or set during discovery
-    // Not included in equality/hash checks as it's metadata
-    var confidenceScore: Int = 0
-    
-    var coordinate: CLLocationCoordinate2D {
-        mapItem.placemark.coordinate
-    }
-    
-    var title: String {
-        name
-    }
-    
-    var subtitle: String {
-        // Fallback to name or empty if address is not easily available without placemark
-        // Future iOS versions may provide simplified address APIs on MKMapItem
-        mapItem.name ?? ""
-    }
-    
-    // Helper to check category if needed, though we filter by search query
-    var category: MKPointOfInterestCategory? {
-        mapItem.pointOfInterestCategory
-    }
-    
-    func hash(into hasher: inout Hasher) {
-        // Use coordinate and name for uniqueness
-        hasher.combine(name)
-        hasher.combine(coordinate.latitude)
-        hasher.combine(coordinate.longitude)
-    }
-    
     static func == (lhs: Venue, rhs: Venue) -> Bool {
-        lhs.name == rhs.name &&
-        lhs.coordinate.latitude == rhs.coordinate.latitude &&
-        lhs.coordinate.longitude == rhs.coordinate.longitude
+        lhs.id == rhs.id
     }
-    
-    var type: VenueType {
-        VenueClassifier.classify(mapItem: mapItem)
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
-    
-    var systemImage: String {
-        type.icon
+}
+
+// MARK: - Busyness Confidence
+
+enum BusynessConfidence: String, Sendable {
+    case none      // No data at all
+    case estimated // Heuristic only
+    case low       // 1-2 user reports
+    case high      // 3+ user reports
+
+    var label: String {
+        switch self {
+        case .none:      return ""
+        case .estimated: return "Estimated"
+        case .low:       return "Few reports"
+        case .high:      return "Reported"
+        }
     }
-    
-    var themeColor: Color {
-        type.color
+}
+
+// MARK: - CLPlacemark Helper
+
+extension CLPlacemark {
+    var formattedAddress: String? {
+        [subThoroughfare, thoroughfare, locality]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .nilIfEmpty
+    }
+}
+
+extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }
