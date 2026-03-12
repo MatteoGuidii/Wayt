@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Venuu Backend - API Gateway + Lambda (TypeScript) + DynamoDB
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 10
+    MemorySize: 256
+    Environment:
+      Variables:
+        REPORTS_TABLE: !Ref VenueReportsTable
+        USERS_TABLE: !Ref UserProfilesTable
+
+Parameters:
+  CognitoUserPoolArn:
+    Type: String
+    Description: ARN of your Cognito User Pool (from Amplify)
+
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: Deployment stage (dev or prod)
+
+Resources:
+  # -----------------------------------------------
+  # API Gateway
+  # -----------------------------------------------
+  VenuuApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Stage
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !Ref CognitoUserPoolArn
+      Cors:
+        AllowMethods: "'GET,POST,PUT,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+
+  # -----------------------------------------------
+  # Lambda Functions
+  # -----------------------------------------------
+  SubmitReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/submitReport.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VenueReportsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserProfilesTable
+      Events:
+        PostReport:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /reports
+            Method: POST
+    Metadata:
+      BuildMethod: makefile
+
+  GetNearbyReportsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getNearbyReports.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref VenueReportsTable
+      Events:
+        GetReports:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /reports
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  GetVenueReportsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getVenueReports.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref VenueReportsTable
+      Events:
+        GetVenueReports:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /venues/{venueId}/reports
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  GetUserProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getUserProfile.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UserProfilesTable
+      Events:
+        GetProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /user/profile
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  # -----------------------------------------------
+  # DynamoDB Tables
+  # -----------------------------------------------
+  VenueReportsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "VenueReports-${Stage}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: venueId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: venueId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  UserProfilesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "UserProfiles-${Stage}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${VenuuApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+  VenueReportsTableName:
+    Value: !Ref VenueReportsTable
+  UserProfilesTableName:
+    Value: !Ref UserProfilesTable
+  Stage:
+    Value: !Ref Stage
