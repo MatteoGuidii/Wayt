@@ -21,3 +21,10 @@ amplifytools.xcconfig
 .secret-*
 **.sample
 #amplify-do-not-edit-end
+
+# Xcode user data
+xcuserdata/
+*.xcuserdatad/
+
+# Claude worktrees
+.claude/worktrees/

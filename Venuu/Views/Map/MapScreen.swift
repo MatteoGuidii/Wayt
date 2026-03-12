@@ -6,6 +6,9 @@ struct MapScreen: View {
     @StateObject private var viewModel = MapViewModel()
     @EnvironmentObject private var locationService: LocationService
     @State private var visibleRegion: MKCoordinateRegion = .defaultRegion
+    @State private var mapHeading: Double = 0
+    @State private var mapPitch: Double = 0
+    @State private var is3D: Bool = false
 
     @Namespace private var mapScope
 
@@ -34,18 +37,21 @@ struct MapScreen: View {
                 }
             }
             .mapScope(mapScope)
-            .mapControls {
-                MapCompass(scope: mapScope)
-            }
-            .mapStyle(.standard(pointsOfInterest: .excludingAll))
+            .mapControls { } // Disable default controls — we use custom ones
+            .mapStyle(.standard(elevation: is3D ? .realistic : .flat, pointsOfInterest: .excludingAll))
             .onMapCameraChange(frequency: .onEnd) { context in
                 visibleRegion = context.region
+                mapHeading = context.camera.heading
+                mapPitch = context.camera.pitch
                 viewModel.onRegionChanged(context.region)
             }
             .ignoresSafeArea(edges: .top)
 
             // MARK: - Search Bar Overlay
             searchBar
+
+            // MARK: - Map Controls (Compass + Recenter)
+            mapControls
 
             // MARK: - Search This Area Button
             if viewModel.showSearchThisArea {
@@ -55,29 +61,6 @@ struct MapScreen: View {
             // MARK: - Loading Indicator
             if viewModel.isSearching {
                 loadingIndicator
-            }
-
-            // MARK: - Recenter Button
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            viewModel.cameraPosition = .userLocation(fallback: .automatic)
-                        }
-                    } label: {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(VenuuTheme.primaryPurple)
-                            .frame(width: 44, height: 44)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
-                    }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 100)
-                }
             }
         }
         .sheet(item: $viewModel.selectedVenue, onDismiss: {
@@ -89,9 +72,7 @@ struct MapScreen: View {
         }
         .task {
             locationService.requestPermission()
-            // Wait for location to become available, then do initial search
             await waitForLocationAndSearch()
-            // Start live refresh (auto-updates busyness every 60s)
             viewModel.startLiveRefresh()
         }
         .onDisappear {
@@ -106,13 +87,11 @@ struct MapScreen: View {
     // MARK: - Initial Search
 
     private func waitForLocationAndSearch() async {
-        // If location is already available, search immediately
         if locationService.userLocation != nil {
             print("[MapScreen] Location already available, searching...")
             viewModel.searchVenues(in: locationService.region)
             return
         }
-        // Otherwise poll briefly until location arrives
         for _ in 0..<20 {
             try? await Task.sleep(for: .milliseconds(500))
             if locationService.userLocation != nil {
@@ -158,6 +137,91 @@ struct MapScreen: View {
         .padding(.top, 60)
     }
 
+    // MARK: - Map Controls (grouped)
+
+    private var mapControls: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                VStack(spacing: 0) {
+                    // Compass — only visible when map is rotated
+                    if mapHeading != 0 {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                viewModel.cameraPosition = .camera(MapCamera(
+                                    centerCoordinate: visibleRegion.center,
+                                    distance: visibleRegion.span.latitudeDelta * 111_000,
+                                    heading: 0,
+                                    pitch: is3D ? 45 : 0
+                                ))
+                            }
+                        } label: {
+                            compassIcon
+                                .frame(width: 44, height: 44)
+                        }
+
+                        Divider()
+                            .frame(width: 28)
+                    }
+
+                    // 2D / 3D toggle
+                    Button {
+                        is3D.toggle()
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            viewModel.cameraPosition = .camera(MapCamera(
+                                centerCoordinate: visibleRegion.center,
+                                distance: visibleRegion.span.latitudeDelta * 111_000,
+                                heading: mapHeading,
+                                pitch: is3D ? 45 : 0
+                            ))
+                        }
+                    } label: {
+                        Text(is3D ? "3D" : "2D")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(is3D ? VenuuTheme.primaryPurple : .secondary)
+                            .frame(width: 44, height: 44)
+                    }
+
+                    Divider()
+                        .frame(width: 28)
+
+                    // Recenter on user
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            viewModel.cameraPosition = .userLocation(fallback: .automatic)
+                        }
+                    } label: {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(VenuuTheme.primaryPurple)
+                            .frame(width: 44, height: 44)
+                    }
+                }
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+                .padding(.trailing, 16)
+                .padding(.bottom, 110)
+            }
+        }
+    }
+
+    // MARK: - Compass Icon
+
+    private var compassIcon: some View {
+        ZStack {
+            // North half (red)
+            CompassNeedle(isTop: true)
+                .fill(.red)
+            // South half (white/gray)
+            CompassNeedle(isTop: false)
+                .fill(Color(.systemGray3))
+        }
+        .frame(width: 14, height: 14)
+        .rotationEffect(.degrees(-mapHeading))
+    }
+
     // MARK: - Search This Area
 
     private var searchThisAreaButton: some View {
@@ -201,5 +265,34 @@ struct MapScreen: View {
             .clipShape(Capsule())
             .padding(.bottom, 100)
         }
+    }
+}
+
+// MARK: - Compass Needle Shape
+
+/// Diamond-shaped half needle for the compass icon (like Apple Maps).
+struct CompassNeedle: Shape {
+    let isTop: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let midX = rect.midX
+        let midY = rect.midY
+
+        if isTop {
+            // Top triangle: center-top → left-center → right-center
+            path.move(to: CGPoint(x: midX, y: rect.minY))
+            path.addLine(to: CGPoint(x: midX - rect.width * 0.3, y: midY))
+            path.addLine(to: CGPoint(x: midX + rect.width * 0.3, y: midY))
+            path.closeSubpath()
+        } else {
+            // Bottom triangle: center-bottom → left-center → right-center
+            path.move(to: CGPoint(x: midX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: midX - rect.width * 0.3, y: midY))
+            path.addLine(to: CGPoint(x: midX + rect.width * 0.3, y: midY))
+            path.closeSubpath()
+        }
+
+        return path
     }
 }
