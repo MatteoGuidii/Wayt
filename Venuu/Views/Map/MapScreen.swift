@@ -72,7 +72,13 @@ struct MapScreen: View {
         }
         .task {
             locationService.requestPermission()
-            await waitForLocationAndSearch()
+
+            // If location is already available, search immediately
+            if locationService.userLocation != nil {
+                viewModel.searchVenues(in: locationService.region)
+            }
+            // Otherwise, onChange below will trigger search as soon as location arrives
+
             viewModel.startLiveRefresh()
         }
         .onDisappear {
@@ -82,25 +88,6 @@ struct MapScreen: View {
             guard newLocation != nil, viewModel.venues.isEmpty else { return }
             viewModel.searchVenues(in: locationService.region)
         }
-    }
-
-    // MARK: - Initial Search
-
-    private func waitForLocationAndSearch() async {
-        if locationService.userLocation != nil {
-            print("[MapScreen] Location already available, searching...")
-            viewModel.searchVenues(in: locationService.region)
-            return
-        }
-        for _ in 0..<20 {
-            try? await Task.sleep(for: .milliseconds(500))
-            if locationService.userLocation != nil {
-                print("[MapScreen] Location received, searching...")
-                viewModel.searchVenues(in: locationService.region)
-                return
-            }
-        }
-        print("[MapScreen] Timed out waiting for location")
     }
 
     // MARK: - Search Bar

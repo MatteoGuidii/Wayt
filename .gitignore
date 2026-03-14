@@ -28,3 +28,9 @@ xcuserdata/
 
 # Claude worktrees
 .claude/worktrees/
+
+# Docs
+*.docx
+*.pdf
+*.pptx
+*.xlsx
