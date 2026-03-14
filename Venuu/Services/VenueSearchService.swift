@@ -1,10 +1,30 @@
 import Foundation
 import MapKit
 
-/// Lightweight wrapper around MKLocalSearch.
-/// One query at a time — no grid bombardment, no rate-limit gymnastics.
+/// Lightweight wrapper around MKLocalSearch with result caching.
 @MainActor
 final class VenueSearchService {
+
+    // MARK: - Cache
+
+    private struct CachedSearch {
+        let region: MKCoordinateRegion
+        let results: [Venue]
+        let timestamp: Date
+    }
+
+    /// Per-query cache for recent search results (avoids redundant MapKit calls).
+    private var queryCache: [String: CachedSearch] = [:]
+    private static let cacheTTL: TimeInterval = 120 // 2 minutes
+
+    private func cachedResults(for query: String, region: MKCoordinateRegion) -> [Venue]? {
+        guard let entry = queryCache[query],
+              Date().timeIntervalSince(entry.timestamp) < Self.cacheTTL,
+              entry.region.isClose(to: region) else {
+            return nil
+        }
+        return entry.results
+    }
 
     // MARK: - Excluded Categories
 
@@ -28,6 +48,11 @@ final class VenueSearchService {
         query: String,
         region: MKCoordinateRegion
     ) async throws -> [Venue] {
+        // Return cached results if the region hasn't changed much
+        if let cached = cachedResults(for: query, region: region) {
+            return cached
+        }
+
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
         request.region = region
@@ -36,7 +61,7 @@ final class VenueSearchService {
         let search = MKLocalSearch(request: request)
         let response = try await search.start()
 
-        return response.mapItems.compactMap { item -> Venue? in
+        let venues = response.mapItems.compactMap { item -> Venue? in
             guard let name = item.name?.lowercased() else { return nil }
 
             // Filter excluded names
@@ -53,25 +78,43 @@ final class VenueSearchService {
             let venueType = Self.classify(item)
             return Venue(mapItem: item, type: venueType)
         }
+
+        queryCache[query] = CachedSearch(region: region, results: venues, timestamp: Date())
+        return venues
     }
 
-    /// Search multiple venue types and deduplicate results.
+    /// Search multiple venue types concurrently and deduplicate results.
     func searchAllTypes(region: MKCoordinateRegion) async -> [Venue] {
         let queries = ["restaurant", "bar", "cafe", "nightclub", "lounge", "pub"]
+
+        // Fire all 6 searches in parallel
+        let allResults = await withTaskGroup(of: [Venue].self) { group in
+            for query in queries {
+                group.addTask {
+                    do {
+                        return try await self.search(query: query, region: region)
+                    } catch {
+                        print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
+                        return []
+                    }
+                }
+            }
+
+            var collected: [[Venue]] = []
+            for await batch in group {
+                collected.append(batch)
+            }
+            return collected
+        }
+
+        // Deduplicate and cap
         var seen = Set<String>()
         var results: [Venue] = []
-
-        for query in queries {
-            do {
-                let venues = try await search(query: query, region: region)
-                for venue in venues where !seen.contains(venue.id) {
-                    seen.insert(venue.id)
-                    results.append(venue)
-                    if results.count >= AppConstants.maxVisibleVenues { return results }
-                }
-            } catch {
-                // Partial failure is fine — continue with other queries
-                print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
+        for batch in allResults {
+            for venue in batch where !seen.contains(venue.id) {
+                seen.insert(venue.id)
+                results.append(venue)
+                if results.count >= AppConstants.maxVisibleVenues { return results }
             }
         }
 
@@ -99,5 +142,17 @@ final class VenueSearchService {
         if name.contains("bakery") || name.contains("pastry") { return .bakery }
 
         return .restaurant
+    }
+}
+
+// MARK: - Region Proximity Check
+
+extension MKCoordinateRegion {
+    /// Returns true if two regions overlap substantially (center within half-span).
+    func isClose(to other: MKCoordinateRegion) -> Bool {
+        let latDiff = abs(center.latitude - other.center.latitude)
+        let lngDiff = abs(center.longitude - other.center.longitude)
+        return latDiff < span.latitudeDelta * 0.5
+            && lngDiff < span.longitudeDelta * 0.5
     }
 }

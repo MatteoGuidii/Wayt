@@ -37,6 +37,9 @@ final class MapViewModel: ObservableObject {
             print("[MapViewModel] Searching region: \(region.center.latitude), \(region.center.longitude) span: \(region.span.latitudeDelta)")
 
             do {
+                // Start report fetch in parallel with venue search
+                async let reportsFuture = fetchReportSummaries(region: region)
+
                 var results: [Venue]
                 if searchText.isEmpty {
                     results = await searchService.searchAllTypes(region: region)
@@ -60,8 +63,9 @@ final class MapViewModel: ObservableObject {
                     return v
                 }
 
-                // Try to overlay real reports from the API
-                await overlayReports(on: &results, region: region)
+                // Overlay real reports (already fetched in parallel)
+                let summaries = await reportsFuture
+                applyReports(summaries, to: &results)
 
                 venues = results
                 lastSearchedRegion = region
@@ -159,33 +163,47 @@ final class MapViewModel: ObservableObject {
 
     // MARK: - Report Overlay
 
+    /// Fetch report summaries from API. Returns empty dict on failure.
+    private func fetchReportSummaries(
+        region: MKCoordinateRegion
+    ) async -> [String: VenueReportSummary] {
+        do {
+            return try await ReportService.shared.fetchNearbyReports(
+                latitude: region.center.latitude,
+                longitude: region.center.longitude,
+                radiusMeters: region.span.latitudeDelta * 111_000
+            )
+        } catch {
+            print("[MapViewModel] Reports unavailable: \(error.localizedDescription)")
+            return [:]
+        }
+    }
+
+    /// Apply fetched report summaries onto venue array.
+    private func applyReports(
+        _ summaries: [String: VenueReportSummary],
+        to venues: inout [Venue]
+    ) {
+        guard !summaries.isEmpty else { return }
+        for i in venues.indices {
+            if let summary = summaries[venues[i].id] {
+                let level = BusynessLevel(closestTo: summary.avgBusyness)
+                venues[i].busyness = level
+                venues[i].reportCount = summary.reportCount
+                venues[i].lastReportedAt = summary.lastReportedAt
+                venues[i].estimatedWaitMinutes = summary.avgWaitMinutes
+                venues[i].busynessConfidence = summary.reportCount >= AppConstants.highConfidenceReportCount
+                    ? .high : .low
+            }
+        }
+    }
+
     /// Fetch real reports from API and overlay on venues.
-    /// Fails silently if API is unavailable (heuristics are the fallback).
     private func overlayReports(
         on venues: inout [Venue],
         region: MKCoordinateRegion
     ) async {
-        do {
-            let summaries = try await ReportService.shared.fetchNearbyReports(
-                latitude: region.center.latitude,
-                longitude: region.center.longitude,
-                radiusMeters: region.span.latitudeDelta * 111_000 // rough degrees→meters
-            )
-
-            for i in venues.indices {
-                if let summary = summaries[venues[i].id] {
-                    let level = BusynessLevel(closestTo: summary.avgBusyness)
-                    venues[i].busyness = level
-                    venues[i].reportCount = summary.reportCount
-                    venues[i].lastReportedAt = summary.lastReportedAt
-                    venues[i].estimatedWaitMinutes = summary.avgWaitMinutes
-                    venues[i].busynessConfidence = summary.reportCount >= AppConstants.highConfidenceReportCount
-                        ? .high : .low
-                }
-            }
-        } catch {
-            // API not available — heuristics already applied, this is fine
-            print("[MapViewModel] Reports unavailable: \(error.localizedDescription)")
-        }
+        let summaries = await fetchReportSummaries(region: region)
+        applyReports(summaries, to: &venues)
     }
 }
