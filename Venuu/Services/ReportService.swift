@@ -29,7 +29,7 @@ final class ReportService {
             busynessLevel: level.rawValue,
             waitMinutes: waitMinutes,
             venueName: venue.name,
-            venueType: venue.type.rawValue,
+            venueType: venue.category.rawValue,
             lat: venue.coordinate.latitude,
             lng: venue.coordinate.longitude
         )

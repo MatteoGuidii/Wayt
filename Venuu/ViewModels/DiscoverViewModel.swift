@@ -10,7 +10,7 @@ final class DiscoverViewModel: ObservableObject {
 
     @Published var venues: [Venue] = []
     @Published var filteredVenues: [Venue] = []
-    @Published var selectedCategory: VenueType?
+    @Published var selectedCategory: VenueCategory?
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
@@ -34,10 +34,11 @@ final class DiscoverViewModel: ObservableObject {
 
         var results = await searchService.searchAllTypes(region: region)
 
-        // Apply busyness heuristics
+        // Apply offline fallback for venues without report data
         results = results.map { venue in
+            guard venue.busyness == nil else { return venue }
             var v = venue
-            let estimate = busynessEngine.estimate(venueType: v.type)
+            let estimate = busynessEngine.estimateOffline()
             v.busyness = estimate.level
             v.busynessConfidence = estimate.confidence
             return v
@@ -57,14 +58,14 @@ final class DiscoverViewModel: ObservableObject {
 
     // MARK: - Filter
 
-    func selectCategory(_ category: VenueType?) {
+    func selectCategory(_ category: VenueCategory?) {
         selectedCategory = category
         applyFilter()
     }
 
     private func applyFilter() {
         if let category = selectedCategory {
-            filteredVenues = venues.filter { $0.type == category }
+            filteredVenues = venues.filter { $0.category == category }
         } else {
             filteredVenues = venues
         }

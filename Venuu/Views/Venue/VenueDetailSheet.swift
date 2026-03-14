@@ -51,11 +51,11 @@ struct VenueDetailSheet: View {
             HStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(venue.type.color.opacity(0.15))
+                        .fill(venue.category.color.opacity(0.15))
                         .frame(width: 48, height: 48)
-                    Image(systemName: venue.type.icon)
+                    Image(systemName: venue.category.icon)
                         .font(.system(size: 20))
-                        .foregroundStyle(venue.type.color)
+                        .foregroundStyle(venue.category.color)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -63,7 +63,7 @@ struct VenueDetailSheet: View {
                         .font(VenuuTheme.headlineFont)
                         .lineLimit(2)
 
-                    Text(venue.type.displayName)
+                    Text(venue.category.displayName)
                         .font(VenuuTheme.captionFont)
                         .foregroundStyle(.secondary)
                 }

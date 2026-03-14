@@ -11,8 +11,8 @@ struct VenueTests {
     @Test("Same name and coordinates produce the same ID")
     func sameNameAndCoordinatesSameID() {
         let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
-        let v1 = TestFactories.makeVenue(name: "Ace Bar", type: .bar, coordinate: coord)
-        let v2 = TestFactories.makeVenue(name: "Ace Bar", type: .bar, coordinate: coord)
+        let v1 = TestFactories.makeVenue(name: "Ace Bar", coordinate: coord)
+        let v2 = TestFactories.makeVenue(name: "Ace Bar", coordinate: coord)
         #expect(v1.id == v2.id)
     }
 

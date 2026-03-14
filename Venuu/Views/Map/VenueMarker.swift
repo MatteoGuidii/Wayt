@@ -18,9 +18,9 @@ struct VenueMarkerView: View {
                 .frame(width: markerSize, height: markerSize)
 
             // Venue type icon
-            Image(systemName: venue.type.icon)
+            Image(systemName: venue.category.icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(venue.type.color)
+                .foregroundStyle(venue.category.color)
         }
         .scaleEffect(isSelected ? 1.2 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)

@@ -11,11 +11,11 @@ struct VenueCard: View {
             HStack {
                 ZStack {
                     Circle()
-                        .fill(venue.type.color.opacity(0.15))
+                        .fill(venue.category.color.opacity(0.15))
                         .frame(width: 40, height: 40)
-                    Image(systemName: venue.type.icon)
+                    Image(systemName: venue.category.icon)
                         .font(.system(size: 16))
-                        .foregroundStyle(venue.type.color)
+                        .foregroundStyle(venue.category.color)
                 }
 
                 Spacer()
@@ -35,7 +35,7 @@ struct VenueCard: View {
 
             // Type + address
             VStack(alignment: .leading, spacing: 2) {
-                Text(venue.type.displayName)
+                Text(venue.category.displayName)
                     .font(VenuuTheme.captionFont)
                     .foregroundStyle(.secondary)
 

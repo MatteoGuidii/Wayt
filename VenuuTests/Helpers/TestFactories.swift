@@ -7,14 +7,13 @@ enum TestFactories {
     @MainActor
     static func makeVenue(
         name: String = "Test Venue",
-        type: VenueType = .bar,
         busyness: BusynessLevel? = nil,
         coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
     ) -> Venue {
         let placemark = MKPlacemark(coordinate: coordinate)
         let mapItem = MKMapItem(placemark: placemark)
         mapItem.name = name
-        var venue = Venue(mapItem: mapItem, type: type)
+        var venue = Venue(mapItem: mapItem)
         venue.busyness = busyness
         return venue
     }
@@ -31,7 +30,7 @@ enum TestFactories {
             waitMinutes: waitMinutes,
             timestamp: timestamp,
             venueName: "Test Venue",
-            venueType: .bar
+            venueType: "bar"
         )
     }
 }
