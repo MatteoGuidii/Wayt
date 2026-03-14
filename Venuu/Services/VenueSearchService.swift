@@ -75,8 +75,7 @@ final class VenueSearchService {
                 return nil
             }
 
-            let venueType = Self.classify(item)
-            return Venue(mapItem: item, type: venueType)
+            return Venue(mapItem: item)
         }
 
         queryCache[query] = CachedSearch(region: region, results: venues, timestamp: Date())
@@ -85,7 +84,10 @@ final class VenueSearchService {
 
     /// Search multiple venue types concurrently and deduplicate results.
     func searchAllTypes(region: MKCoordinateRegion) async -> [Venue] {
-        let queries = ["restaurant", "bar", "cafe", "nightclub", "lounge", "pub"]
+        let queries = [
+            "restaurant", "bar", "cafe", "nightclub", "lounge", "pub",
+            "brewery", "wine bar", "bakery", "brunch", "food truck", "juice bar"
+        ]
 
         // Fire all 6 searches in parallel
         let allResults = await withTaskGroup(of: [Venue].self) { group in
@@ -121,28 +123,6 @@ final class VenueSearchService {
         return results
     }
 
-    // MARK: - Classification
-
-    private static func classify(_ item: MKMapItem) -> VenueType {
-        let category = item.pointOfInterestCategory
-        let name = (item.name ?? "").lowercased()
-
-        // Category-based classification
-        if category == .nightlife { return .club }
-        if category == .cafe      { return .cafe }
-        if category == .bakery    { return .bakery }
-        if category == .brewery   { return .pub }
-
-        // Name-based fallback
-        if name.contains("club") || name.contains("disco") { return .club }
-        if name.contains("lounge") || name.contains("rooftop") { return .lounge }
-        if name.contains("pub") || name.contains("brew") { return .pub }
-        if name.contains("bar") || name.contains("cocktail") || name.contains("wine") { return .bar }
-        if name.contains("cafe") || name.contains("café") || name.contains("coffee") { return .cafe }
-        if name.contains("bakery") || name.contains("pastry") { return .bakery }
-
-        return .restaurant
-    }
 }
 
 // MARK: - Region Proximity Check

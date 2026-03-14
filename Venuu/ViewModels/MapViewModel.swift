@@ -54,18 +54,19 @@ final class MapViewModel: ObservableObject {
 
                 print("[MapViewModel] Found \(results.count) venues")
 
-                // Apply busyness heuristics to each venue
+                // Overlay real reports (fetched in parallel)
+                let summaries = await reportsFuture
+                applyReports(summaries, to: &results)
+
+                // For venues without reports, apply offline fallback
                 results = results.map { venue in
+                    guard venue.busyness == nil else { return venue }
                     var v = venue
-                    let estimate = busynessEngine.estimate(venueType: v.type)
+                    let estimate = busynessEngine.estimateOffline()
                     v.busyness = estimate.level
                     v.busynessConfidence = estimate.confidence
                     return v
                 }
-
-                // Overlay real reports (already fetched in parallel)
-                let summaries = await reportsFuture
-                applyReports(summaries, to: &results)
 
                 venues = results
                 lastSearchedRegion = region

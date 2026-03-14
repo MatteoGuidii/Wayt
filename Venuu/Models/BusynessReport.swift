@@ -7,7 +7,7 @@ struct BusynessReport: Codable, Identifiable, Sendable {
     let waitMinutes: Int?
     let timestamp: Date
     let venueName: String
-    let venueType: VenueType
+    let venueType: String
 
     var id: String { reportId }
 

@@ -14,8 +14,8 @@ This file tracks what is built, what comes next, and the order to build it. Each
 Everything below is built, deployed, and working.
 
 - [x] **Auth & skeleton** — Cognito user pool, Amplify iOS, register/login, API Gateway + Lambda
-- [x] **Venue discovery** — MapKit integration, 6 concurrent searches, venue markers with busyness colors, custom map controls (compass, 2D/3D, recenter), Discover tab with category filtering
-- [x] **Busyness engine** — Time-based heuristic estimation per venue type, peak hours/days, confidence labels (Estimated / Few reports / Reported)
+- [x] **Venue discovery** — MapKit integration, concurrent searches (~10-12 query terms), venue markers with busyness colors, custom map controls (compass, 2D/3D, recenter), Discover tab with 4 broad category filters (Food, Drinks, Nightlife, Coffee & Tea). Internally stores raw `MKPointOfInterestCategory` from MapKit for accurate classification; computes broad `VenueCategory` for display.
+- [x] **Busyness engine** — Report-based estimation with exponential decay weighting, confidence labels (Estimated / Few reports / Reported). Generic time-based heuristic removed — replaced by Foursquare venue-specific historical baseline (Phase 7). Offline fallback uses cached reports or neutral default.
 - [x] **User reports** — POST /reports, report submission UI (1–5 scale + optional wait time), optimistic updates, nearby report fetch, report overlay on map markers
 - [x] **Performance** — TaskGroup concurrent search (~400ms), 2-min search cache, parallel report fetch (async let), reactive location (no polling), live 60s refresh, 100-venue cap, chain/POI filtering, deduplication
 
@@ -52,7 +52,8 @@ Everything below is built, deployed, and working.
   - Add GSI1 (ByStatus), GSI2 (ByOwner), GSI3 (ByGeohash — geohash5, ~5km cells)
   - **Geohash is built into the schema from day one** — no future migration needed. Use `ngeohash` to encode lat/lng at precision 5. Lambda post-filters by Haversine.
 - [ ] Add `role` field to Cognito custom attributes (`CUSTOMER` | `OWNER` | `ADMIN`)
-- [ ] Create `Restaurant` entity in DynamoDB (restaurantId, ownerId, name, address, lat/lng, geohash5, hours, photos, isVerified)
+- [ ] Create `Restaurant` entity in DynamoDB (restaurantId, ownerId, name, address, lat/lng, geohash5, hours, photos, isVerified, googlePlaceId)
+  - Add signal cache entity pattern: `SIGNAL#<venueId>/<sourceId>#<timestamp>` with per-source TTLs
 - [ ] `POST /v1/auth/owner-apply` — submit application (venue name, address, Google Maps URL/Place ID, optional verification doc)
 - [ ] `POST /v1/auth/owner-approve` — admin approves/rejects (ADMIN role only)
   - On approve: update Cognito role to OWNER, create Restaurant entity, link to user
@@ -86,11 +87,10 @@ Everything below is built, deployed, and working.
 - [ ] Update venue detail sheet to show owner-posted status when available
   - Display: "Owner posted X min ago" with timestamp
   - Differentiate owner status vs. user-reported data visually
-- [ ] Update `BusynessEngine` to incorporate owner status as highest-priority signal
-  - Owner fresh (<90 min): show owner wait, HIGH confidence
-  - Owner stale + user reports: show user average, MEDIUM confidence
-  - No owner + reports: current behavior
-  - No data: heuristic only, ESTIMATED confidence
+- [ ] Refactor `BusynessEngine` for multi-source signal fusion
+  - Add `estimate(from: FusedEstimateResponse)` — primary path, consumes server-computed estimates
+  - `estimateOffline()` uses cached reports only (no heuristic) — generic heuristic removed, replaced by Foursquare baseline server-side (Phase 7)
+  - Owner status becomes one signal among many (weight: 0.90, highest authority)
 - [ ] Push notification on owner application approval/rejection (APNs via SNS)
 - [ ] Profile screen: show "Owner" badge and linked venue when verified
 
@@ -98,9 +98,34 @@ Everything below is built, deployed, and working.
 
 ## Phase 7 — Launch Hardening & App Store Submission
 
-**Goal:** Production-harden the app and infrastructure. Ship to the App Store. Seed the pilot district. The app must feel polished, trustworthy, and complete on day one.
+**Goal:** Production-harden the app and infrastructure. Ship to the App Store. Seed the pilot district. The app must feel polished, trustworthy, and complete on day one — with multi-source data that users trust immediately.
 
 **Depends on:** Phase 6 (owner ecosystem must be live for the two-sided launch)
+
+### Signal Fusion Engine (launch-critical)
+
+- [ ] Server-side `computeVenueBusyness` Lambda — the Signal Fusion Engine
+  - Collects all `VenueSignal` sources, weights by source reliability × freshness decay × confidence
+  - Corroboration bonus: 3+ sources agreeing within 0.15 → 1.3× weight boost
+  - Conflict detection: max−min > 0.3 among fresh sources → flag and show both sides
+  - Confidence levels: VERY_HIGH (3+ agreeing) / HIGH (2+) / MEDIUM (1 direct) / LOW (historical only) / ESTIMATED (Foursquare baseline only)
+- [ ] `GET /v1/venues/nearby?lat=&lng=&radius=` — returns venues with fused busyness estimates
+- [ ] `GET /v1/venues/{id}/busyness` — single venue detailed estimate with source breakdown
+- [ ] Foursquare Places API integration — historical baseline (free tier: 200K calls/mo)
+  - Venue matching: MapKit venue name + lat/lng → Foursquare `match` endpoint → `fsq_id` (cached in DynamoDB, 30-day TTL)
+  - Fetch venue-specific popularity data: `popularity` (0.0-1.0), `hours_popular`, `stats.total_checkins`
+  - **Replaces generic time-based heuristic** — venue-specific historical data instead of fake per-type guesses
+  - Base weight: 0.40 (historical baseline). No freshness decay (stable data). Cache with 12h TTL.
+- [ ] Google Places Popular Times integration (~$500/mo pilot district)
+  - Venue ID mapping pipeline: MapKit venue → Google Place ID (cached in DynamoDB, 30-day TTL)
+  - Venue-specific historical busyness curves + live busyness where available
+  - Base weight: 0.45 (historical), 0.70 (live busyness where available)
+- [ ] Apple WeatherKit integration (free with dev account)
+  - One API call per geohash5 region per hour
+  - Modifier signal: rain −15%, snow −25%, extreme heat −10%, perfect weather +10%
+- [ ] EventBridge rule (every 5 min): refresh expired signals for active areas only
+  - Track active areas via `ACTIVE_AREA#<geohash5>` items in DynamoDB
+- [ ] Signal cache in DynamoDB with per-source TTLs (Foursquare 12h, Google 24h, weather 60min, owner 90min, reports 2h)
 
 ### Infrastructure
 
@@ -135,38 +160,44 @@ Everything below is built, deployed, and working.
 
 ---
 
-## Phase 8 — Trust Engine & Conflict Detection
+## Phase 8 — Event Signals, Trust Refinement & Calibration
 
-**Goal:** Merge owner and user data intelligently. Surface conflicts transparently. Build user trust in the displayed wait time.
+**Goal:** Add event-based signals and refine trust scoring. Cross-validation across Foursquare (Phase 7) + Google + owner + user reports already provides strong confidence; this phase adds predictive event signals and makes the fusion engine smarter over time.
 
-**Depends on:** Phase 6 (owner posting must exist)
+**Depends on:** Phase 7 (Signal Fusion Engine + Foursquare baseline must be live)
 
 ### Backend
 
-- [ ] Implement server-side `TrustEngine` Lambda (or layer)
-  - Input: owner status + recent user reports (last 45 min) + historical average
-  - Per-report trust weight: `accountAgeFactor × proximityFactor × historyFactor`
+- [ ] Event data integration (Ticketmaster + Eventbrite — free APIs)
+  - Fetch events per metro area daily, cache with 6h TTL
+  - Modifier signal: major event ending within 30min & 1km of venue → +20% busyness prediction
+  - "Raptors game ends at 10pm → nearby bars packed by 10:15" — predictive signal no competitor has
+- [ ] Per-report trust weight refinement in fusion engine
+  - `accountAgeFactor × proximityFactor × historyFactor` applied to each user report signal
     - Account age: 0.2 (<7d), 0.6 (<30d), 1.0 (30d+)
     - Proximity: 1.0 (<50m), 0.8 (<100m), 0.5 (<200m), reject (>200m)
     - History: user's reliabilityScore / 100 (min 0.3)
-  - Merge logic: weighted average of owner status (70% base) and user reports
-  - Conflict detection: |ownerWait - userAvg| > 15 min AND 3+ reports → flag conflict
-- [ ] `GET /v1/restaurants/:id` — returns merged trust output (displayedWait, confidence, source, conflictDetected, ownerWait, userReportedWait)
-- [ ] `GET /v1/restaurants/nearby?lat=&lng=&radius=` — list venues with computed wait (public endpoint)
+- [ ] Venue-specific calibration: learn correction factors over time
+  - "Google says 0.7 but users consistently report 0.85 here" → venue-specific adjustment
+  - Store in `RESTAURANT#<id>/CALIBRATION` entity
+- [ ] Cross-source confidence escalation
+  - When Foursquare + Google + user reports agree within 0.15 → VERY_HIGH confidence
+  - Source divergence alerts for data quality monitoring
 
 ### iOS App
 
-- [ ] Update venue detail sheet for trust engine output
-  - Show confidence source badge: "Owner verified" / "User reported" / "Estimated"
+- [ ] Update venue detail sheet for multi-source confidence
+  - Show confidence source badge: "Verified" (3+ sources) / "Confirmed" (2+) / "Likely" (1) / "Estimated"
   - On conflict: show both numbers — "Owner: 15 min · Users reporting: ~40 min"
-  - Color-code confidence: green (high) → yellow (medium) → gray (estimated)
-- [ ] Update map markers to reflect trust-engine confidence visually
+  - Color-code: green (Verified/Confirmed) → yellow (Likely) → gray (Estimated)
+- [ ] Update map markers to reflect confidence level visually
+- [ ] Source breakdown on venue detail: "Based on: Owner status, 5 user reports, Google data"
 
 ---
 
 ## Phase 9 — Revenue & Monetization
 
-**Goal:** Activate the two launch-ready revenue streams from the pitch deck. Start generating MRR.
+**Goal:** Activate the two launch-ready revenue streams from the pitch deck. Start generating MRR. POS integration tied to Pro tier creates the ultimate data advantage.
 
 **Depends on:** Phase 6 (owner accounts)
 
@@ -175,7 +206,7 @@ Everything below is built, deployed, and working.
 - [ ] Pricing tiers in backend (Free / Basic $29 / Pro $59 / Multi $99)
   - Free: basic status posting, 5 user reports/day, Venuu listing badge
   - Basic: unlimited updates, full report feed, custom messages, priority support
-  - Pro: promoted placement slot, busy-hour analytics, monthly reliability report
+  - Pro: POS integration (automatic status), promoted placement slot, busy-hour analytics, monthly reliability report
   - Multi: up to 5 locations, group analytics, API access, SLA support
 - [ ] Stripe integration for subscription billing
 - [ ] Tier-gated features in Lambda (check subscription level on each request)
@@ -190,9 +221,19 @@ Everything below is built, deployed, and working.
 - [ ] Billing: CPM or flat weekly rate per zone
 - [ ] "Promoted" label visible to users (transparency)
 
+### POS Integration (Pro Tier Upsell)
+
+- [ ] Square POS integration — OAuth flow, webhook receiver Lambda
+  - "Connect your POS and never manually update again" — convenience feature for owners
+  - Transaction velocity → busyness signal (weight: 0.85, ground truth)
+  - Even 20% of venues with POS connected calibrates the model for ALL venues
+- [ ] Toast POS API integration (second POS)
+- [ ] "Connect your POS" step in owner settings / profile
+- [ ] OpenTable partnership pursuit (BD, not engineering) — reservation data if accessible
+
 ### Data API (Year 2)
 
-- [ ] Aggregated, anonymized wait-time trends API
+- [ ] Aggregated, anonymized wait-time trends API — powered by multi-source fused data
 - [ ] Tiered access: $500–$5k/mo
 - [ ] Target customers: hospitality platforms, booking apps, city planners
 
@@ -200,15 +241,16 @@ Everything below is built, deployed, and working.
 
 ## Phase 10 — Reliability Scoring & Anti-Cheat
 
-**Goal:** Reward accurate owners. Penalize gaming. Build the data moat that makes Venuu impossible to replicate.
+**Goal:** Reward accurate owners. Penalize gaming. Cross-source validation makes reliability scores far more robust than user upvotes alone.
 
-**Depends on:** Phase 8 (trust engine)
+**Depends on:** Phase 8 (cross-validation signals)
 
 ### Backend
 
 - [ ] `POST /v1/reports/:id/upvote` — upvote a report as accurate
 - [ ] `POST /v1/reports/:id/dispute` — flag a report as inaccurate
 - [ ] EventBridge nightly job (3am): calculate reliability scores
+  - Cross-source validation: compare owner-posted status against Google + user reports + POS data (if connected)
   - Per venue: `(confirmedPosts / (confirmed + disputed)) × 100`
   - Band: HIGH (≥80), MEDIUM (≥50), LOW (<50)
   - Store in `RESTAURANT#<id>/RELIABILITY#<weekYear>`
@@ -254,15 +296,25 @@ Everything below is built, deployed, and working.
 
 These are not committed phases — evaluate after launch data comes in.
 
+### Data Intelligence
+- **ML prediction model** — train on 6+ months of multi-source data to predict busyness 1-2 hours ahead. Use historical patterns + current signals + weather + events as features. The ultimate moat.
+- **SafeGraph / Placer.ai** — foot traffic analytics for model calibration ($1K+/mo, evaluate post-revenue)
+- **Public transit feeds (GTFS-RT)** — high ridership at nearby station = incoming foot traffic. Cool differentiator, complex to calibrate.
+- **Historical trends** — "This venue is usually busy at this time" with chart (partially available from Google Popular Times data already integrated)
+
+### User Features
 - **Push notifications for users** — "Your saved venue just posted 'No wait'"
 - **Wait time notifications** — "Alert me when wait drops below 15 min"
 - **Social features** — "X friends are at this venue" (requires opt-in location sharing)
+- **Search improvements** — full-text venue search, cuisine filters, "open now" filter
+- **Photo upload for venues** — presigned S3 PUT → `venuu-media/restaurants/<id>/photos/`
+
+### Growth & Expansion
 - **Owner referral program** — refer an owner → 2 months free (from GTM strategy)
 - **Venuu Verified SEO badge** — owners add badge to Google listing for inbound discovery
 - **Second city expansion** — replicate pilot playbook; target 230+ paying owners for break-even
 - **Android app** — evaluate after iOS proves PMF
-- **Search improvements** — full-text venue search, cuisine filters, "open now" filter
-- **Historical trends** — "This venue is usually busy at this time" with chart
 - **Multi-language support** — for expansion beyond English-speaking markets
-- **Photo upload for venues** — presigned S3 PUT → `venuu-media/restaurants/<id>/photos/`
+
+### Infrastructure
 - **ElastiCache (Redis)** — computed wait time caching (60s TTL), evaluate if needed at scale

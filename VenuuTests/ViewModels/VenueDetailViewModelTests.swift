@@ -19,11 +19,12 @@ struct VenueDetailViewModelTests {
         #expect(vm.estimate.reportCount == 5)
     }
 
-    @Test("Estimate falls back to heuristic when venue has no busyness")
-    func estimateFallsBackToHeuristicWhenNoBusyness() {
+    @Test("Estimate falls back to offline default when venue has no busyness")
+    func estimateFallsBackToOfflineDefaultWhenNoBusyness() {
         let venue = TestFactories.makeVenue(busyness: nil)
         let vm = VenueDetailViewModel(venue: venue)
-        #expect(vm.estimate.confidence == .estimated)
+        #expect(vm.estimate.confidence == .none)
+        #expect(vm.estimate.level == .moderate)
     }
 
     @Test("reportSubmitted starts as false")
