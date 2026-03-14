@@ -5,6 +5,8 @@
 
 This file tracks what is built, what comes next, and the order to build it. Each phase is independently deployable. Tasks are ordered by dependency and business priority.
 
+**Target: App Store launch Q2 2026.** Phases are ordered to get a production-ready, two-sided marketplace live as fast as possible. Infrastructure is built for scale from day one — no retroactive migrations.
+
 ---
 
 ## Completed (Phases 1–5)
@@ -35,28 +37,46 @@ Everything below is built, deployed, and working.
 
 ---
 
-## Phase 6 — Owner Posting & Venue Claiming
+## Phase 6 — Owner Ecosystem (Posting + Onboarding + Claiming)
 
-**Goal:** Enable venue owners to post live wait status from the app. This unlocks the two-sided marketplace and the core pitch: "owner-posted and GPS-verified."
+**Goal:** Enable the two-sided marketplace end-to-end — owners can apply, get verified, claim their venue, and post live wait status. This is the product differentiator and the foundation for revenue.
 
-**Priority:** HIGHEST — this is the product differentiator and the foundation for revenue.
+**Priority:** HIGHEST — nothing else matters until this works.
+
+**Why merged:** Owner posting (old Phase 6) requires owners to exist, which requires onboarding (old Phase 8). Shipping them separately creates a broken state. Build the full owner pipeline in one phase.
 
 ### Backend
 
 - [ ] Migrate to single-table DynamoDB schema (`venuu-main`) with PK/SK composite keys
   - Entity patterns: `USER#<id>/PROFILE`, `RESTAURANT#<id>/PROFILE`, `RESTAURANT#<id>/STATUS#CURRENT`, etc.
-  - Add GSI1 (ByStatus), GSI2 (ByOwner), GSI3 (ByGeohash)
+  - Add GSI1 (ByStatus), GSI2 (ByOwner), GSI3 (ByGeohash — geohash5, ~5km cells)
+  - **Geohash is built into the schema from day one** — no future migration needed. Use `ngeohash` to encode lat/lng at precision 5. Lambda post-filters by Haversine.
 - [ ] Add `role` field to Cognito custom attributes (`CUSTOMER` | `OWNER` | `ADMIN`)
 - [ ] Create `Restaurant` entity in DynamoDB (restaurantId, ownerId, name, address, lat/lng, geohash5, hours, photos, isVerified)
+- [ ] `POST /v1/auth/owner-apply` — submit application (venue name, address, Google Maps URL/Place ID, optional verification doc)
+- [ ] `POST /v1/auth/owner-approve` — admin approves/rejects (ADMIN role only)
+  - On approve: update Cognito role to OWNER, create Restaurant entity, link to user
+  - Send SES email notification to applicant
+- [ ] S3 upload flow for verification documents
+  - Lambda generates presigned PUT URL
+  - Client uploads directly to `venuu-media/applications/<appId>/verification.pdf`
+  - Private bucket policy — admin-only access via signed URLs
 - [ ] `POST /v1/restaurants/:id/status` — owner posts wait status (waitMinutes, statusLabel, customMessage)
   - Preset labels: NO_WAIT, SHORT, MODERATE, LONG, FULLY_BOOKED, CLOSED
   - Auto-expires after 90 minutes (TTL), shown as "Possibly outdated" to users
   - Auth: OWNER role + must own the restaurant
 - [ ] `GET /v1/restaurants/:id/status` — current status + recent history
 - [ ] `DELETE /v1/restaurants/:id/status` — clear current status
+- [ ] Write migration Lambda to copy existing VenueReports/UserProfiles into `venuu-main` single-table format
+- [ ] Keep old tables active during migration; cut over when verified
 
 ### iOS App
 
+- [ ] "Claim your venue" flow accessible from profile or venue detail sheet
+  - Step 1: Search/select venue (MapKit search or manual entry)
+  - Step 2: Enter business details (name, address, Google URL)
+  - Step 3: Optional document upload (utility bill / business license)
+  - Step 4: Confirmation screen ("We'll review within 24–48 hours")
 - [ ] Add owner tab (visible only when user role = OWNER)
   - Current posted status display
   - One-tap preset buttons: "No wait" · "15 min" · "30 min" · "45 min" · "60+ min" · "Fully booked"
@@ -71,15 +91,51 @@ Everything below is built, deployed, and working.
   - Owner stale + user reports: show user average, MEDIUM confidence
   - No owner + reports: current behavior
   - No data: heuristic only, ESTIMATED confidence
-
-### Data Migration
-
-- [ ] Write migration Lambda to copy existing VenueReports/UserProfiles into `venuu-main` single-table format
-- [ ] Keep old tables active during migration; cut over when verified
+- [ ] Push notification on owner application approval/rejection (APNs via SNS)
+- [ ] Profile screen: show "Owner" badge and linked venue when verified
 
 ---
 
-## Phase 7 — Trust Engine & Conflict Detection
+## Phase 7 — Launch Hardening & App Store Submission
+
+**Goal:** Production-harden the app and infrastructure. Ship to the App Store. Seed the pilot district. The app must feel polished, trustworthy, and complete on day one.
+
+**Depends on:** Phase 6 (owner ecosystem must be live for the two-sided launch)
+
+### Infrastructure
+
+- [ ] AWS WAF on API Gateway (rate limiting, bot protection)
+- [ ] CloudWatch alarms: Lambda errors, DynamoDB throttling, API 5xx rate
+- [ ] CloudFront CDN for S3 assets
+- [ ] GPS verification for user reports (launch-critical anti-cheat)
+  - Reject reports from accounts >200m from venue
+  - Weight by proximity: 1.0 (<50m), 0.8 (<100m), 0.5 (<200m)
+- [ ] New account throttling: reports from accounts <7 days old weighted at 20%
+- [ ] Push notification infrastructure (APNs via SNS) for owner alerts and user engagement
+
+### iOS App
+
+- [ ] App Store metadata, screenshots, description
+- [ ] Privacy policy and terms of service screens
+- [ ] Onboarding tutorial (first-launch walkthrough)
+- [ ] Favorites / saved venues — bookmark venues for quick access, show on Discover tab
+- [ ] Deep links (open venue detail from shared URL)
+- [ ] Haptic polish pass across all interactions
+- [ ] Accessibility audit (VoiceOver, Dynamic Type)
+- [ ] Analytics integration (track key events: search, report submit, venue tap, owner status post)
+- [ ] New account onboarding: explain that report influence grows with account age
+
+### Launch Strategy (from pitch deck)
+
+- [ ] Seed one dense walkable district (20–30 restaurants)
+- [ ] Contact owners personally, offer 6 months free Pro
+- [ ] Partner with local food bloggers + neighbourhood groups
+- [ ] Target: 15 posting owners, 200 DAU in pilot zone
+- [ ] Geo-targeted social: "Know before you go in [City]"
+
+---
+
+## Phase 8 — Trust Engine & Conflict Detection
 
 **Goal:** Merge owner and user data intelligently. Surface conflicts transparently. Build user trust in the displayed wait time.
 
@@ -108,101 +164,17 @@ Everything below is built, deployed, and working.
 
 ---
 
-## Phase 8 — Owner Onboarding & Verification
+## Phase 9 — Revenue & Monetization
 
-**Goal:** Let venue owners apply for owner status in-app. Admin reviews and approves. This is the sales funnel entry point.
+**Goal:** Activate the two launch-ready revenue streams from the pitch deck. Start generating MRR.
 
-**Depends on:** Phase 6 (role system must exist)
-
-### Backend
-
-- [ ] `POST /v1/auth/owner-apply` — submit application (venue name, address, Google Maps URL/Place ID, optional verification doc)
-- [ ] `POST /v1/auth/owner-approve` — admin approves/rejects (ADMIN role only)
-  - On approve: update Cognito role to OWNER, create Restaurant entity, link to user
-  - Send SES email notification to applicant
-- [ ] S3 upload flow for verification documents
-  - Lambda generates presigned PUT URL
-  - Client uploads directly to `venuu-media/applications/<appId>/verification.pdf`
-  - Private bucket policy — admin-only access via signed URLs
-
-### iOS App
-
-- [ ] "Claim your venue" flow accessible from profile or venue detail sheet
-  - Step 1: Search/select venue (MapKit search or manual entry)
-  - Step 2: Enter business details (name, address, Google URL)
-  - Step 3: Optional document upload (utility bill / business license)
-  - Step 4: Confirmation screen ("We'll review within 24–48 hours")
-- [ ] Push notification on approval/rejection (APNs via SNS)
-- [ ] Profile screen: show "Owner" badge and linked venue when verified
-
----
-
-## Phase 9 — Web Dashboard (Owner Host Stand)
-
-**Goal:** Tablet-friendly web app for the host stand. Owners update wait status without pulling out their phone. Real-time feed of user reports.
-
-**Depends on:** Phase 6 (owner posting), Phase 8 (owner accounts)
-
-### Infrastructure
-
-- [ ] React app hosted on AWS Amplify
-- [ ] Cognito auth (same user pool as iOS)
-- [ ] API Gateway WebSocket endpoint for real-time updates
-  - `$connect` / `$disconnect` — owner connection management (store in DynamoDB: `CONNECTION#<connId>/OWNER#<ownerId>`)
-  - `reportReceived` — push new user report to connected owner
-  - `disputeAlert` — push when conflict threshold reached
-
-### Dashboard Features
-
-- [ ] Large status display (readable from 3+ feet away)
-- [ ] One-click update buttons matching mobile presets
-- [ ] Live feed of incoming user reports (WebSocket)
-- [ ] Dispute banner: "X users are reporting a longer wait than you posted"
-- [ ] Weekly reliability score display
-- [ ] Venue profile editor: hours, cuisine, photos, description
-
----
-
-## Phase 10 — Anti-Cheat & Reliability Scoring
-
-**Goal:** Prevent gaming. Reward accurate owners. Build the data moat.
-
-**Depends on:** Phase 7 (trust engine)
-
-### Backend
-
-- [ ] GPS verification for user reports
-  - Reject reports from accounts >200m from venue
-  - Weight by proximity: 1.0 (<50m) → 0.5 (200m)
-- [ ] New account throttling: reports from accounts <7 days old weighted at 20%
-- [ ] `POST /v1/reports/:id/upvote` — upvote a report as accurate
-- [ ] `POST /v1/reports/:id/dispute` — flag a report as inaccurate
-- [ ] EventBridge nightly job (3am): calculate reliability scores
-  - Per venue: `(confirmedPosts / (confirmed + disputed)) × 100`
-  - Band: HIGH (≥80), MEDIUM (≥50), LOW (<50)
-  - Store in `RESTAURANT#<id>/RELIABILITY#<weekYear>`
-- [ ] Reliability badge shown on venue (high-trust venues get "Venuu Verified" badge)
-- [ ] SNS push to owner on conflict detection (3+ reports disagree with posted status)
-
-### iOS App
-
-- [ ] Show reliability badge on venue detail sheet and markers
-- [ ] Report upvote/dispute buttons on venue detail sheet
-- [ ] New account onboarding: explain that report influence grows with account age
-
----
-
-## Phase 11 — Revenue & Monetization
-
-**Goal:** Activate the three revenue streams from the pitch deck.
-
-**Depends on:** Phase 8 (owner accounts), Phase 9 (dashboard)
+**Depends on:** Phase 6 (owner accounts)
 
 ### Owner SaaS Subscriptions
 
 - [ ] Pricing tiers in backend (Free / Basic $29 / Pro $59 / Multi $99)
   - Free: basic status posting, 5 user reports/day, Venuu listing badge
-  - Basic: unlimited updates, full report feed, host-stand dashboard, custom messages, priority support
+  - Basic: unlimited updates, full report feed, custom messages, priority support
   - Pro: promoted placement slot, busy-hour analytics, monthly reliability report
   - Multi: up to 5 locations, group analytics, API access, SLA support
 - [ ] Stripe integration for subscription billing
@@ -226,35 +198,55 @@ Everything below is built, deployed, and working.
 
 ---
 
-## Phase 12 — Polish & App Store Launch
+## Phase 10 — Reliability Scoring & Anti-Cheat
 
-**Goal:** Production hardening, App Store submission, launch in pilot district.
+**Goal:** Reward accurate owners. Penalize gaming. Build the data moat that makes Venuu impossible to replicate.
 
-### Infrastructure
+**Depends on:** Phase 8 (trust engine)
 
-- [ ] CloudFront CDN for S3 assets and web dashboard
-- [ ] AWS WAF on API Gateway (rate limiting, bot protection)
-- [ ] CloudWatch alarms: Lambda errors, DynamoDB throttling, API 5xx rate
-- [ ] ElastiCache (Redis) for computed wait time caching (60s TTL) — optional, evaluate if needed at scale
+### Backend
+
+- [ ] `POST /v1/reports/:id/upvote` — upvote a report as accurate
+- [ ] `POST /v1/reports/:id/dispute` — flag a report as inaccurate
+- [ ] EventBridge nightly job (3am): calculate reliability scores
+  - Per venue: `(confirmedPosts / (confirmed + disputed)) × 100`
+  - Band: HIGH (≥80), MEDIUM (≥50), LOW (<50)
+  - Store in `RESTAURANT#<id>/RELIABILITY#<weekYear>`
+- [ ] Reliability badge shown on venue (high-trust venues get "Venuu Verified" badge)
+- [ ] SNS push to owner on conflict detection (3+ reports disagree with posted status)
 
 ### iOS App
 
-- [ ] Photo upload for venues (presigned S3 PUT → `venuu-media/restaurants/<id>/photos/`)
-- [ ] App Store metadata, screenshots, description
-- [ ] Privacy policy and terms of service screens
-- [ ] Onboarding tutorial (first-launch walkthrough)
-- [ ] Deep links (open venue detail from shared URL)
-- [ ] Haptic polish pass across all interactions
-- [ ] Accessibility audit (VoiceOver, Dynamic Type)
-- [ ] Analytics integration (track key events: search, report submit, venue tap, owner status post)
+- [ ] Show reliability badge on venue detail sheet and markers
+- [ ] Report upvote/dispute buttons on venue detail sheet
 
-### Launch Strategy (from pitch deck)
+---
 
-- [ ] Seed one dense walkable district (20–30 restaurants)
-- [ ] Contact owners personally, offer 6 months free Pro
-- [ ] Partner with local food bloggers + neighbourhood groups
-- [ ] Target: 15 posting owners, 200 DAU in pilot zone
-- [ ] Geo-targeted social: "Know before you go in [City]"
+## Phase 11 — Web Dashboard (Owner Host Stand)
+
+**Goal:** Tablet-friendly web app for the host stand. Owners update wait status without pulling out their phone. Real-time feed of user reports.
+
+**Depends on:** Phase 6 (owner posting), Phase 9 (subscription tiers gate dashboard access)
+
+**Timeline:** Q3 2026 per pitch deck milestones.
+
+### Infrastructure
+
+- [ ] React app hosted on AWS Amplify
+- [ ] Cognito auth (same user pool as iOS)
+- [ ] API Gateway WebSocket endpoint for real-time updates
+  - `$connect` / `$disconnect` — owner connection management (store in DynamoDB: `CONNECTION#<connId>/OWNER#<ownerId>`)
+  - `reportReceived` — push new user report to connected owner
+  - `disputeAlert` — push when conflict threshold reached
+
+### Dashboard Features
+
+- [ ] Large status display (readable from 3+ feet away)
+- [ ] One-click update buttons matching mobile presets
+- [ ] Live feed of incoming user reports (WebSocket)
+- [ ] Dispute banner: "X users are reporting a longer wait than you posted"
+- [ ] Weekly reliability score display
+- [ ] Venue profile editor: hours, cuisine, photos, description
 
 ---
 
@@ -262,15 +254,15 @@ Everything below is built, deployed, and working.
 
 These are not committed phases — evaluate after launch data comes in.
 
-- **Geohash migration** — replace bounding-box geo queries with geohash5 GSI for scale (currently fine for single-district MVP)
 - **Push notifications for users** — "Your saved venue just posted 'No wait'"
-- **Favorites / saved venues** — bookmark venues for quick access
+- **Wait time notifications** — "Alert me when wait drops below 15 min"
 - **Social features** — "X friends are at this venue" (requires opt-in location sharing)
 - **Owner referral program** — refer an owner → 2 months free (from GTM strategy)
 - **Venuu Verified SEO badge** — owners add badge to Google listing for inbound discovery
 - **Second city expansion** — replicate pilot playbook; target 230+ paying owners for break-even
 - **Android app** — evaluate after iOS proves PMF
 - **Search improvements** — full-text venue search, cuisine filters, "open now" filter
-- **Wait time notifications** — "Alert me when wait drops below 15 min"
 - **Historical trends** — "This venue is usually busy at this time" with chart
 - **Multi-language support** — for expansion beyond English-speaking markets
+- **Photo upload for venues** — presigned S3 PUT → `venuu-media/restaurants/<id>/photos/`
+- **ElastiCache (Redis)** — computed wait time caching (60s TTL), evaluate if needed at scale
