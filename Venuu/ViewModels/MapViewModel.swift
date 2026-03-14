@@ -20,7 +20,8 @@ final class MapViewModel: ObservableObject {
 
     private let searchService = VenueSearchService()
     private let busynessEngine = BusynessEngine.shared
-    private var lastSearchedRegion: MKCoordinateRegion?
+    /// The region used for the most recent search (internal for testability).
+    internal var lastSearchedRegion: MKCoordinateRegion?
     private var searchTask: Task<Void, Never>?
     private var refreshTimer: Task<Void, Never>?
 
@@ -94,11 +95,21 @@ final class MapViewModel: ObservableObject {
     /// Called when user pans/zooms the map
     func onRegionChanged(_ region: MKCoordinateRegion) {
         guard let last = lastSearchedRegion else { return }
+
+        // Check center movement
         let latDelta = abs(region.center.latitude - last.center.latitude)
         let lngDelta = abs(region.center.longitude - last.center.longitude)
+        let centerMoved = latDelta > AppConstants.searchThisAreaThreshold
+            || lngDelta > AppConstants.searchThisAreaThreshold
 
-        if latDelta > AppConstants.searchThisAreaThreshold
-            || lngDelta > AppConstants.searchThisAreaThreshold {
+        // Check zoom change (span ratio > 1.5 means meaningful zoom in/out)
+        let zoomChanged: Bool = {
+            guard last.span.latitudeDelta > 0 else { return false }
+            let ratio = region.span.latitudeDelta / last.span.latitudeDelta
+            return ratio > 1.5 || ratio < (1.0 / 1.5)
+        }()
+
+        if centerMoved || zoomChanged {
             showSearchThisArea = true
         }
     }
