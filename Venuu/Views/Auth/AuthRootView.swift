@@ -4,13 +4,14 @@ import Authenticator
 
 struct AuthRootView: View {
 
-    enum AuthScreen {
+    enum Screen {
         case onboarding
-        case signUp
-        case signIn
+        case browsing     // guest mode — map is visible
+        case authenticator
     }
 
-    @State private var screen: AuthScreen = .onboarding
+    @EnvironmentObject private var authState: AuthState
+    @State private var screen: Screen = .onboarding
     @State private var keyboardVisible = false
 
     var body: some View {
@@ -20,20 +21,43 @@ struct AuthRootView: View {
                 OnboardingView(
                     onGetStarted: {
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                            screen = .signUp
+                            screen = .browsing
                         }
                     },
                     onLogIn: {
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                            screen = .signIn
+                            screen = .authenticator
                         }
                     }
                 )
                 .transition(.opacity.combined(with: .move(edge: .leading)))
 
-            case .signUp, .signIn:
+            case .browsing:
+                MainTabView()
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+
+            case .authenticator:
                 authenticatorView
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
+        }
+        .onAppear {
+            // If user is already signed in (returning session), skip onboarding
+            if authState.isSignedIn {
+                screen = .browsing
+            }
+
+            // Let any child trigger sign-in from guest mode
+            authState.onRequestSignIn = { [self] in
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                    screen = .authenticator
+                }
+            }
+        }
+        .task {
+            await authState.checkCurrentSession()
+            if authState.isSignedIn {
+                screen = .browsing
             }
         }
     }
@@ -50,7 +74,7 @@ struct AuthRootView: View {
                 HStack {
                     Button {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                            screen = .onboarding
+                            screen = .browsing
                         }
                     } label: {
                         HStack(spacing: 6) {
@@ -75,13 +99,14 @@ struct AuthRootView: View {
                     .animation(.easeOut(duration: 0.25), value: keyboardVisible)
 
                 Authenticator { state in
-                    MainTabView(
-                        username: state.user.username,
-                        onSignOut: {
-                            Task { await state.signOut() }
+                    // Amplify says we're signed in — update AuthState and go to map
+                    Color.clear
+                        .onAppear {
+                            authState.didSignIn(username: state.user.username)
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                                screen = .browsing
+                            }
                         }
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
                 .authenticatorTheme(Self.theme)
             }
@@ -121,17 +146,14 @@ struct AuthRootView: View {
     private static let theme: AuthenticatorTheme = {
         var t = AuthenticatorTheme()
 
-        // Transparent backgrounds so gradient shows through
         t.colors.background.primary   = .clear
         t.colors.background.secondary = .clear
         t.colors.background.tertiary  = .clear
         t.components.authenticator.backgroundColor = .clear
 
-        // Input fields
         t.components.field.backgroundColor = Color.white.opacity(0.92)
         t.components.field.cornerRadius = 12
 
-        // Buttons
         t.components.button.primary.cornerRadius = 16
         t.components.button.primary.padding = 16
 

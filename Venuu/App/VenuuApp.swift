@@ -6,6 +6,7 @@ import AWSCognitoAuthPlugin
 struct VenuuApp: App {
 
     @StateObject private var locationService = LocationService()
+    @StateObject private var authState = AuthState()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -16,6 +17,7 @@ struct VenuuApp: App {
         WindowGroup {
             AuthRootView()
                 .environmentObject(locationService)
+                .environmentObject(authState)
                 .onChange(of: scenePhase) { _, newPhase in
                     switch newPhase {
                     case .active:
@@ -33,7 +35,7 @@ struct VenuuApp: App {
         do {
             try Amplify.add(plugin: AWSCognitoAuthPlugin())
             try Amplify.configure()
-            print("[Venuu] Amplify configured ✓")
+            print("[Venuu] Amplify configured")
         } catch {
             print("[Venuu] Amplify failed: \(error)")
         }

@@ -5,7 +5,9 @@ struct VenueDetailSheet: View {
 
     let venue: Venue
     @StateObject private var viewModel: VenueDetailViewModel
+    @EnvironmentObject private var authState: AuthState
     @Environment(\.dismiss) private var dismiss
+    @State private var showAuthGate = false
 
     init(venue: Venue) {
         self.venue = venue
@@ -41,6 +43,12 @@ struct VenueDetailSheet: View {
                 Task { await viewModel.submitReport(level: level, waitMinutes: wait) }
             }
             .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showAuthGate) {
+            AuthGateSheet {
+                authState.requestSignIn()
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -169,7 +177,11 @@ struct VenueDetailSheet: View {
 
     private var reportButton: some View {
         Button {
-            viewModel.showReportSheet = true
+            if authState.isSignedIn {
+                viewModel.showReportSheet = true
+            } else {
+                showAuthGate = true
+            }
         } label: {
             Label(
                 viewModel.reportSubmitted ? "Thanks! Report again?" : "How busy is it?",
