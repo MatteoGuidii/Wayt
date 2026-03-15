@@ -13,6 +13,9 @@ final class AuthState: ObservableObject {
     /// Callback set by AuthRootView so guest→sign-in can be triggered from anywhere.
     var onRequestSignIn: (() -> Void)?
 
+    /// Fired before navigating to auth so sheets/overlays can dismiss first.
+    @Published private(set) var dismissSheets = false
+
     // MARK: - Check Session
 
     /// Call on launch to see if the user already has a valid Cognito session.
@@ -44,7 +47,13 @@ final class AuthState: ObservableObject {
     }
 
     /// Prompts the sign-in flow from wherever the user is.
+    /// Dismisses any presented sheets first, then navigates after a short delay.
     func requestSignIn() {
-        onRequestSignIn?()
+        dismissSheets = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
+            dismissSheets = false
+            onRequestSignIn?()
+        }
     }
 }

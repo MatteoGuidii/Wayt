@@ -36,10 +36,7 @@ struct AuthGateSheet: View {
             VStack(spacing: 10) {
                 Button(action: {
                     dismiss()
-                    // Small delay so dismiss animation completes before navigating
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        onSignUp()
-                    }
+                    onSignUp()
                 }) {
                     Text("Create account")
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
