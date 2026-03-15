@@ -83,7 +83,7 @@ struct AuthRootView: View {
                             Text("Back")
                                 .font(.system(size: 16, weight: .medium))
                         }
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(VenuuTheme.steel.opacity(0.8))
                     }
                     .padding(.leading, 20)
                     .padding(.top, 8)
@@ -131,11 +131,11 @@ struct AuthRootView: View {
 
             Text("Venuu")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(VenuuTheme.steel)
 
             Text("Know before you go.")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(VenuuTheme.steel.opacity(0.7))
         }
         .padding(.top, 12)
         .padding(.bottom, 4)

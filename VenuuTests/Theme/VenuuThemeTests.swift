@@ -7,19 +7,19 @@ struct VenuuThemeTests {
 
     // MARK: - Brand Colors
 
-    @Test("primaryPurple is a valid color (non-clear)")
-    func primaryPurpleIsValid() {
-        #expect(VenuuTheme.primaryPurple != Color.clear)
+    @Test("amber is a valid color (non-clear)")
+    func amberIsValid() {
+        #expect(VenuuTheme.amber != Color.clear)
     }
 
-    @Test("primaryBlue is a valid color (non-clear)")
-    func primaryBlueIsValid() {
-        #expect(VenuuTheme.primaryBlue != Color.clear)
+    @Test("steel is a valid color (non-clear)")
+    func steelIsValid() {
+        #expect(VenuuTheme.steel != Color.clear)
     }
 
-    @Test("primaryPurple and primaryBlue are distinct colors")
+    @Test("amber and steel are distinct colors")
     func brandColorsAreDistinct() {
-        #expect(VenuuTheme.primaryPurple != VenuuTheme.primaryBlue)
+        #expect(VenuuTheme.amber != VenuuTheme.steel)
     }
 
     // MARK: - Busyness Colors
@@ -44,7 +44,6 @@ struct VenuuThemeTests {
 
     @Test("Headline font size is positive")
     func headlineFontExists() {
-        // Font is a value type — verify it exists by confirming it's not broken
         let _ = VenuuTheme.headlineFont
     }
 
