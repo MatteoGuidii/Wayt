@@ -20,7 +20,8 @@ final class MapViewModel: ObservableObject {
 
     private let searchService = VenueSearchService()
     private let busynessEngine = BusynessEngine.shared
-    private var lastSearchedRegion: MKCoordinateRegion?
+    /// The region used for the most recent search (internal for testability).
+    internal var lastSearchedRegion: MKCoordinateRegion?
     private var searchTask: Task<Void, Never>?
     private var refreshTimer: Task<Void, Never>?
 
@@ -30,6 +31,10 @@ final class MapViewModel: ObservableObject {
     func searchVenues(in region: MKCoordinateRegion) {
         searchTask?.cancel()
         searchTask = Task {
+            // Brief debounce to coalesce rapid-fire calls (e.g. tab switching, fast panning)
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+
             isSearching = true
             errorMessage = nil
             showSearchThisArea = false
@@ -54,22 +59,26 @@ final class MapViewModel: ObservableObject {
 
                 print("[MapViewModel] Found \(results.count) venues")
 
-                // Apply busyness heuristics to each venue
+                // Overlay real reports (fetched in parallel)
+                let summaries = await reportsFuture
+                applyReports(summaries, to: &results)
+
+                // For venues without reports, apply offline fallback
                 results = results.map { venue in
+                    guard venue.busyness == nil else { return venue }
                     var v = venue
-                    let estimate = busynessEngine.estimate(venueType: v.type)
+                    let estimate = busynessEngine.estimateOffline()
                     v.busyness = estimate.level
                     v.busynessConfidence = estimate.confidence
                     return v
                 }
 
-                // Overlay real reports (already fetched in parallel)
-                let summaries = await reportsFuture
-                applyReports(summaries, to: &results)
-
-                venues = results
-                lastSearchedRegion = region
-                print("[MapViewModel] Loaded \(venues.count) venues with busyness")
+                // Only update if we got results — keep stale venues visible if rate-limited
+                if !results.isEmpty {
+                    venues = results
+                    lastSearchedRegion = region
+                }
+                print("[MapViewModel] Loaded \(results.count) venues with busyness")
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription
@@ -93,11 +102,21 @@ final class MapViewModel: ObservableObject {
     /// Called when user pans/zooms the map
     func onRegionChanged(_ region: MKCoordinateRegion) {
         guard let last = lastSearchedRegion else { return }
+
+        // Check center movement
         let latDelta = abs(region.center.latitude - last.center.latitude)
         let lngDelta = abs(region.center.longitude - last.center.longitude)
+        let centerMoved = latDelta > AppConstants.searchThisAreaThreshold
+            || lngDelta > AppConstants.searchThisAreaThreshold
 
-        if latDelta > AppConstants.searchThisAreaThreshold
-            || lngDelta > AppConstants.searchThisAreaThreshold {
+        // Check zoom change (span ratio > 1.5 means meaningful zoom in/out)
+        let zoomChanged: Bool = {
+            guard last.span.latitudeDelta > 0 else { return false }
+            let ratio = region.span.latitudeDelta / last.span.latitudeDelta
+            return ratio > 1.5 || ratio < (1.0 / 1.5)
+        }()
+
+        if centerMoved || zoomChanged {
             showSearchThisArea = true
         }
     }
@@ -139,14 +158,18 @@ final class MapViewModel: ObservableObject {
     /// Start periodic background refresh of busyness data (every 60s).
     /// Only refreshes report overlay — doesn't re-search MapKit.
     func startLiveRefresh() {
-        refreshTimer?.cancel()
+        // Prevent duplicate timers if .task re-fires on tab return
+        guard refreshTimer == nil else { return }
         refreshTimer = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(AppConstants.liveRefreshInterval))
-                guard !Task.isCancelled, !venues.isEmpty, let region = lastSearchedRegion else { continue }
+                guard !Task.isCancelled else { break }
 
-                // Invalidate cache so we get fresh data
-                ReportService.shared.invalidateCache()
+                // Skip refresh if app is backgrounded (saves battery + data)
+                guard UIApplication.shared.applicationState == .active else { continue }
+                guard !venues.isEmpty, let region = lastSearchedRegion else { continue }
+
+                // Let cache TTL handle staleness — no manual invalidation needed
                 var updated = venues
                 await overlayReports(on: &updated, region: region)
                 venues = updated

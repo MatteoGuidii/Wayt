@@ -10,7 +10,21 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     let id: String
     let name: String
     let coordinate: CLLocationCoordinate2D
-    let type: VenueType
+
+    // MARK: - Classification
+
+    /// Raw MapKit POI category for accurate internal classification and external API matching.
+    let poiCategory: MKPointOfInterestCategory?
+
+    /// Broad display category computed from MapKit POI category + name fallback.
+    var category: VenueCategory {
+        let fromPOI = VenueCategory.from(poiCategory: poiCategory)
+        // If POI mapped to generic .food, try refining from name
+        if fromPOI == .food {
+            return VenueCategory.from(name: name)
+        }
+        return fromPOI
+    }
 
     // MARK: - Metadata (from MapKit)
 
@@ -30,7 +44,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     // MARK: - Init from MKMapItem
 
     @MainActor
-    init(mapItem: MKMapItem, type: VenueType) {
+    init(mapItem: MKMapItem) {
         let venueName = mapItem.name ?? "Unknown Venue"
         let coord = mapItem.placemark.coordinate
         let lat = String(format: "%.5f", coord.latitude)
@@ -39,7 +53,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         self.id = "\(venueName.lowercased())_\(lat)_\(lng)"
         self.name = venueName
         self.coordinate = coord
-        self.type = type
+        self.poiCategory = mapItem.pointOfInterestCategory
         self.address = mapItem.placemark.formattedAddress
         self.phoneNumber = mapItem.phoneNumber
         self.url = mapItem.url
@@ -61,7 +75,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
 
 enum BusynessConfidence: String, Sendable {
     case none      // No data at all
-    case estimated // Heuristic only
+    case estimated // Heuristic / baseline only
     case low       // 1-2 user reports
     case high      // 3+ user reports
 

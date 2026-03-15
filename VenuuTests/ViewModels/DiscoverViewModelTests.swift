@@ -8,28 +8,29 @@ struct DiscoverViewModelTests {
 
     // MARK: - Category Filtering
 
-    @Test("selectCategory filters to matching type only")
-    func selectCategoryFiltersToType() {
+    @Test("selectCategory filters to matching category only")
+    func selectCategoryFiltersToCategory() {
         let vm = DiscoverViewModel()
         vm.venues = [
-            TestFactories.makeVenue(name: "Bar One",   type: .bar),
-            TestFactories.makeVenue(name: "Bar Two",   type: .bar),
-            TestFactories.makeVenue(name: "Restaurant", type: .restaurant)
+            TestFactories.makeVenue(name: "Cocktail Bar"),
+            TestFactories.makeVenue(name: "Wine Bar"),
+            TestFactories.makeVenue(name: "Pizza Place")
         ]
-        vm.selectCategory(.bar)
+        vm.selectCategory(.drinks)
+        // Venues with "bar" in name → .drinks category
         #expect(vm.filteredVenues.count == 2)
-        #expect(vm.filteredVenues.allSatisfy { $0.type == .bar })
+        #expect(vm.filteredVenues.allSatisfy { $0.category == .drinks })
     }
 
     @Test("selectCategory nil shows all venues")
     func selectCategoryNilShowsAll() {
         let vm = DiscoverViewModel()
         vm.venues = [
-            TestFactories.makeVenue(name: "Bar",        type: .bar),
-            TestFactories.makeVenue(name: "Cafe",       type: .cafe),
-            TestFactories.makeVenue(name: "Restaurant", type: .restaurant)
+            TestFactories.makeVenue(name: "Cocktail Bar"),
+            TestFactories.makeVenue(name: "Coffee Shop Cafe"),
+            TestFactories.makeVenue(name: "Pizza Place")
         ]
-        vm.selectCategory(.bar)
+        vm.selectCategory(.drinks)
         vm.selectCategory(nil)
         #expect(vm.filteredVenues.count == 3)
     }
@@ -37,17 +38,17 @@ struct DiscoverViewModelTests {
     @Test("selectCategory updates selectedCategory property")
     func selectCategoryUpdatesProp() {
         let vm = DiscoverViewModel()
-        vm.selectCategory(.cafe)
-        #expect(vm.selectedCategory == .cafe)
+        vm.selectCategory(.coffee)
+        #expect(vm.selectedCategory == .coffee)
         vm.selectCategory(nil)
         #expect(vm.selectedCategory == nil)
     }
 
-    @Test("Filtering by type with no matching venues returns empty")
+    @Test("Filtering by category with no matching venues returns empty")
     func filterWithNoMatchReturnsEmpty() {
         let vm = DiscoverViewModel()
-        vm.venues = [TestFactories.makeVenue(name: "Bar", type: .bar)]
-        vm.selectCategory(.club)
+        vm.venues = [TestFactories.makeVenue(name: "Pizza Place")]
+        vm.selectCategory(.nightlife)
         #expect(vm.filteredVenues.isEmpty)
     }
 

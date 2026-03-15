@@ -28,6 +28,8 @@ struct DiscoverScreen: View {
             }
         }
         .task {
+            // Skip re-loading on tab return when venues already exist
+            guard viewModel.venues.isEmpty else { return }
             await viewModel.loadVenues(near: locationService.userLocation)
         }
         .onChange(of: locationService.userLocation) { _, newLocation in
@@ -44,7 +46,7 @@ struct DiscoverScreen: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 categoryChip(label: "All", type: nil)
-                ForEach(VenueType.allCases, id: \.self) { type in
+                ForEach(VenueCategory.allCases, id: \.self) { type in
                     categoryChip(label: type.displayName, type: type, icon: type.icon)
                 }
             }
@@ -54,7 +56,7 @@ struct DiscoverScreen: View {
 
     private func categoryChip(
         label: String,
-        type: VenueType?,
+        type: VenueCategory?,
         icon: String? = nil
     ) -> some View {
         let isSelected = viewModel.selectedCategory == type

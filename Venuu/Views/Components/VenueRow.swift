@@ -12,12 +12,12 @@ struct VenueRow: View {
             // Venue type icon
             ZStack {
                 Circle()
-                    .fill(venue.type.color.opacity(0.15))
+                    .fill(venue.category.color.opacity(0.15))
                     .frame(width: 44, height: 44)
 
-                Image(systemName: venue.type.icon)
+                Image(systemName: venue.category.icon)
                     .font(.system(size: 18))
-                    .foregroundStyle(venue.type.color)
+                    .foregroundStyle(venue.category.color)
             }
 
             // Info
@@ -27,7 +27,7 @@ struct VenueRow: View {
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
-                    Text(venue.type.displayName)
+                    Text(venue.category.displayName)
                         .font(VenuuTheme.captionFont)
                         .foregroundStyle(.secondary)
 

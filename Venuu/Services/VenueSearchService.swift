@@ -1,7 +1,7 @@
 import Foundation
 import MapKit
 
-/// Lightweight wrapper around MKLocalSearch with result caching.
+/// Lightweight wrapper around MKLocalSearch with result caching and rate-limit protection.
 @MainActor
 final class VenueSearchService {
 
@@ -15,10 +15,53 @@ final class VenueSearchService {
 
     /// Per-query cache for recent search results (avoids redundant MapKit calls).
     private var queryCache: [String: CachedSearch] = [:]
-    private static let cacheTTL: TimeInterval = 120 // 2 minutes
+    private static let cacheTTL: TimeInterval = 300 // 5 minutes
+    private static let maxCacheEntries = 50
+
+    // MARK: - Rate Limiting (shared across all instances)
+
+    /// Timestamps of recent MapKit requests (sliding window). Static so all instances share the budget.
+    private static var requestTimestamps: [Date] = []
+    /// Apple enforces 50 requests / 60 seconds. Stay well under that.
+    private static let maxRequestsPerWindow = 40
+    private static let windowDuration: TimeInterval = 60
+
+    /// Returns true if we can safely make another request. Prunes stale timestamps.
+    private func canMakeRequest() -> Bool {
+        let cutoff = Date().addingTimeInterval(-Self.windowDuration)
+        Self.requestTimestamps.removeAll { $0 < cutoff }
+        return Self.requestTimestamps.count < Self.maxRequestsPerWindow
+    }
+
+    private func recordRequest() {
+        Self.requestTimestamps.append(Date())
+    }
+
+    // MARK: - Query Normalization & Cache
+
+    private func normalizedQuery(_ query: String) -> String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func pruneCacheIfNeeded() {
+        let now = Date()
+        queryCache = queryCache.filter { _, value in
+            now.timeIntervalSince(value.timestamp) < Self.cacheTTL
+        }
+        if queryCache.count > Self.maxCacheEntries {
+            let sortedKeys = queryCache.keys.sorted { lhs, rhs in
+                (queryCache[lhs]?.timestamp ?? .distantPast) < (queryCache[rhs]?.timestamp ?? .distantPast)
+            }
+            for key in sortedKeys.prefix(queryCache.count - Self.maxCacheEntries) {
+                queryCache.removeValue(forKey: key)
+            }
+        }
+    }
 
     private func cachedResults(for query: String, region: MKCoordinateRegion) -> [Venue]? {
-        guard let entry = queryCache[query],
+        pruneCacheIfNeeded()
+        let cacheKey = normalizedQuery(query)
+        guard let entry = queryCache[cacheKey],
               Date().timeIntervalSince(entry.timestamp) < Self.cacheTTL,
               entry.region.isClose(to: region) else {
             return nil
@@ -53,6 +96,19 @@ final class VenueSearchService {
             return cached
         }
 
+        // Rate-limit guard — wait for budget to free up instead of dropping the query
+        if !canMakeRequest() {
+            print("[VenueSearchService] Rate limit guard: waiting before '\(query)'")
+            try await Task.sleep(for: .seconds(5))
+            // Re-check after wait; if still exhausted, skip
+            guard canMakeRequest() else {
+                print("[VenueSearchService] Rate limit guard: skipping '\(query)'")
+                return []
+            }
+        }
+
+        recordRequest()
+
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
         request.region = region
@@ -75,84 +131,98 @@ final class VenueSearchService {
                 return nil
             }
 
-            let venueType = Self.classify(item)
-            return Venue(mapItem: item, type: venueType)
+            // Filter to venues within the search region (MKLocalSearch returns results beyond it)
+            let coord = item.placemark.coordinate
+            if !region.contains(coord) {
+                return nil
+            }
+
+            return Venue(mapItem: item)
         }
 
-        queryCache[query] = CachedSearch(region: region, results: venues, timestamp: Date())
+        pruneCacheIfNeeded()
+        queryCache[normalizedQuery(query)] = CachedSearch(region: region, results: venues, timestamp: Date())
         return venues
     }
 
-    /// Search multiple venue types concurrently and deduplicate results.
+    /// Search multiple venue types in staggered batches and deduplicate results.
+    ///
+    /// Uses 6 broad queries in 2 batches of 3 to stay well under Apple's 50-req/60s limit
+    /// while still discovering a wide variety of venues.
     func searchAllTypes(region: MKCoordinateRegion) async -> [Venue] {
-        let queries = ["restaurant", "bar", "cafe", "nightclub", "lounge", "pub"]
+        // 6 broad queries that cover restaurants, bars, cafes, nightlife, etc.
+        let batches: [[String]] = [
+            ["restaurant", "bar", "cafe"],
+            ["nightclub", "pub", "bakery"]
+        ]
 
-        // Fire all 6 searches in parallel
-        let allResults = await withTaskGroup(of: [Venue].self) { group in
-            for query in queries {
-                group.addTask {
-                    do {
-                        return try await self.search(query: query, region: region)
-                    } catch {
-                        print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
-                        return []
-                    }
-                }
-            }
-
-            var collected: [[Venue]] = []
-            for await batch in group {
-                collected.append(batch)
-            }
-            return collected
-        }
-
-        // Deduplicate and cap
         var seen = Set<String>()
         var results: [Venue] = []
-        for batch in allResults {
-            for venue in batch where !seen.contains(venue.id) {
+
+        for batch in batches {
+            let batchResults = await withTaskGroup(of: [Venue].self) { group in
+                for query in batch {
+                    group.addTask {
+                        do {
+                            return try await self.search(query: query, region: region)
+                        } catch {
+                            print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
+                            return []
+                        }
+                    }
+                }
+
+                var collected: [Venue] = []
+                for await venues in group {
+                    collected.append(contentsOf: venues)
+                }
+                return collected
+            }
+
+            // Deduplicate into results
+            for venue in batchResults where !seen.contains(venue.id) {
                 seen.insert(venue.id)
                 results.append(venue)
-                if results.count >= AppConstants.maxVisibleVenues { return results }
             }
+
+            if results.count >= AppConstants.maxVisibleVenues { break }
         }
 
         return results
     }
 
-    // MARK: - Classification
-
-    private static func classify(_ item: MKMapItem) -> VenueType {
-        let category = item.pointOfInterestCategory
-        let name = (item.name ?? "").lowercased()
-
-        // Category-based classification
-        if category == .nightlife { return .club }
-        if category == .cafe      { return .cafe }
-        if category == .bakery    { return .bakery }
-        if category == .brewery   { return .pub }
-
-        // Name-based fallback
-        if name.contains("club") || name.contains("disco") { return .club }
-        if name.contains("lounge") || name.contains("rooftop") { return .lounge }
-        if name.contains("pub") || name.contains("brew") { return .pub }
-        if name.contains("bar") || name.contains("cocktail") || name.contains("wine") { return .bar }
-        if name.contains("cafe") || name.contains("café") || name.contains("coffee") { return .cafe }
-        if name.contains("bakery") || name.contains("pastry") { return .bakery }
-
-        return .restaurant
-    }
 }
 
 // MARK: - Region Proximity Check
 
 extension MKCoordinateRegion {
-    /// Returns true if two regions overlap substantially (center within half-span).
+    /// Returns true if the coordinate falls within this region.
+    func contains(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        let halfLat = span.latitudeDelta / 2.0
+        let halfLng = span.longitudeDelta / 2.0
+        return coordinate.latitude >= center.latitude - halfLat
+            && coordinate.latitude <= center.latitude + halfLat
+            && coordinate.longitude >= center.longitude - halfLng
+            && coordinate.longitude <= center.longitude + halfLng
+    }
+
+    /// Returns true if two regions overlap substantially and are at a similar zoom level.
     func isClose(to other: MKCoordinateRegion) -> Bool {
+        // Center proximity (use the smaller span so a zoomed-in view doesn't match a zoomed-out one)
+        let latTolerance = min(span.latitudeDelta, other.span.latitudeDelta) * 0.5
+        let lngTolerance = min(span.longitudeDelta, other.span.longitudeDelta) * 0.5
         let latDiff = abs(center.latitude - other.center.latitude)
         let lngDiff = abs(center.longitude - other.center.longitude)
-        return latDiff < span.latitudeDelta * 0.5
-            && lngDiff < span.longitudeDelta * 0.5
+        guard latDiff < latTolerance, lngDiff < lngTolerance else { return false }
+
+        // Span similarity — reject if zoom levels differ by more than 50%
+        let latSpanMin = min(span.latitudeDelta, other.span.latitudeDelta)
+        let lngSpanMin = min(span.longitudeDelta, other.span.longitudeDelta)
+        guard latSpanMin > 0, lngSpanMin > 0 else { return false }
+
+        let maxRatio = 1.5
+        let latRatio = max(span.latitudeDelta, other.span.latitudeDelta) / latSpanMin
+        let lngRatio = max(span.longitudeDelta, other.span.longitudeDelta) / lngSpanMin
+        return latRatio <= maxRatio && lngRatio <= maxRatio
     }
 }
