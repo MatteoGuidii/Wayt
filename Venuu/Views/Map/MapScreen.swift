@@ -5,6 +5,7 @@ struct MapScreen: View {
 
     @StateObject private var viewModel = MapViewModel()
     @EnvironmentObject private var locationService: LocationService
+    @EnvironmentObject private var authState: AuthState
     @State private var visibleRegion: MKCoordinateRegion = .defaultRegion
     @State private var mapHeading: Double = 0
     @State private var mapPitch: Double = 0
@@ -86,6 +87,11 @@ struct MapScreen: View {
         .onChange(of: locationService.userLocation) { _, newLocation in
             guard newLocation != nil, viewModel.venues.isEmpty else { return }
             viewModel.searchVenues(in: locationService.region)
+        }
+        .onChange(of: authState.dismissSheets) { _, shouldDismiss in
+            if shouldDismiss {
+                viewModel.selectedVenue = nil
+            }
         }
     }
 
