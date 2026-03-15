@@ -26,6 +26,9 @@ final class AuthState: ObservableObject {
                 let user = try await Amplify.Auth.getCurrentUser()
                 username = user.username
                 isSignedIn = true
+            } else {
+                isSignedIn = false
+                username = nil
             }
         } catch {
             // No valid session — stay in guest mode
@@ -51,7 +54,8 @@ final class AuthState: ObservableObject {
     func requestSignIn() {
         dismissSheets = true
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
             dismissSheets = false
             onRequestSignIn?()
         }

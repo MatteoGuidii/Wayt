@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MainTabView: View {
 
-    @EnvironmentObject private var authState: AuthState
     @State private var selectedTab: Tab = .map
 
     var body: some View {
