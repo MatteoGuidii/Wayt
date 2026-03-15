@@ -6,6 +6,7 @@ import AWSCognitoAuthPlugin
 struct VenuuApp: App {
 
     @StateObject private var locationService = LocationService()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         configureAmplify()
@@ -15,6 +16,16 @@ struct VenuuApp: App {
         WindowGroup {
             AuthRootView()
                 .environmentObject(locationService)
+                .onChange(of: scenePhase) { _, newPhase in
+                    switch newPhase {
+                    case .active:
+                        locationService.startUpdating()
+                    case .background:
+                        locationService.stopUpdating()
+                    default:
+                        break
+                    }
+                }
         }
     }
 

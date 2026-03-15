@@ -21,7 +21,7 @@ final class LocationService: NSObject, ObservableObject {
     override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.distanceFilter = AppConstants.locationDistanceFilter
     }
 
@@ -33,6 +33,10 @@ final class LocationService: NSObject, ObservableObject {
 
     func startUpdating() {
         manager.startUpdatingLocation()
+    }
+
+    func stopUpdating() {
+        manager.stopUpdatingLocation()
     }
 
 }
