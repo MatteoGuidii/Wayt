@@ -1,98 +1,158 @@
 import SwiftUI
+import Amplify
 
 struct ProfileScreen: View {
 
-    let username: String
-    let onSignOut: () -> Void
-
-    @StateObject private var viewModel: ProfileViewModel
-
-    init(username: String, onSignOut: @escaping () -> Void) {
-        self.username = username
-        self.onSignOut = onSignOut
-        _viewModel = StateObject(wrappedValue: ProfileViewModel(
-            username: username,
-            onSignOut: onSignOut
-        ))
-    }
+    @EnvironmentObject private var authState: AuthState
+    @StateObject private var viewModel = ProfileViewModel()
 
     var body: some View {
         NavigationStack {
-            List {
-                // User info section
-                Section {
-                    HStack(spacing: 14) {
-                        ZStack {
-                            Circle()
-                                .fill(VenuuTheme.primaryPurple.opacity(0.15))
-                                .frame(width: 56, height: 56)
+            if authState.isSignedIn {
+                signedInContent
+            } else {
+                guestContent
+            }
+        }
+        .task {
+            if authState.isSignedIn {
+                await viewModel.loadProfile()
+            }
+        }
+    }
 
-                            Text(initials)
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
-                                .foregroundStyle(VenuuTheme.primaryPurple)
-                        }
+    // MARK: - Signed-In Content
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(viewModel.username)
-                                .font(.system(size: 18, weight: .semibold))
+    private var signedInContent: some View {
+        let displayName = authState.username ?? "User"
+        return List {
+            // User info
+            Section {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(VenuuTheme.primaryPurple.opacity(0.15))
+                            .frame(width: 56, height: 56)
 
-                            if !viewModel.memberSince.isEmpty {
-                                Text("Member since \(viewModel.memberSince)")
-                                    .font(VenuuTheme.captionFont)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-
-                // Stats section
-                Section("Activity") {
-                    HStack {
-                        Label("Reports Submitted", systemImage: "megaphone.fill")
-                        Spacer()
-                        Text("\(viewModel.totalReports)")
-                            .font(.system(size: 16, weight: .semibold))
+                        Text(initials(for: displayName))
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundStyle(VenuuTheme.primaryPurple)
                     }
-                }
 
-                // About section
-                Section("About") {
-                    HStack {
-                        Label("Version", systemImage: "info.circle")
-                        Spacer()
-                        Text(appVersion)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(displayName)
+                            .font(.system(size: 18, weight: .semibold))
+
+                        if !viewModel.memberSince.isEmpty {
+                            Text("Member since \(viewModel.memberSince)")
+                                .font(VenuuTheme.captionFont)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
+                .padding(.vertical, 8)
+            }
 
-                // Sign out
-                Section {
-                    Button(role: .destructive) {
-                        viewModel.signOut()
-                    } label: {
-                        HStack {
-                            Spacer()
-                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                            Spacer()
-                        }
+            // Stats
+            Section("Activity") {
+                HStack {
+                    Label("Reports Submitted", systemImage: "megaphone.fill")
+                    Spacer()
+                    Text("\(viewModel.totalReports)")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(VenuuTheme.primaryPurple)
+                }
+            }
+
+            // About
+            Section("About") {
+                HStack {
+                    Label("Version", systemImage: "info.circle")
+                    Spacer()
+                    Text(appVersion)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            // Sign out
+            Section {
+                Button(role: .destructive) {
+                    Task {
+                        await Amplify.Auth.signOut()
+                        authState.didSignOut()
+                    }
+                } label: {
+                    HStack {
+                        Spacer()
+                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        Spacer()
                     }
                 }
             }
-            .navigationTitle("Profile")
         }
-        .task { await viewModel.loadProfile() }
+        .navigationTitle("Profile")
+    }
+
+    // MARK: - Guest Content
+
+    private var guestContent: some View {
+        VStack(spacing: 28) {
+            Spacer()
+
+            VenuuMascot(size: 120, expression: .happy)
+
+            VStack(spacing: 10) {
+                Text("Your profile")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+
+                Text("Sign in to track your reports,\nsave favorites, and more.")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+            }
+
+            Button {
+                authState.requestSignIn()
+            } label: {
+                Text("Sign in or create account")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(
+                        LinearGradient(
+                            colors: [VenuuTheme.primaryPurple, VenuuTheme.primaryBlue],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(Capsule())
+                    .shadow(color: VenuuTheme.primaryPurple.opacity(0.3), radius: 10, y: 5)
+            }
+            .padding(.horizontal, 40)
+
+            Spacer()
+            Spacer()
+
+            HStack {
+                Label("Version \(appVersion)", systemImage: "info.circle")
+                    .font(VenuuTheme.captionFont)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.bottom, 20)
+        }
+        .navigationTitle("Profile")
     }
 
     // MARK: - Helpers
 
-    private var initials: String {
-        let parts = username.split(separator: " ")
+    private func initials(for name: String) -> String {
+        let parts = name.split(separator: " ")
         if parts.count >= 2 {
             return "\(parts[0].prefix(1))\(parts[1].prefix(1))".uppercased()
         }
-        return String(username.prefix(2)).uppercased()
+        return String(name.prefix(2)).uppercased()
     }
 
     private var appVersion: String {
