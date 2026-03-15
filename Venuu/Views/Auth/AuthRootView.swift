@@ -4,23 +4,43 @@ import Authenticator
 
 struct AuthRootView: View {
 
+    @State private var keyboardVisible = false
+
     var body: some View {
         ZStack {
             VenuuTheme.backgroundGradient
                 .ignoresSafeArea()
 
-            Authenticator(
-                headerContent: { headerView }
-            ) { state in
-                MainTabView(
-                    username: state.user.username,
-                    onSignOut: {
-                        Task { await state.signOut() }
-                    }
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            VStack(spacing: 0) {
+                Spacer()
+
+                headerView
+                    .frame(maxHeight: keyboardVisible ? 0 : nil)
+                    .clipped()
+                    .opacity(keyboardVisible ? 0 : 1)
+                    .animation(.easeOut(duration: 0.25), value: keyboardVisible)
+
+                Authenticator { state in
+                    MainTabView(
+                        username: state.user.username,
+                        onSignOut: {
+                            Task { await state.signOut() }
+                        }
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+                .authenticatorTheme(Self.theme)
             }
-            .authenticatorTheme(Self.theme)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
+        ) { _ in
+            keyboardVisible = true
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
+        ) { _ in
+            keyboardVisible = false
         }
     }
 
@@ -43,7 +63,7 @@ struct AuthRootView: View {
                 .padding(.horizontal, 24)
         }
         .padding(.top, 32)
-        .padding(.bottom, 12)
+        .padding(.bottom, 4)
     }
 
     // MARK: - Authenticator Theme
