@@ -66,9 +66,9 @@ enum VenueCategory: String, CaseIterable, Codable, Hashable, Sendable {
         }
 
         // Drinks
-        if lower.contains("bar") || lower.contains("pub") || lower.contains("brew")
-            || lower.contains("cocktail") || lower.contains("tapas")
-            || lower.contains("wine bar") || lower.contains("beer garden") {
+        if lower.contains("wine bar") || lower.contains("beer garden")
+            || lower.contains("bar") || lower.contains("pub") || lower.contains("brew")
+            || lower.contains("cocktail") || lower.contains("tapas") {
             return .drinks
         }
 

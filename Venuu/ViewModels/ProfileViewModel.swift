@@ -37,12 +37,11 @@ final class ProfileViewModel: ObservableObject {
             let profile: UserProfile = try await APIClient.shared.get(path: "/user/profile")
             totalReports = profile.totalReports
             memberSince = profile.joinedAt
+            hasLoadedProfile = true
         } catch {
             // Graceful fallback — profile features are supplementary
             print("[Profile] Load failed: \(error.localizedDescription)")
         }
-
-        hasLoadedProfile = true
         isLoading = false
     }
 

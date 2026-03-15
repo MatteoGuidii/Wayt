@@ -21,7 +21,7 @@ struct BusynessEngine: Sendable {
     // MARK: - Offline Fallback
 
     /// Estimate busyness from cached user reports only.
-    /// No heuristic — if there are no reports, returns a neutral `.moderate` / `.estimated`.
+    /// No heuristic — if there are no reports, returns a neutral `.moderate` / `.none`.
     func estimateOffline(
         reports: [BusynessReport] = [],
         at date: Date = Date()
