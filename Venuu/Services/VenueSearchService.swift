@@ -1,7 +1,7 @@
 import Foundation
 import MapKit
 
-/// Lightweight wrapper around MKLocalSearch with result caching.
+/// Lightweight wrapper around MKLocalSearch with result caching and rate-limit protection.
 @MainActor
 final class VenueSearchService {
 
@@ -15,8 +15,29 @@ final class VenueSearchService {
 
     /// Per-query cache for recent search results (avoids redundant MapKit calls).
     private var queryCache: [String: CachedSearch] = [:]
-    private static let cacheTTL: TimeInterval = 120 // 2 minutes
+    private static let cacheTTL: TimeInterval = 300 // 5 minutes
     private static let maxCacheEntries = 50
+
+    // MARK: - Rate Limiting (shared across all instances)
+
+    /// Timestamps of recent MapKit requests (sliding window). Static so all instances share the budget.
+    private static var requestTimestamps: [Date] = []
+    /// Apple enforces 50 requests / 60 seconds. Stay well under that.
+    private static let maxRequestsPerWindow = 40
+    private static let windowDuration: TimeInterval = 60
+
+    /// Returns true if we can safely make another request. Prunes stale timestamps.
+    private func canMakeRequest() -> Bool {
+        let cutoff = Date().addingTimeInterval(-Self.windowDuration)
+        Self.requestTimestamps.removeAll { $0 < cutoff }
+        return Self.requestTimestamps.count < Self.maxRequestsPerWindow
+    }
+
+    private func recordRequest() {
+        Self.requestTimestamps.append(Date())
+    }
+
+    // MARK: - Query Normalization & Cache
 
     private func normalizedQuery(_ query: String) -> String {
         query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -75,6 +96,19 @@ final class VenueSearchService {
             return cached
         }
 
+        // Rate-limit guard — wait for budget to free up instead of dropping the query
+        if !canMakeRequest() {
+            print("[VenueSearchService] Rate limit guard: waiting before '\(query)'")
+            try await Task.sleep(for: .seconds(5))
+            // Re-check after wait; if still exhausted, skip
+            guard canMakeRequest() else {
+                print("[VenueSearchService] Rate limit guard: skipping '\(query)'")
+                return []
+            }
+        }
+
+        recordRequest()
+
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
         request.region = region
@@ -111,42 +145,47 @@ final class VenueSearchService {
         return venues
     }
 
-    /// Search multiple venue types concurrently and deduplicate results.
+    /// Search multiple venue types in staggered batches and deduplicate results.
+    ///
+    /// Uses 6 broad queries in 2 batches of 3 to stay well under Apple's 50-req/60s limit
+    /// while still discovering a wide variety of venues.
     func searchAllTypes(region: MKCoordinateRegion) async -> [Venue] {
-        let queries = [
-            "restaurant", "bar", "cafe", "nightclub", "lounge", "pub",
-            "brewery", "wine bar", "bakery", "brunch", "food truck", "juice bar"
+        // 6 broad queries that cover restaurants, bars, cafes, nightlife, etc.
+        let batches: [[String]] = [
+            ["restaurant", "bar", "cafe"],
+            ["nightclub", "pub", "bakery"]
         ]
 
-        // Fire all 6 searches in parallel
-        let allResults = await withTaskGroup(of: [Venue].self) { group in
-            for query in queries {
-                group.addTask {
-                    do {
-                        return try await self.search(query: query, region: region)
-                    } catch {
-                        print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
-                        return []
-                    }
-                }
-            }
-
-            var collected: [[Venue]] = []
-            for await batch in group {
-                collected.append(batch)
-            }
-            return collected
-        }
-
-        // Deduplicate and cap
         var seen = Set<String>()
         var results: [Venue] = []
-        for batch in allResults {
-            for venue in batch where !seen.contains(venue.id) {
+
+        for batch in batches {
+            let batchResults = await withTaskGroup(of: [Venue].self) { group in
+                for query in batch {
+                    group.addTask {
+                        do {
+                            return try await self.search(query: query, region: region)
+                        } catch {
+                            print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
+                            return []
+                        }
+                    }
+                }
+
+                var collected: [Venue] = []
+                for await venues in group {
+                    collected.append(contentsOf: venues)
+                }
+                return collected
+            }
+
+            // Deduplicate into results
+            for venue in batchResults where !seen.contains(venue.id) {
                 seen.insert(venue.id)
                 results.append(venue)
-                if results.count >= AppConstants.maxVisibleVenues { return results }
             }
+
+            if results.count >= AppConstants.maxVisibleVenues { break }
         }
 
         return results

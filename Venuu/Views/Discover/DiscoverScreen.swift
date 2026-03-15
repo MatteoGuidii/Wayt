@@ -28,6 +28,8 @@ struct DiscoverScreen: View {
             }
         }
         .task {
+            // Skip re-loading on tab return when venues already exist
+            guard viewModel.venues.isEmpty else { return }
             await viewModel.loadVenues(near: locationService.userLocation)
         }
         .onChange(of: locationService.userLocation) { _, newLocation in
