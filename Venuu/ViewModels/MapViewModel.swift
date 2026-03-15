@@ -158,14 +158,18 @@ final class MapViewModel: ObservableObject {
     /// Start periodic background refresh of busyness data (every 60s).
     /// Only refreshes report overlay — doesn't re-search MapKit.
     func startLiveRefresh() {
-        refreshTimer?.cancel()
+        // Prevent duplicate timers if .task re-fires on tab return
+        guard refreshTimer == nil else { return }
         refreshTimer = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(AppConstants.liveRefreshInterval))
-                guard !Task.isCancelled, !venues.isEmpty, let region = lastSearchedRegion else { continue }
+                guard !Task.isCancelled else { break }
 
-                // Invalidate cache so we get fresh data
-                ReportService.shared.invalidateCache()
+                // Skip refresh if app is backgrounded (saves battery + data)
+                guard UIApplication.shared.applicationState == .active else { continue }
+                guard !venues.isEmpty, let region = lastSearchedRegion else { continue }
+
+                // Let cache TTL handle staleness — no manual invalidation needed
                 var updated = venues
                 await overlayReports(on: &updated, region: region)
                 venues = updated

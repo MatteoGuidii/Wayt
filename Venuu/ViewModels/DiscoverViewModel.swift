@@ -8,9 +8,12 @@ final class DiscoverViewModel: ObservableObject {
 
     // MARK: - Published
 
-    @Published var venues: [Venue] = []
+    @Published var venues: [Venue] = [] {
+        didSet { updateDerivedState() }
+    }
     @Published var filteredVenues: [Venue] = []
     @Published var selectedCategory: VenueCategory?
+    @Published var popularVenues: [Venue] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
@@ -52,7 +55,6 @@ final class DiscoverViewModel: ObservableObject {
         }
 
         venues = results
-        applyFilter()
         isLoading = false
     }
 
@@ -63,22 +65,20 @@ final class DiscoverViewModel: ObservableObject {
         applyFilter()
     }
 
+    private func updateDerivedState() {
+        applyFilter()
+        popularVenues = venues
+            .filter { ($0.busyness?.rawValue ?? 0) >= 3 }
+            .sorted { ($0.busyness?.rawValue ?? 0) > ($1.busyness?.rawValue ?? 0) }
+            .prefix(10)
+            .map { $0 }
+    }
+
     private func applyFilter() {
         if let category = selectedCategory {
             filteredVenues = venues.filter { $0.category == category }
         } else {
             filteredVenues = venues
         }
-    }
-
-    // MARK: - Derived Data
-
-    /// Venues sorted by busyness (busiest first) for "Popular Now" section
-    var popularVenues: [Venue] {
-        venues
-            .filter { ($0.busyness?.rawValue ?? 0) >= 3 }
-            .sorted { ($0.busyness?.rawValue ?? 0) > ($1.busyness?.rawValue ?? 0) }
-            .prefix(10)
-            .map { $0 }
     }
 }

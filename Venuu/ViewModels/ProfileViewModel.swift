@@ -14,6 +14,8 @@ final class ProfileViewModel: ObservableObject {
 
     let onSignOut: () -> Void
 
+    private var hasLoadedProfile = false
+
     // MARK: - Init
 
     init(username: String, onSignOut: @escaping () -> Void) {
@@ -24,6 +26,7 @@ final class ProfileViewModel: ObservableObject {
     // MARK: - Load Profile
 
     func loadProfile() async {
+        guard !hasLoadedProfile else { return }
         isLoading = true
 
         do {
@@ -39,6 +42,7 @@ final class ProfileViewModel: ObservableObject {
             print("[Profile] Load failed: \(error.localizedDescription)")
         }
 
+        hasLoadedProfile = true
         isLoading = false
     }
 

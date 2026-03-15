@@ -24,7 +24,7 @@ struct VenueMarkerView: View {
         }
         .scaleEffect(isSelected ? 1.2 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
-        .shadow(color: ringColor.opacity(0.3), radius: isSelected ? 6 : 3, y: 2)
+        .shadow(color: isSelected ? ringColor.opacity(0.3) : .clear, radius: 6, y: 2)
     }
 
     private var ringColor: Color {
