@@ -12,7 +12,6 @@ struct AuthRootView: View {
 
     @EnvironmentObject private var authState: AuthState
     @State private var screen: Screen = .onboarding
-    @State private var keyboardVisible = false
 
     var body: some View {
         ZStack {
@@ -91,41 +90,29 @@ struct AuthRootView: View {
                     Spacer()
                 }
 
-                // Compact header with mascot
-                headerView
-                    .frame(maxHeight: keyboardVisible ? 0 : nil)
-                    .clipped()
-                    .opacity(keyboardVisible ? 0 : 1)
-                    .animation(.easeOut(duration: 0.25), value: keyboardVisible)
+                // Header collapses on keyboard via GeometryReader keyboard height
+                AuthHeaderView()
 
-                Authenticator { state in
-                    // Amplify says we're signed in — update AuthState and go to map
-                    Color.clear
-                        .onAppear {
-                            authState.didSignIn(username: state.user.username)
-                            withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                                screen = .browsing
-                            }
-                        }
-                }
-                .authenticatorTheme(Self.theme)
+                // Isolated Authenticator — never re-renders from parent state changes
+                AuthenticatorContainer(onSignedIn: { username in
+                    authState.didSignIn(username: username)
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                        screen = .browsing
+                    }
+                })
             }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
-        ) { _ in
-            keyboardVisible = true
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
-        ) { _ in
-            keyboardVisible = false
         }
     }
 
-    // MARK: - Header
+}
 
-    private var headerView: some View {
+// MARK: - Header (self-contained keyboard awareness)
+
+/// Isolated view — owns its own keyboard state so parent never re-renders.
+private struct AuthHeaderView: View {
+    @State private var keyboardVisible = false
+
+    var body: some View {
         VStack(spacing: 8) {
             VenuuMascot(size: 80, expression: .happy, animated: false)
 
@@ -139,9 +126,35 @@ struct AuthRootView: View {
         }
         .padding(.top, 12)
         .padding(.bottom, 4)
+        .frame(maxHeight: keyboardVisible ? 0 : nil)
+        .clipped()
+        .opacity(keyboardVisible ? 0 : 1)
+        .animation(.easeOut(duration: 0.2), value: keyboardVisible)
+        .onReceive(
+            NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
+        ) { _ in keyboardVisible = true }
+        .onReceive(
+            NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
+        ) { _ in keyboardVisible = false }
     }
+}
 
-    // MARK: - Authenticator Theme
+// MARK: - Authenticator Container (isolated)
+
+/// Wraps Amplify's Authenticator in its own View struct so it is never
+/// invalidated by unrelated state changes in the parent (keyboard, screen, etc.).
+private struct AuthenticatorContainer: View {
+    var onSignedIn: (String) -> Void
+
+    var body: some View {
+        Authenticator { state in
+            Color.clear
+                .onAppear {
+                    onSignedIn(state.user.username)
+                }
+        }
+        .authenticatorTheme(Self.theme)
+    }
 
     private static let theme: AuthenticatorTheme = {
         var t = AuthenticatorTheme()
