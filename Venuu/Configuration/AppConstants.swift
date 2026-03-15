@@ -34,7 +34,7 @@ enum AppConstants {
     // MARK: - Location
 
     /// Distance filter for location updates (meters)
-    static let locationDistanceFilter: CLLocationDistance = 50
+    static let locationDistanceFilter: CLLocationDistance = 100
 
     // MARK: - Cache
 

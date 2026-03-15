@@ -31,7 +31,7 @@ final class VenueDetailViewModel: ObservableObject {
                 waitMinutes: venue.estimatedWaitMinutes
             )
         } else {
-            self.estimate = busynessEngine.estimate(venueType: venue.type)
+            self.estimate = busynessEngine.estimateOffline()
         }
     }
 
@@ -45,7 +45,7 @@ final class VenueDetailViewModel: ObservableObject {
             // Only re-estimate if we actually got reports — otherwise keep the
             // initial estimate (which already includes map overlay data)
             if !reports.isEmpty {
-                estimate = busynessEngine.estimate(venueType: venue.type, reports: reports)
+                estimate = busynessEngine.estimateOffline(reports: reports)
             }
         } catch {
             // Initial estimate is already set — this is fine

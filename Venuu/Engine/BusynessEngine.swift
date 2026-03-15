@@ -1,109 +1,55 @@
 import Foundation
 
-/// The core differentiator: estimates venue busyness using time-based heuristics
-/// and overlays real crowd-sourced reports when available.
+/// Estimates venue busyness from server-computed fused signals (primary)
+/// or from cached user reports when offline (fallback).
 struct BusynessEngine: Sendable {
 
     static let shared = BusynessEngine()
 
-    // MARK: - Public
+    // MARK: - Primary Path (Server-Computed)
 
-    /// Estimate busyness for a venue, blending heuristics with user reports.
-    func estimate(
-        venueType: VenueType,
+    /// Consume a pre-computed fused estimate from the server.
+    func estimate(from response: FusedEstimateResponse) -> BusynessEstimate {
+        BusynessEstimate(
+            level: BusynessLevel(closestTo: response.busynessScore * 5.0),
+            confidence: BusynessConfidence(rawValue: response.confidence) ?? .estimated,
+            reportCount: response.reportCount,
+            waitMinutes: response.waitMinutes
+        )
+    }
+
+    // MARK: - Offline Fallback
+
+    /// Estimate busyness from cached user reports only.
+    /// No heuristic — if there are no reports, returns a neutral `.moderate` / `.none`.
+    func estimateOffline(
         reports: [BusynessReport] = [],
         at date: Date = Date()
     ) -> BusynessEstimate {
         let validReports = reports.filter { $0.isValid }
-        let heuristicLevel = heuristicBusyness(for: venueType, at: date)
 
-        if validReports.isEmpty {
+        guard !validReports.isEmpty else {
             return BusynessEstimate(
-                level: heuristicLevel,
-                confidence: .estimated,
+                level: .moderate,
+                confidence: .none,
                 reportCount: 0,
                 waitMinutes: nil
             )
         }
 
-        // Weighted average of reports (exponential decay by age)
         let weightedAvg = weightedReportAverage(validReports)
         let avgWait = averageWait(validReports)
+        let level = BusynessLevel(closestTo: weightedAvg)
 
-        if validReports.count >= AppConstants.highConfidenceReportCount {
-            // High confidence: trust reports fully
-            let level = BusynessLevel(closestTo: weightedAvg)
-            return BusynessEstimate(
-                level: level,
-                confidence: .high,
-                reportCount: validReports.count,
-                waitMinutes: avgWait
-            )
-        } else {
-            // Low confidence: blend reports with heuristic
-            let blended = AppConstants.reportBlendWeight * weightedAvg
-                + (1 - AppConstants.reportBlendWeight) * Double(heuristicLevel.rawValue)
-            let level = BusynessLevel(closestTo: blended)
-            return BusynessEstimate(
-                level: level,
-                confidence: .low,
-                reportCount: validReports.count,
-                waitMinutes: avgWait
-            )
-        }
-    }
+        let confidence: BusynessConfidence =
+            validReports.count >= AppConstants.highConfidenceReportCount ? .high : .low
 
-    // MARK: - Heuristic Algorithm
-
-    /// Estimate busyness purely from venue type + current time.
-    private func heuristicBusyness(for type: VenueType, at date: Date = Date()) -> BusynessLevel {
-        let score = heuristicScore(for: type, at: date)
-        return BusynessLevel(closestTo: score * 5.0)
-    }
-
-    /// Returns a 0.0–1.0 score for how busy a venue type likely is right now.
-    private func heuristicScore(for type: VenueType, at date: Date) -> Double {
-        let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: date)
-        let dayOfWeek = calendar.component(.weekday, from: date) // 1 = Sunday
-
-        // Base: how close is the current hour to peak hours?
-        let baseScore = hourProximityScore(hour: hour, peaks: type.peakHours)
-
-        // Day multiplier
-        let dayMultiplier: Double
-        if type.peakDays.contains(dayOfWeek) {
-            dayMultiplier = 1.25
-        } else {
-            dayMultiplier = 0.80
-        }
-
-        return min(1.0, max(0.0, baseScore * dayMultiplier))
-    }
-
-    /// Score based on how close the current hour is to peak hours.
-    /// Returns 0.0 (far from any peak) to 1.0 (exactly at peak).
-    private func hourProximityScore(hour: Int, peaks: [Int]) -> Double {
-        if peaks.isEmpty { return 0.3 }
-
-        // Direct peak hit
-        if peaks.contains(hour) { return 0.85 }
-
-        // Find minimum circular distance to any peak hour
-        let minDistance = peaks.map { peak -> Int in
-            let diff = abs(hour - peak)
-            return min(diff, 24 - diff)
-        }.min() ?? 12
-
-        // Decay curve: score drops off as distance from peak increases
-        switch minDistance {
-        case 0:    return 0.85
-        case 1:    return 0.65
-        case 2:    return 0.45
-        case 3:    return 0.30
-        case 4:    return 0.18
-        default:   return 0.08
-        }
+        return BusynessEstimate(
+            level: level,
+            confidence: confidence,
+            reportCount: validReports.count,
+            waitMinutes: avgWait
+        )
     }
 
     // MARK: - Report Aggregation
@@ -147,6 +93,16 @@ struct BusynessEngine: Sendable {
 struct BusynessEstimate: Sendable {
     let level: BusynessLevel
     let confidence: BusynessConfidence
+    let reportCount: Int
+    let waitMinutes: Int?
+}
+
+// MARK: - Server Response Model
+
+/// Response from the Signal Fusion Engine (`GET /v1/venues/{id}/busyness` or embedded in nearby response).
+struct FusedEstimateResponse: Codable, Sendable {
+    let busynessScore: Double      // 0.0–1.0 normalized
+    let confidence: String         // "none", "estimated", "low", "high"
     let reportCount: Int
     let waitMinutes: Int?
 }
