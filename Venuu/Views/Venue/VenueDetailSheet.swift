@@ -5,7 +5,9 @@ struct VenueDetailSheet: View {
 
     let venue: Venue
     @StateObject private var viewModel: VenueDetailViewModel
+    @EnvironmentObject private var authState: AuthState
     @Environment(\.dismiss) private var dismiss
+    @State private var showAuthGate = false
 
     init(venue: Venue) {
         self.venue = venue
@@ -41,6 +43,12 @@ struct VenueDetailSheet: View {
                 Task { await viewModel.submitReport(level: level, waitMinutes: wait) }
             }
             .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showAuthGate) {
+            AuthGateSheet {
+                authState.requestSignIn()
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -162,14 +170,18 @@ struct VenueDetailSheet: View {
             .background(Color(.tertiarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .tint(VenuuTheme.primaryPurple)
+        .tint(VenuuTheme.amber)
     }
 
     // MARK: - Report Button
 
     private var reportButton: some View {
         Button {
-            viewModel.showReportSheet = true
+            if authState.isSignedIn {
+                viewModel.showReportSheet = true
+            } else {
+                showAuthGate = true
+            }
         } label: {
             Label(
                 viewModel.reportSubmitted ? "Thanks! Report again?" : "How busy is it?",
@@ -178,7 +190,7 @@ struct VenueDetailSheet: View {
             .font(.system(size: 16, weight: .semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(viewModel.reportSubmitted ? .green : VenuuTheme.primaryPurple)
+            .background(viewModel.reportSubmitted ? .green : VenuuTheme.amber)
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }

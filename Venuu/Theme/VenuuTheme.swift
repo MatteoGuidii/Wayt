@@ -6,13 +6,21 @@ enum VenuuTheme {
 
     // MARK: - Brand Colors
 
-    static let primaryPurple = Color(red: 0.45, green: 0.20, blue: 0.90)
-    static let primaryBlue   = Color(red: 0.25, green: 0.45, blue: 0.95)
+    static let amber = Color(red: 0.855, green: 0.635, blue: 0.235)  // #DAA23C — energy, action, CTAs
+    static let steel = Color(red: 0.310, green: 0.325, blue: 0.400)  // #4F5366 — grounding, text, secondary
+
+    // Legacy aliases — keep until full migration, then remove
+    static let primaryPurple = amber
+    static let primaryBlue   = steel
 
     // MARK: - Backgrounds
 
+    /// Warm, bright background for auth/onboarding screens
     static let backgroundGradient = LinearGradient(
-        colors: [primaryPurple.opacity(0.50), primaryBlue.opacity(0.55)],
+        colors: [
+            Color(red: 0.996, green: 0.957, blue: 0.878),  // warm cream
+            Color(red: 0.988, green: 0.925, blue: 0.820),  // soft honey
+        ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )

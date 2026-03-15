@@ -5,6 +5,7 @@ struct MapScreen: View {
 
     @StateObject private var viewModel = MapViewModel()
     @EnvironmentObject private var locationService: LocationService
+    @EnvironmentObject private var authState: AuthState
     @State private var visibleRegion: MKCoordinateRegion = .defaultRegion
     @State private var mapHeading: Double = 0
     @State private var mapPitch: Double = 0
@@ -87,6 +88,11 @@ struct MapScreen: View {
             guard newLocation != nil, viewModel.venues.isEmpty else { return }
             viewModel.searchVenues(in: locationService.region)
         }
+        .onChange(of: authState.dismissSheets) { _, shouldDismiss in
+            if shouldDismiss {
+                viewModel.selectedVenue = nil
+            }
+        }
     }
 
     // MARK: - Search Bar
@@ -165,7 +171,7 @@ struct MapScreen: View {
                     } label: {
                         Text(is3D ? "3D" : "2D")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(is3D ? VenuuTheme.primaryPurple : .secondary)
+                            .foregroundStyle(is3D ? VenuuTheme.amber : .secondary)
                             .frame(width: 44, height: 44)
                     }
 
@@ -180,7 +186,7 @@ struct MapScreen: View {
                     } label: {
                         Image(systemName: "location.fill")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(VenuuTheme.primaryPurple)
+                            .foregroundStyle(VenuuTheme.amber)
                             .frame(width: 44, height: 44)
                     }
                 }
@@ -221,7 +227,7 @@ struct MapScreen: View {
                     .font(.system(size: 14, weight: .semibold))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(VenuuTheme.primaryPurple)
+                    .background(VenuuTheme.amber)
                     .foregroundStyle(.white)
                     .clipShape(Capsule())
                     .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
@@ -247,7 +253,7 @@ struct MapScreen: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(.ultraThinMaterial.opacity(0.9))
-            .background(VenuuTheme.primaryPurple.opacity(0.6))
+            .background(VenuuTheme.amber.opacity(0.6))
             .clipShape(Capsule())
             .padding(.bottom, 100)
         }

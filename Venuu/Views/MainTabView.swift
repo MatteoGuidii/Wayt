@@ -2,9 +2,6 @@ import SwiftUI
 
 struct MainTabView: View {
 
-    let username: String
-    let onSignOut: () -> Void
-
     @State private var selectedTab: Tab = .map
 
     var body: some View {
@@ -21,13 +18,13 @@ struct MainTabView: View {
                 }
                 .tag(Tab.discover)
 
-            ProfileScreen(username: username, onSignOut: onSignOut)
+            ProfileScreen()
                 .tabItem {
                     Label("Profile", systemImage: "person.fill")
                 }
                 .tag(Tab.profile)
         }
-        .tint(VenuuTheme.primaryPurple)
+        .tint(VenuuTheme.amber)
     }
 }
 
