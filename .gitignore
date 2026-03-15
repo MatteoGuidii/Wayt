@@ -30,6 +30,9 @@ xcuserdata/
 # Claude worktrees
 .claude/worktrees/
 
+# SAM CLI auto-generated build files
+backend/.aws-sam/
+
 # Docs
 *.docx
 *.pdf
