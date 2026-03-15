@@ -1,5 +1,6 @@
 import SwiftUI
 import Amplify
+import AWSCognitoAuthPlugin
 
 struct ProfileScreen: View {
 
@@ -14,7 +15,7 @@ struct ProfileScreen: View {
                 guestContent
             }
         }
-        .task {
+        .task(id: authState.username ?? "") {
             if authState.isSignedIn {
                 await viewModel.loadProfile()
             }
@@ -78,8 +79,13 @@ struct ProfileScreen: View {
             Section {
                 Button(role: .destructive) {
                     Task {
-                        await Amplify.Auth.signOut()
-                        authState.didSignOut()
+                        let result = await Amplify.Auth.signOut()
+                        if let globalResult = result as? AWSCognitoSignOutResult,
+                           case .failed = globalResult {
+                            print("Sign-out failed")
+                        } else {
+                            authState.didSignOut()
+                        }
                     }
                 } label: {
                     HStack {
