@@ -31,6 +31,10 @@ final class MapViewModel: ObservableObject {
     func searchVenues(in region: MKCoordinateRegion) {
         searchTask?.cancel()
         searchTask = Task {
+            // Brief debounce to coalesce rapid-fire calls (e.g. tab switching, fast panning)
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+
             isSearching = true
             errorMessage = nil
             showSearchThisArea = false
@@ -69,9 +73,12 @@ final class MapViewModel: ObservableObject {
                     return v
                 }
 
-                venues = results
-                lastSearchedRegion = region
-                print("[MapViewModel] Loaded \(venues.count) venues with busyness")
+                // Only update if we got results — keep stale venues visible if rate-limited
+                if !results.isEmpty {
+                    venues = results
+                    lastSearchedRegion = region
+                }
+                print("[MapViewModel] Loaded \(results.count) venues with busyness")
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription

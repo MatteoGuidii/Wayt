@@ -73,11 +73,10 @@ struct MapScreen: View {
         .task {
             locationService.requestPermission()
 
-            // If location is already available, search immediately
-            if locationService.userLocation != nil {
+            // Only search if we don't already have results (avoids re-firing on tab return)
+            if viewModel.venues.isEmpty, locationService.userLocation != nil {
                 viewModel.searchVenues(in: locationService.region)
             }
-            // Otherwise, onChange below will trigger search as soon as location arrives
 
             viewModel.startLiveRefresh()
         }
