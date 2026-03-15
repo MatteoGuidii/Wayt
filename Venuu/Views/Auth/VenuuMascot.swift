@@ -21,8 +21,8 @@ struct VenuuMascot: View {
     @State private var pulseScale: CGFloat = 1.0
     @State private var floatOffset: CGFloat = 0
 
-    private var pinColor: Color { VenuuTheme.primaryPurple }
-    private var accentColor: Color { VenuuTheme.primaryBlue }
+    private var pinColor: Color { VenuuTheme.amber }
+    private var accentColor: Color { Color(red: 0.925, green: 0.745, blue: 0.380) }  // lighter warm gold for highlights
 
     var body: some View {
         ZStack {

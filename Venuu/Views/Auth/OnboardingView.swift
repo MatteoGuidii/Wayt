@@ -79,8 +79,8 @@ struct OnboardingView: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    VenuuTheme.primaryPurple.opacity(0.15),
-                    VenuuTheme.primaryBlue.opacity(0.08),
+                    Color(red: 0.996, green: 0.957, blue: 0.878),  // warm cream
+                    Color(red: 0.992, green: 0.973, blue: 0.940),  // soft warm white
                     Color(.systemBackground),
                 ],
                 startPoint: .topLeading,
@@ -90,13 +90,13 @@ struct OnboardingView: View {
 
             // Decorative floating circles
             Circle()
-                .fill(VenuuTheme.primaryPurple.opacity(0.06))
+                .fill(VenuuTheme.amber.opacity(0.08))
                 .frame(width: 300, height: 300)
                 .offset(x: -120, y: -280)
                 .blur(radius: 40)
 
             Circle()
-                .fill(VenuuTheme.primaryBlue.opacity(0.06))
+                .fill(VenuuTheme.amber.opacity(0.05))
                 .frame(width: 250, height: 250)
                 .offset(x: 150, y: 200)
                 .blur(radius: 40)
@@ -116,12 +116,12 @@ struct OnboardingView: View {
                 // Small floating icon badge
                 Image(systemName: page.accentIcon)
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(VenuuTheme.primaryPurple)
+                    .foregroundStyle(VenuuTheme.amber)
                     .padding(12)
                     .background(
                         Circle()
                             .fill(.ultraThinMaterial)
-                            .shadow(color: VenuuTheme.primaryPurple.opacity(0.2), radius: 8, y: 2)
+                            .shadow(color: VenuuTheme.amber.opacity(0.2), radius: 8, y: 2)
                     )
                     .offset(x: 65, y: -50)
             }
@@ -152,7 +152,7 @@ struct OnboardingView: View {
         HStack(spacing: 8) {
             ForEach(pages.indices, id: \.self) { index in
                 Capsule()
-                    .fill(index == currentPage ? VenuuTheme.primaryPurple : Color.gray.opacity(0.3))
+                    .fill(index == currentPage ? VenuuTheme.amber : Color.gray.opacity(0.3))
                     .frame(width: index == currentPage ? 24 : 8, height: 8)
                     .animation(.spring(response: 0.35), value: currentPage)
             }
@@ -170,15 +170,9 @@ struct OnboardingView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(
-                            colors: [VenuuTheme.primaryPurple, VenuuTheme.primaryBlue],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                    .background(VenuuTheme.amber)
                     .clipShape(Capsule())
-                    .shadow(color: VenuuTheme.primaryPurple.opacity(0.35), radius: 12, y: 6)
+                    .shadow(color: VenuuTheme.amber.opacity(0.35), radius: 12, y: 6)
             }
             .scaleEffect(appeared ? 1 : 0.9)
             .opacity(appeared ? 1 : 0)
@@ -187,7 +181,7 @@ struct OnboardingView: View {
             Button(action: onLogIn) {
                 Text("I already have an account")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(VenuuTheme.primaryPurple)
+                    .foregroundStyle(VenuuTheme.amber)
             }
             .opacity(appeared ? 1 : 0)
         }

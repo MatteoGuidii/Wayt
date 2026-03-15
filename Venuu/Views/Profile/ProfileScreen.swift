@@ -31,12 +31,12 @@ struct ProfileScreen: View {
                 HStack(spacing: 14) {
                     ZStack {
                         Circle()
-                            .fill(VenuuTheme.primaryPurple.opacity(0.15))
+                            .fill(VenuuTheme.amber.opacity(0.15))
                             .frame(width: 56, height: 56)
 
                         Text(initials(for: displayName))
                             .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundStyle(VenuuTheme.primaryPurple)
+                            .foregroundStyle(VenuuTheme.amber)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -60,7 +60,7 @@ struct ProfileScreen: View {
                     Spacer()
                     Text("\(viewModel.totalReports)")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(VenuuTheme.primaryPurple)
+                        .foregroundStyle(VenuuTheme.amber)
                 }
             }
 
@@ -120,15 +120,9 @@ struct ProfileScreen: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 15)
-                    .background(
-                        LinearGradient(
-                            colors: [VenuuTheme.primaryPurple, VenuuTheme.primaryBlue],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                    .background(VenuuTheme.amber)
                     .clipShape(Capsule())
-                    .shadow(color: VenuuTheme.primaryPurple.opacity(0.3), radius: 10, y: 5)
+                    .shadow(color: VenuuTheme.amber.opacity(0.3), radius: 10, y: 5)
             }
             .padding(.horizontal, 40)
 

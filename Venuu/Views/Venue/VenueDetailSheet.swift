@@ -170,7 +170,7 @@ struct VenueDetailSheet: View {
             .background(Color(.tertiarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .tint(VenuuTheme.primaryPurple)
+        .tint(VenuuTheme.amber)
     }
 
     // MARK: - Report Button
@@ -190,7 +190,7 @@ struct VenueDetailSheet: View {
             .font(.system(size: 16, weight: .semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(viewModel.reportSubmitted ? .green : VenuuTheme.primaryPurple)
+            .background(viewModel.reportSubmitted ? .green : VenuuTheme.amber)
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
