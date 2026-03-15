@@ -4,16 +4,70 @@ import Authenticator
 
 struct AuthRootView: View {
 
+    enum AuthScreen {
+        case onboarding
+        case signUp
+        case signIn
+    }
+
+    @State private var screen: AuthScreen = .onboarding
     @State private var keyboardVisible = false
 
     var body: some View {
+        ZStack {
+            switch screen {
+            case .onboarding:
+                OnboardingView(
+                    onGetStarted: {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                            screen = .signUp
+                        }
+                    },
+                    onLogIn: {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                            screen = .signIn
+                        }
+                    }
+                )
+                .transition(.opacity.combined(with: .move(edge: .leading)))
+
+            case .signUp, .signIn:
+                authenticatorView
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
+        }
+    }
+
+    // MARK: - Authenticator
+
+    private var authenticatorView: some View {
         ZStack {
             VenuuTheme.backgroundGradient
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Spacer()
+                // Back button
+                HStack {
+                    Button {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            screen = .onboarding
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Back")
+                                .font(.system(size: 16, weight: .medium))
+                        }
+                        .foregroundStyle(.white.opacity(0.9))
+                    }
+                    .padding(.leading, 20)
+                    .padding(.top, 8)
 
+                    Spacer()
+                }
+
+                // Compact header with mascot
                 headerView
                     .frame(maxHeight: keyboardVisible ? 0 : nil)
                     .clipped()
@@ -47,22 +101,18 @@ struct AuthRootView: View {
     // MARK: - Header
 
     private var headerView: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "mappin.and.ellipse")
-                .font(.system(size: 44))
-                .foregroundStyle(.white)
+        VStack(spacing: 8) {
+            VenuuMascot(size: 80, expression: .happy, animated: false)
 
             Text("Venuu")
-                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("See how busy places are, right now.")
-                .font(.subheadline)
+            Text("Know before you go.")
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.white.opacity(0.85))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
         }
-        .padding(.top, 32)
+        .padding(.top, 12)
         .padding(.bottom, 4)
     }
 
