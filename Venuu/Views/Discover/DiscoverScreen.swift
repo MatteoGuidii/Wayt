@@ -73,7 +73,7 @@ struct DiscoverScreen: View {
             }
             .padding(.horizontal, 14)
             .frame(height: VenuuTheme.chipHeight)
-            .background(isSelected ? VenuuTheme.primaryPurple : Color(.tertiarySystemBackground))
+            .background(isSelected ? VenuuTheme.amber : Color(.tertiarySystemBackground))
             .foregroundStyle(isSelected ? .white : .primary)
             .clipShape(Capsule())
         }
