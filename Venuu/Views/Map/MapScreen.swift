@@ -171,7 +171,7 @@ struct MapScreen: View {
                     } label: {
                         Text(is3D ? "3D" : "2D")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(is3D ? VenuuTheme.amber : .secondary)
+                            .foregroundStyle(is3D ? VenuuTheme.coral : .secondary)
                             .frame(width: 44, height: 44)
                     }
 
@@ -186,7 +186,7 @@ struct MapScreen: View {
                     } label: {
                         Image(systemName: "location.fill")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(VenuuTheme.amber)
+                            .foregroundStyle(VenuuTheme.coral)
                             .frame(width: 44, height: 44)
                     }
                 }
@@ -227,10 +227,10 @@ struct MapScreen: View {
                     .font(.system(size: 14, weight: .semibold))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(VenuuTheme.amber)
+                    .background(VenuuTheme.coral)
                     .foregroundStyle(.white)
                     .clipShape(Capsule())
-                    .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
+                    .shadow(color: VenuuTheme.coral.opacity(0.3), radius: 6, y: 3)
             }
             .padding(.bottom, 100)
         }
@@ -253,7 +253,7 @@ struct MapScreen: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(.ultraThinMaterial.opacity(0.9))
-            .background(VenuuTheme.amber.opacity(0.6))
+            .background(VenuuTheme.coral.opacity(0.6))
             .clipShape(Capsule())
             .padding(.bottom, 100)
         }

@@ -79,9 +79,9 @@ struct OnboardingView: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(red: 0.996, green: 0.957, blue: 0.878),  // warm cream
-                    Color(red: 0.992, green: 0.973, blue: 0.940),  // soft warm white
-                    Color(.systemBackground),
+                    Color(red: 0.94, green: 0.99, blue: 0.98),  // light teal
+                    Color(red: 0.96, green: 0.99, blue: 0.98),  // soft teal-white
+                    Color(UIColor.systemBackground),
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -90,13 +90,13 @@ struct OnboardingView: View {
 
             // Decorative floating circles
             Circle()
-                .fill(VenuuTheme.amber.opacity(0.08))
+                .fill(VenuuTheme.steel.opacity(0.10))
                 .frame(width: 300, height: 300)
                 .offset(x: -120, y: -280)
                 .blur(radius: 40)
 
             Circle()
-                .fill(VenuuTheme.amber.opacity(0.05))
+                .fill(VenuuTheme.steel.opacity(0.06))
                 .frame(width: 250, height: 250)
                 .offset(x: 150, y: 200)
                 .blur(radius: 40)

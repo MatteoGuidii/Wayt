@@ -6,26 +6,32 @@ enum VenuuTheme {
 
     // MARK: - Brand Colors
 
-    static let amber = Color(red: 0.855, green: 0.635, blue: 0.235)  // #DAA23C — energy, action, CTAs
-    static let steel = Color(red: 0.310, green: 0.325, blue: 0.400)  // #4F5366 — grounding, text, secondary
+    /// Bright green — primary accent for buttons, CTAs, icons, highlights
+    static let amber = Color(red: 0.06, green: 0.82, blue: 0.56)   // #10D18F
 
-    // Legacy aliases — keep until full migration, then remove
+    /// Coral — tab bar tint and warm pop accent
+    static let coral = Color(red: 1.00, green: 0.42, blue: 0.42)   // #FF6B6B
+
+    /// Steel — secondary/grounding for text on auth screens
+    static let steel = Color(red: 0.35, green: 0.40, blue: 0.45)   // #596673
+
+    // Legacy aliases
     static let primaryPurple = amber
     static let primaryBlue   = steel
 
     // MARK: - Backgrounds
 
-    /// Warm, bright background for auth/onboarding screens
+    /// Cool teal gradient for auth/onboarding screens
     static let backgroundGradient = LinearGradient(
         colors: [
-            Color(red: 0.996, green: 0.957, blue: 0.878),  // warm cream
-            Color(red: 0.988, green: 0.925, blue: 0.820),  // soft honey
+            Color(red: 0.94, green: 0.99, blue: 0.98),  // light teal
+            Color(red: 0.88, green: 0.97, blue: 0.96),  // soft teal
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let cardBackground = Color(.systemBackground)
+    static let cardBackground = Color(UIColor.systemBackground)
 
     // MARK: - Busyness Colors (green → red spectrum)
 
