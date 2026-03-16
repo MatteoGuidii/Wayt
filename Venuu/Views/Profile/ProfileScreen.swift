@@ -159,3 +159,15 @@ struct ProfileScreen: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 }
+
+#Preview("Profile - Guest") {
+    ProfileScreen()
+        .environmentObject(AuthState())
+}
+
+#Preview("Profile - Signed In") {
+    let auth = AuthState()
+    auth.didSignIn(username: "Matteo")
+    return ProfileScreen()
+        .environmentObject(auth)
+}

@@ -22,7 +22,7 @@ struct VenuuMascot: View {
     @State private var floatOffset: CGFloat = 0
 
     private var pinColor: Color { VenuuTheme.amber }
-    private var accentColor: Color { Color(red: 0.04, green: 0.62, blue: 0.42) }  // deeper green for gradient
+    private var accentColor: Color { Color(red: 0.10, green: 0.54, blue: 0.40) }  // deeper emerald for gradient
 
     var body: some View {
         ZStack {
@@ -247,5 +247,18 @@ private struct WinkShape: Shape {
             control: CGPoint(x: rect.midX, y: rect.maxY)
         )
         return path
+    }
+}
+
+#Preview("Mascot") {
+    VStack(spacing: 30) {
+        HStack(spacing: 40) {
+            VenuuMascot(size: 100, expression: .happy)
+            VenuuMascot(size: 100, expression: .excited)
+        }
+        HStack(spacing: 40) {
+            VenuuMascot(size: 100, expression: .wink)
+            VenuuMascot(size: 100, expression: .looking)
+        }
     }
 }

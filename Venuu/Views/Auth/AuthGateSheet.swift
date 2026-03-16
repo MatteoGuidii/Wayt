@@ -74,3 +74,7 @@ struct AuthGateSheet: View {
         }
     }
 }
+
+#Preview("Auth Gate") {
+    AuthGateSheet(onSignUp: {})
+}
