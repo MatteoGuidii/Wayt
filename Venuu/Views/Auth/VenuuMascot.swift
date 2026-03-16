@@ -67,7 +67,7 @@ struct VenuuMascot: View {
                 .offset(y: size * 0.72)
                 .blur(radius: 5)
 
-            // Outer pin shape (gradient fill)
+            // Outer pin shape (gradient fill + black border)
             PinShape()
                 .fill(
                     LinearGradient(
@@ -76,12 +76,20 @@ struct VenuuMascot: View {
                         endPoint: .bottomTrailing
                     )
                 )
+                .overlay(
+                    PinShape()
+                        .stroke(Color.black, lineWidth: 2.5)
+                )
                 .frame(width: size * 0.72, height: size * 1.05)
                 .shadow(color: pinColor.opacity(0.35), radius: 12, y: 6)
 
             // Inner white face area
             Circle()
                 .fill(Color.white.opacity(0.95))
+                .overlay(
+                    Circle()
+                        .stroke(Color.black, lineWidth: 2.0)
+                )
                 .frame(width: size * 0.50, height: size * 0.50)
                 .offset(y: -size * 0.12)
 
