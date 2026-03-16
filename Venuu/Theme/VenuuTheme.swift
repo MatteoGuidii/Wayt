@@ -6,11 +6,14 @@ enum VenuuTheme {
 
     // MARK: - Brand Colors
 
-    /// Soft emerald — primary accent for buttons, CTAs, icons, highlights
-    static let amber = Color(red: 0.18, green: 0.74, blue: 0.56)   // #2EBD8F
+    /// Copper Ember — primary accent for buttons, CTAs, icons, highlights
+    static let amber = Color(red: 0.78, green: 0.49, blue: 0.29)   // #C67D4B
 
-    /// Coral — tab bar tint and warm pop accent
-    static let coral = Color(red: 1.00, green: 0.42, blue: 0.42)   // #FF6B6B
+    /// Maps blue — used for map controls (Apple Maps style)
+    static let mapsBlue = Color(red: 0.00, green: 0.48, blue: 1.00) // #007AFF
+
+    /// Coral — tab bar tint (matches copper warmth)
+    static let coral = Color(red: 0.78, green: 0.49, blue: 0.29)   // #C67D4B (same as amber)
 
     /// Steel — secondary/grounding for text on auth screens
     static let steel = Color(red: 0.35, green: 0.40, blue: 0.45)   // #596673
@@ -21,11 +24,11 @@ enum VenuuTheme {
 
     // MARK: - Backgrounds
 
-    /// Cool teal gradient for auth/onboarding screens
+    /// Warm gradient for auth/onboarding screens
     static let backgroundGradient = LinearGradient(
         colors: [
-            Color(red: 0.94, green: 0.99, blue: 0.98),  // light teal
-            Color(red: 0.88, green: 0.97, blue: 0.96),  // soft teal
+            Color(red: 0.99, green: 0.96, blue: 0.94),  // warm cream
+            Color(red: 0.98, green: 0.94, blue: 0.91),  // soft copper tint
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing

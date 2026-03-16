@@ -174,7 +174,7 @@ struct MapScreen: View {
                     } label: {
                         Text(is3D ? "3D" : "2D")
                             .font(.system(size: 17, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(VenuuTheme.mapsBlue)
                             .frame(maxWidth: .infinity, minHeight: 54)
                     }
 
@@ -189,7 +189,7 @@ struct MapScreen: View {
                     } label: {
                         Image(systemName: "location.fill")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(VenuuTheme.coral)
+                            .foregroundStyle(VenuuTheme.mapsBlue)
                             .frame(maxWidth: .infinity, minHeight: 54)
                     }
                 }
@@ -211,7 +211,7 @@ struct MapScreen: View {
             // "N" letter
             Text("N")
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+                .foregroundStyle(VenuuTheme.mapsBlue)
 
             // Small red north triangle at the top
             Triangle()
@@ -235,10 +235,10 @@ struct MapScreen: View {
                     .font(.system(size: 14, weight: .semibold))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(VenuuTheme.coral)
+                    .background(VenuuTheme.mapsBlue)
                     .foregroundStyle(.white)
                     .clipShape(Capsule())
-                    .shadow(color: VenuuTheme.coral.opacity(0.3), radius: 6, y: 3)
+                    .shadow(color: VenuuTheme.mapsBlue.opacity(0.3), radius: 6, y: 3)
             }
             .padding(.bottom, 100)
         }
@@ -261,7 +261,7 @@ struct MapScreen: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(.ultraThinMaterial.opacity(0.9))
-            .background(VenuuTheme.coral.opacity(0.6))
+            .background(VenuuTheme.mapsBlue.opacity(0.6))
             .clipShape(Capsule())
             .padding(.bottom, 100)
         }
