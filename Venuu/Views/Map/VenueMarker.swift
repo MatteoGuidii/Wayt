@@ -1,37 +1,67 @@
 import SwiftUI
 
-/// Map annotation marker: venue icon with busyness-colored ring.
+/// Map annotation marker: minimal capsule with busyness dot + category icon.
 struct VenueMarkerView: View {
 
     let venue: Venue
     let isSelected: Bool
 
     var body: some View {
-        ZStack {
-            // Busyness ring
-            Circle()
-                .fill(ringColor.opacity(0.20))
-                .frame(width: markerSize, height: markerSize)
+        VStack(spacing: 0) {
+            // Capsule chip
+            HStack(spacing: 6) {
+                // Busyness dot
+                Circle()
+                    .fill(busynessColor)
+                    .frame(width: 8, height: 8)
 
-            Circle()
-                .strokeBorder(ringColor, lineWidth: isSelected ? 3 : 2)
-                .frame(width: markerSize, height: markerSize)
+                // Category icon
+                Image(systemName: venue.category.icon)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(.ultraThinMaterial)
+            .background(isSelected ? busynessColor.opacity(0.08) : Color.clear)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .strokeBorder(
+                        isSelected ? busynessColor.opacity(0.5) : Color.black.opacity(0.06),
+                        lineWidth: isSelected ? 1.5 : 0.5
+                    )
+            )
+            .shadow(
+                color: isSelected ? busynessColor.opacity(0.25) : .black.opacity(0.12),
+                radius: isSelected ? 8 : 4,
+                y: isSelected ? 3 : 2
+            )
 
-            // Venue type icon
-            Image(systemName: venue.category.icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(venue.category.color)
+            // Tiny anchor triangle
+            Triangle()
+                .fill(.ultraThinMaterial)
+                .frame(width: 8, height: 5)
+                .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
         }
-        .scaleEffect(isSelected ? 1.2 : 1.0)
-        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
-        .shadow(color: isSelected ? ringColor.opacity(0.3) : .clear, radius: 6, y: 2)
+        .scaleEffect(isSelected ? 1.1 : 1.0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
     }
 
-    private var ringColor: Color {
+    private var busynessColor: Color {
         venue.busyness?.color ?? .gray
     }
+}
 
-    private var markerSize: CGFloat {
-        VenuuTheme.markerSize
+// MARK: - Anchor Triangle
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX - rect.width / 2, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX + rect.width / 2, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
