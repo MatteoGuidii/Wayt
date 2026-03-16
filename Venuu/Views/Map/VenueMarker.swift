@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Map annotation marker: minimal capsule with busyness dot + category icon.
+/// Map annotation marker: category icon on a busyness-colored circle.
 struct VenueMarkerView: View {
 
     let venue: Venue
@@ -8,43 +8,33 @@ struct VenueMarkerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Capsule chip
-            HStack(spacing: 6) {
-                // Busyness dot
-                Circle()
-                    .fill(busynessColor)
-                    .frame(width: 8, height: 8)
-
-                // Category icon
-                Image(systemName: venue.category.icon)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(.ultraThinMaterial)
-            .background(isSelected ? busynessColor.opacity(0.08) : Color.clear)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .strokeBorder(
-                        isSelected ? busynessColor.opacity(0.5) : Color.black.opacity(0.06),
-                        lineWidth: isSelected ? 1.5 : 0.5
-                    )
-            )
-            .shadow(
-                color: isSelected ? busynessColor.opacity(0.25) : .black.opacity(0.12),
-                radius: isSelected ? 8 : 4,
-                y: isSelected ? 3 : 2
-            )
+            // Icon circle — background color = busyness level
+            Image(systemName: venue.category.icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(busynessColor)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .strokeBorder(
+                            .white.opacity(isSelected ? 0.9 : 0.5),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
+                .shadow(
+                    color: isSelected ? busynessColor.opacity(0.4) : .black.opacity(0.15),
+                    radius: isSelected ? 8 : 4,
+                    y: isSelected ? 3 : 2
+                )
 
             // Tiny anchor triangle
             Triangle()
-                .fill(.ultraThinMaterial)
+                .fill(busynessColor)
                 .frame(width: 8, height: 5)
-                .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
+                .offset(y: -1)
         }
-        .scaleEffect(isSelected ? 1.1 : 1.0)
+        .scaleEffect(isSelected ? 1.15 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
     }
 

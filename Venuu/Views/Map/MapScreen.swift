@@ -21,7 +21,7 @@ struct MapScreen: View {
                 UserAnnotation()
 
                 // Venue markers
-                ForEach(viewModel.venues) { venue in
+                ForEach(viewModel.filteredVenues) { venue in
                     Annotation(
                         venue.name,
                         coordinate: venue.coordinate,
@@ -48,8 +48,11 @@ struct MapScreen: View {
             }
             .ignoresSafeArea(edges: .top)
 
-            // MARK: - Search Bar Overlay
-            searchBar
+            // MARK: - Search Bar + Category Filters
+            VStack(spacing: 10) {
+                searchBar
+                categoryChips
+            }
 
             // MARK: - Map Controls (Compass + Recenter)
             mapControls
@@ -129,6 +132,42 @@ struct MapScreen: View {
         .shadow(color: .black.opacity(0.10), radius: 8, y: 4)
         .padding(.horizontal, 16)
         .padding(.top, 60)
+    }
+
+    // MARK: - Category Filter Chips
+
+    private var categoryChips: some View {
+        HStack(spacing: 8) {
+            ForEach(VenueCategory.allCases, id: \.self) { category in
+                let isActive = viewModel.selectedCategory == category
+
+                Button {
+                    viewModel.toggleCategoryFilter(category)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: category.icon)
+                            .font(.system(size: 11, weight: .medium))
+                        Text(category.shortName)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .frame(height: VenuuTheme.chipHeight)
+                    .padding(.horizontal, 12)
+                    .background(isActive ? VenuuTheme.mapsBlue.opacity(0.15) : Color.black.opacity(0.03))
+                    .background(.ultraThinMaterial)
+                    .foregroundStyle(isActive ? VenuuTheme.mapsBlue : .primary.opacity(0.55))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                isActive ? VenuuTheme.mapsBlue.opacity(0.5) : Color.black.opacity(0.1),
+                                lineWidth: isActive ? 1.5 : 0.5
+                            )
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Map Controls (Apple Maps style)

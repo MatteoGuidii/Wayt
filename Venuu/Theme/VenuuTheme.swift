@@ -12,16 +12,6 @@ enum VenuuTheme {
     /// Maps blue — used for map controls (Apple Maps style)
     static let mapsBlue = Color(red: 0.00, green: 0.48, blue: 1.00) // #007AFF
 
-    /// Coral — tab bar tint (matches copper warmth)
-    static let coral = Color(red: 0.78, green: 0.49, blue: 0.29)   // #C67D4B (same as amber)
-
-    /// Steel — secondary/grounding for text on auth screens
-    static let steel = Color(red: 0.35, green: 0.40, blue: 0.45)   // #596673
-
-    // Legacy aliases
-    static let primaryPurple = amber
-    static let primaryBlue   = steel
-
     // MARK: - Backgrounds
 
     /// Warm gradient for auth/onboarding screens
