@@ -22,7 +22,7 @@ struct VenuuMascot: View {
     @State private var floatOffset: CGFloat = 0
 
     private var pinColor: Color { VenuuTheme.amber }
-    private var accentColor: Color { Color(red: 0.58, green: 0.35, blue: 0.18) }  // deeper copper for gradient
+    private var accentColor: Color { VenuuTheme.amberDark }
 
     var body: some View {
         ZStack {
@@ -113,7 +113,7 @@ struct VenuuMascot: View {
         ZStack {
             if isWinking {
                 WinkShape()
-                    .stroke(Color(red: 0.25, green: 0.20, blue: 0.35), lineWidth: 2.5)
+                    .stroke(VenuuTheme.ink, lineWidth: 2.5)
                     .frame(width: size * 0.08, height: size * 0.04)
             } else {
                 // Eye white
@@ -126,7 +126,7 @@ struct VenuuMascot: View {
 
                 // Pupil
                 Circle()
-                    .fill(Color(red: 0.25, green: 0.20, blue: 0.35))
+                    .fill(VenuuTheme.ink)
                     .frame(width: size * 0.055, height: size * 0.055)
                     .offset(x: expression == .looking ? size * 0.02 : 0)
 
@@ -145,13 +145,13 @@ struct VenuuMascot: View {
             case .happy, .wink, .looking:
                 SmileShape()
                     .stroke(
-                        Color(red: 0.25, green: 0.20, blue: 0.35),
+                        VenuuTheme.ink,
                         style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
                     )
                     .frame(width: size * 0.12, height: size * 0.06)
             case .excited:
                 Ellipse()
-                    .fill(Color(red: 0.25, green: 0.20, blue: 0.35))
+                    .fill(VenuuTheme.ink)
                     .frame(width: size * 0.08, height: size * 0.06)
             }
         }

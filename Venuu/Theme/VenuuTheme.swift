@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Venuu Design System
 
@@ -7,10 +8,16 @@ enum VenuuTheme {
     // MARK: - Brand Colors
 
     /// Copper Ember — primary accent for buttons, CTAs, icons, highlights
-    static let amber = Color(red: 0.78, green: 0.49, blue: 0.29)   // #C67D4B
+    static let amber = Color(red: 0.00, green: 0.70, blue: 0.95)   // #00B3F2 Sky Punch
+
+    /// Deeper copper — gradient accent for mascot pin body
+    static let amberDark = Color(red: 0.20, green: 0.20, blue: 1.00)   // #3333FF Ultra Blue
 
     /// Maps blue — used for map controls (Apple Maps style)
     static let mapsBlue = Color(red: 0.00, green: 0.48, blue: 1.00) // #007AFF
+
+    /// Dark ink — mascot face features (eyes, mouth)
+    static let ink = Color(red: 0.25, green: 0.20, blue: 0.35)   // #403357
 
     // MARK: - Backgrounds
 
