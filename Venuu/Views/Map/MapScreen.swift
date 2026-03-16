@@ -25,7 +25,7 @@ struct MapScreen: View {
                     Annotation(
                         venue.name,
                         coordinate: venue.coordinate,
-                        anchor: .center
+                        anchor: .bottom
                     ) {
                         VenueMarkerView(
                             venue: venue,
