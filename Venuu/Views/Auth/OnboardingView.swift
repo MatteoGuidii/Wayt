@@ -205,3 +205,7 @@ private struct OnboardingPage {
     let subtitle: String
     let accentIcon: String
 }
+
+#Preview("Onboarding") {
+    OnboardingView(onGetStarted: {}, onLogIn: {})
+}

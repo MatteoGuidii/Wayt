@@ -6,8 +6,8 @@ enum VenuuTheme {
 
     // MARK: - Brand Colors
 
-    /// Bright green — primary accent for buttons, CTAs, icons, highlights
-    static let amber = Color(red: 0.06, green: 0.82, blue: 0.56)   // #10D18F
+    /// Soft emerald — primary accent for buttons, CTAs, icons, highlights
+    static let amber = Color(red: 0.18, green: 0.74, blue: 0.56)   // #2EBD8F
 
     /// Coral — tab bar tint and warm pop accent
     static let coral = Color(red: 1.00, green: 0.42, blue: 0.42)   // #FF6B6B
