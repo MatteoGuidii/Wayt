@@ -240,7 +240,7 @@ struct MapScreen: View {
                     .clipShape(Capsule())
                     .shadow(color: VenuuTheme.mapsBlue.opacity(0.3), radius: 6, y: 3)
             }
-            .padding(.bottom, 100)
+            .padding(.bottom, 16)
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.spring(response: 0.35), value: viewModel.showSearchThisArea)
@@ -263,7 +263,7 @@ struct MapScreen: View {
             .background(.ultraThinMaterial.opacity(0.9))
             .background(VenuuTheme.mapsBlue.opacity(0.6))
             .clipShape(Capsule())
-            .padding(.bottom, 100)
+            .padding(.bottom, 16)
         }
     }
 }

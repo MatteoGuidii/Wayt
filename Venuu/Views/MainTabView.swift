@@ -24,7 +24,7 @@ struct MainTabView: View {
                 }
                 .tag(Tab.profile)
         }
-        .tint(VenuuTheme.coral)
+        .tint(VenuuTheme.mapsBlue)
     }
 }
 
