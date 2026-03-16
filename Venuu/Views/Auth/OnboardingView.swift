@@ -77,16 +77,8 @@ struct OnboardingView: View {
 
     private var backgroundView: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.99, green: 0.96, blue: 0.94),  // warm cream
-                    Color(red: 0.98, green: 0.94, blue: 0.91),  // soft copper tint
-                    Color(UIColor.systemBackground),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            VenuuTheme.backgroundGradient
+                .ignoresSafeArea()
 
             // Decorative floating circles
             Circle()
