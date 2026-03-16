@@ -74,9 +74,11 @@ struct MapScreen: View {
         .task {
             locationService.requestPermission()
 
-            // Only search if we don't already have results (avoids re-firing on tab return)
-            if viewModel.venues.isEmpty, locationService.userLocation != nil {
-                viewModel.searchVenues(in: locationService.region)
+            // Search immediately — use GPS region if available, otherwise visible region
+            if viewModel.venues.isEmpty {
+                let region = locationService.userLocation != nil
+                    ? locationService.region : visibleRegion
+                viewModel.searchVenues(in: region)
             }
 
             viewModel.startLiveRefresh()

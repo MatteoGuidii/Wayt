@@ -29,11 +29,14 @@ final class MapViewModel: ObservableObject {
 
     /// Search venues in the given region. Called on appear and when tapping "Search This Area".
     func searchVenues(in region: MKCoordinateRegion) {
+        let isInitialSearch = venues.isEmpty && lastSearchedRegion == nil
         searchTask?.cancel()
         searchTask = Task {
-            // Brief debounce to coalesce rapid-fire calls (e.g. tab switching, fast panning)
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
+            // Skip debounce on first launch for instant results
+            if !isInitialSearch {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+            }
 
             isSearching = true
             errorMessage = nil

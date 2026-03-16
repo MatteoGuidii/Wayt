@@ -145,46 +145,38 @@ final class VenueSearchService {
         return venues
     }
 
-    /// Search multiple venue types in staggered batches and deduplicate results.
+    /// Search multiple venue types concurrently and deduplicate results.
     ///
-    /// Uses 6 broad queries in 2 batches of 3 to stay well under Apple's 50-req/60s limit
-    /// while still discovering a wide variety of venues.
+    /// Fires all 6 queries in parallel to minimize wall-clock time while staying
+    /// well under Apple's 50-req/60s limit.
     func searchAllTypes(region: MKCoordinateRegion) async -> [Venue] {
-        // 6 broad queries that cover restaurants, bars, cafes, nightlife, etc.
-        let batches: [[String]] = [
-            ["restaurant", "bar", "cafe"],
-            ["nightclub", "pub", "bakery"]
-        ]
+        let queries = ["restaurant", "bar", "cafe", "nightclub", "pub", "bakery"]
 
-        var seen = Set<String>()
-        var results: [Venue] = []
-
-        for batch in batches {
-            let batchResults = await withTaskGroup(of: [Venue].self) { group in
-                for query in batch {
-                    group.addTask {
-                        do {
-                            return try await self.search(query: query, region: region)
-                        } catch {
-                            print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
-                            return []
-                        }
+        let allResults = await withTaskGroup(of: [Venue].self) { group in
+            for query in queries {
+                group.addTask {
+                    do {
+                        return try await self.search(query: query, region: region)
+                    } catch {
+                        print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
+                        return []
                     }
                 }
-
-                var collected: [Venue] = []
-                for await venues in group {
-                    collected.append(contentsOf: venues)
-                }
-                return collected
             }
 
-            // Deduplicate into results
-            for venue in batchResults where !seen.contains(venue.id) {
-                seen.insert(venue.id)
-                results.append(venue)
+            var collected: [Venue] = []
+            for await venues in group {
+                collected.append(contentsOf: venues)
             }
+            return collected
+        }
 
+        // Deduplicate
+        var seen = Set<String>()
+        var results: [Venue] = []
+        for venue in allResults where !seen.contains(venue.id) {
+            seen.insert(venue.id)
+            results.append(venue)
             if results.count >= AppConstants.maxVisibleVenues { break }
         }
 

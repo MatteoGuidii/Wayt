@@ -23,6 +23,12 @@ final class LocationService: NSObject, ObservableObject {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.distanceFilter = AppConstants.locationDistanceFilter
+
+        // Start updating immediately if already authorized (avoids waiting for scenePhase)
+        let status = manager.authorizationStatus
+        if status == .authorizedWhenInUse || status == .authorizedAlways {
+            manager.startUpdatingLocation()
+        }
     }
 
     // MARK: - Public
