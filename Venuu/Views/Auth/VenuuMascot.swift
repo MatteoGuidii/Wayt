@@ -22,7 +22,7 @@ struct VenuuMascot: View {
     @State private var floatOffset: CGFloat = 0
 
     private var pinColor: Color { VenuuTheme.amber }
-    private var accentColor: Color { Color(red: 0.10, green: 0.54, blue: 0.40) }  // deeper emerald for gradient
+    private var accentColor: Color { Color(red: 0.58, green: 0.35, blue: 0.18) }  // deeper copper for gradient
 
     var body: some View {
         ZStack {
