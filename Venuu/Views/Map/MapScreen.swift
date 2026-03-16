@@ -129,15 +129,18 @@ struct MapScreen: View {
         .padding(.top, 60)
     }
 
-    // MARK: - Map Controls (grouped)
+    // MARK: - Map Controls (Apple Maps style)
 
     private var mapControls: some View {
         VStack {
             Spacer()
+
             HStack {
                 Spacer()
+
+                // Grouped controls: Compass (when rotated), 3D, Location
                 VStack(spacing: 0) {
-                    // Compass — only visible when map is rotated
+                    // Compass — appears inside the group when map is rotated
                     if mapHeading != 0 {
                         Button {
                             withAnimation(.easeInOut(duration: 0.3)) {
@@ -150,14 +153,14 @@ struct MapScreen: View {
                             }
                         } label: {
                             compassIcon
-                                .frame(width: 44, height: 44)
+                                .frame(maxWidth: .infinity, minHeight: 54)
                         }
 
                         Divider()
-                            .frame(width: 28)
+                            .padding(.horizontal, 8)
                     }
 
-                    // 2D / 3D toggle
+                    // 3D toggle
                     Button {
                         is3D.toggle()
                         withAnimation(.easeInOut(duration: 0.4)) {
@@ -170,13 +173,13 @@ struct MapScreen: View {
                         }
                     } label: {
                         Text(is3D ? "3D" : "2D")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(is3D ? VenuuTheme.coral : .secondary)
-                            .frame(width: 44, height: 44)
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, minHeight: 54)
                     }
 
                     Divider()
-                        .frame(width: 28)
+                        .padding(.horizontal, 8)
 
                     // Recenter on user
                     Button {
@@ -185,32 +188,37 @@ struct MapScreen: View {
                         }
                     } label: {
                         Image(systemName: "location.fill")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 20, weight: .medium))
                             .foregroundStyle(VenuuTheme.coral)
-                            .frame(width: 44, height: 44)
+                            .frame(maxWidth: .infinity, minHeight: 54)
                     }
                 }
+                .frame(width: 56)
                 .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
                 .padding(.trailing, 16)
-                .padding(.bottom, 110)
             }
+            .padding(.bottom, 8)
         }
+        .animation(.easeInOut(duration: 0.25), value: mapHeading != 0)
     }
 
-    // MARK: - Compass Icon
+    // MARK: - Compass Icon (Apple Maps style)
 
     private var compassIcon: some View {
         ZStack {
-            // North half (red)
-            CompassNeedle(isTop: true)
+            // "N" letter
+            Text("N")
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+
+            // Small red north triangle at the top
+            Triangle()
                 .fill(.red)
-            // South half (white/gray)
-            CompassNeedle(isTop: false)
-                .fill(Color(.systemGray3))
+                .frame(width: 7, height: 6)
+                .offset(y: -15)
         }
-        .frame(width: 14, height: 14)
         .rotationEffect(.degrees(-mapHeading))
     }
 
@@ -262,29 +270,16 @@ struct MapScreen: View {
 
 // MARK: - Compass Needle Shape
 
-/// Diamond-shaped half needle for the compass icon (like Apple Maps).
-struct CompassNeedle: Shape {
-    let isTop: Bool
 
+// MARK: - Triangle Shape (compass north indicator)
+
+private struct Triangle: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let midX = rect.midX
-        let midY = rect.midY
-
-        if isTop {
-            // Top triangle: center-top → left-center → right-center
-            path.move(to: CGPoint(x: midX, y: rect.minY))
-            path.addLine(to: CGPoint(x: midX - rect.width * 0.3, y: midY))
-            path.addLine(to: CGPoint(x: midX + rect.width * 0.3, y: midY))
-            path.closeSubpath()
-        } else {
-            // Bottom triangle: center-bottom → left-center → right-center
-            path.move(to: CGPoint(x: midX, y: rect.maxY))
-            path.addLine(to: CGPoint(x: midX - rect.width * 0.3, y: midY))
-            path.addLine(to: CGPoint(x: midX + rect.width * 0.3, y: midY))
-            path.closeSubpath()
-        }
-
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
         return path
     }
 }
