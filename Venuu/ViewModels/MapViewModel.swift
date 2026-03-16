@@ -116,7 +116,7 @@ final class MapViewModel: ObservableObject {
             return ratio > 1.5 || ratio < (1.0 / 1.5)
         }()
 
-        if centerMoved || zoomChanged {
+        if (centerMoved || zoomChanged) && !isSearching {
             showSearchThisArea = true
         }
     }

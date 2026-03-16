@@ -194,9 +194,9 @@ struct MapScreen: View {
                     }
                 }
                 .frame(width: 56)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                .background(.regularMaterial)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.10), radius: 6, y: 3)
                 .padding(.trailing, 16)
             }
             .padding(.bottom, 8)
