@@ -64,6 +64,10 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
 
     static func == (lhs: Venue, rhs: Venue) -> Bool {
         lhs.id == rhs.id
+            && lhs.busyness == rhs.busyness
+            && lhs.busynessConfidence == rhs.busynessConfidence
+            && lhs.reportCount == rhs.reportCount
+            && lhs.estimatedWaitMinutes == rhs.estimatedWaitMinutes
     }
 
     func hash(into hasher: inout Hasher) {

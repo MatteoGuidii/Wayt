@@ -4,6 +4,8 @@ struct DiscoverScreen: View {
 
     @StateObject private var viewModel = DiscoverViewModel()
     @EnvironmentObject private var locationService: LocationService
+    @EnvironmentObject private var filterState: VenueFilterState
+    @EnvironmentObject private var mapViewModel: MapViewModel
     @State private var selectedVenue: Venue?
 
     var body: some View {
@@ -25,19 +27,16 @@ struct DiscoverScreen: View {
             }
             .scrollIndicators(.hidden)
             .background(Color(.systemGroupedBackground))
-            .refreshable {
-                await viewModel.loadVenues(near: locationService.userLocation)
-            }
         }
         .task {
-            guard viewModel.venues.isEmpty else { return }
-            await viewModel.loadVenues(near: locationService.userLocation)
-        }
-        .onChange(of: locationService.userLocation) { _, newLocation in
-            guard viewModel.venues.isEmpty, newLocation != nil else { return }
-            Task {
-                await viewModel.loadVenues(near: newLocation)
+            viewModel.filterState = filterState
+            // Seed with existing map data
+            if !mapViewModel.venues.isEmpty {
+                viewModel.updateVenues(mapViewModel.venues, userLocation: locationService.userLocation)
             }
+        }
+        .onChange(of: mapViewModel.venues) { _, newVenues in
+            viewModel.updateVenues(newVenues, userLocation: locationService.userLocation)
         }
         .sheet(item: $selectedVenue) { venue in
             VenueDetailSheet(venue: venue)
@@ -48,7 +47,7 @@ struct DiscoverScreen: View {
     // MARK: - Greeting Header
 
     private var greetingHeader: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(viewModel.greeting)
                     .font(VenuuTheme.largeTitleFont)
@@ -60,21 +59,23 @@ struct DiscoverScreen: View {
 
             Spacer()
 
-            VenuuMascot(size: 50, expression: mascotExpression, animated: true)
+            VenuuMascot(size: 80, expression: mascotExpression, animated: true)
+                .offset(x: -10)
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
+        .padding(.bottom, -20)
     }
 
     /// Show "Go Now" when no busyness filter, or filtering empty/quiet/moderate
     private var showGoNow: Bool {
-        guard let level = viewModel.selectedBusynessLevel else { return true }
+        guard let level = filterState.selectedBusynessLevel else { return true }
         return level.rawValue <= 3
     }
 
     /// Show "On Fire" when no busyness filter, or filtering busy/packed
     private var showOnFire: Bool {
-        guard let level = viewModel.selectedBusynessLevel else { return true }
+        guard let level = filterState.selectedBusynessLevel else { return true }
         return level.rawValue >= 4
     }
 
@@ -102,10 +103,10 @@ struct DiscoverScreen: View {
 
                 Spacer()
 
-                if let level = viewModel.selectedBusynessLevel {
+                if let level = filterState.selectedBusynessLevel {
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            viewModel.selectBusynessLevel(nil)
+                            filterState.selectBusynessLevel(nil)
                         }
                     } label: {
                         HStack(spacing: 4) {
@@ -124,7 +125,7 @@ struct DiscoverScreen: View {
             }
             .padding(.horizontal, 20)
 
-            if viewModel.venues.isEmpty && viewModel.isLoading {
+            if viewModel.venues.isEmpty && mapViewModel.isSearching {
                 HStack {
                     Spacer()
                     ProgressView()
@@ -145,12 +146,12 @@ struct DiscoverScreen: View {
                 let count = viewModel.vibePulse[level.rawValue] ?? 0
                 let maxCount = max(viewModel.vibePulse.values.max() ?? 1, 1)
                 let fraction = Double(count) / Double(maxCount)
-                let isSelected = viewModel.selectedBusynessLevel == level
-                let isFiltering = viewModel.selectedBusynessLevel != nil
+                let isSelected = filterState.selectedBusynessLevel == level
+                let isFiltering = filterState.selectedBusynessLevel != nil
 
                 Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                        viewModel.selectBusynessLevel(level)
+                        filterState.selectBusynessLevel(level)
                     }
                 } label: {
                     VStack(spacing: 5) {
@@ -228,15 +229,15 @@ struct DiscoverScreen: View {
     }
 
     private func categoryPill(_ category: VenueCategory) -> some View {
-        let isSelected = viewModel.selectedCategory == category
+        let isSelected = filterState.selectedCategory == category
         let count = viewModel.categoryCounts[category] ?? 0
 
         return Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                if viewModel.selectedCategory == category {
-                    viewModel.selectCategory(nil)
+                if filterState.selectedCategory == category {
+                    filterState.selectCategory(nil)
                 } else {
-                    viewModel.selectCategory(category)
+                    filterState.selectCategory(category)
                 }
             }
         } label: {
@@ -413,16 +414,16 @@ struct DiscoverScreen: View {
 
                 Spacer()
 
-                if viewModel.isLoading {
+                if mapViewModel.isSearching {
                     ProgressView()
                         .scaleEffect(0.8)
                 }
 
-                if viewModel.selectedCategory != nil || viewModel.selectedBusynessLevel != nil {
+                if filterState.selectedCategory != nil || filterState.selectedBusynessLevel != nil {
                     Button {
                         withAnimation(.spring(response: 0.3)) {
-                            viewModel.selectCategory(nil)
-                            viewModel.selectBusynessLevel(nil)
+                            filterState.selectCategory(nil)
+                            filterState.selectBusynessLevel(nil)
                         }
                     } label: {
                         Text("Clear filters")
@@ -440,7 +441,7 @@ struct DiscoverScreen: View {
                     .padding(.horizontal, 20)
             }
 
-            if viewModel.filteredVenues.isEmpty && !viewModel.isLoading {
+            if viewModel.filteredVenues.isEmpty && !mapViewModel.isSearching {
                 emptyNearbyState
             } else {
                 LazyVStack(spacing: 8) {

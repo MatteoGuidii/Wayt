@@ -7,7 +7,7 @@ struct ProfileScreen: View {
     @EnvironmentObject private var authState: AuthState
     @StateObject private var viewModel = ProfileViewModel()
     @State private var showSignOutConfirm = false
-    @State private var mascotExpression: VenuuMascot.Expression = .cheerful
+    @State private var mascotExpression: VenuuMascot.Expression = .happy
 
     var body: some View {
         NavigationStack {
@@ -505,7 +505,7 @@ struct ProfileScreen: View {
     // MARK: - Mascot Expression Cycle
 
     private static let expressionCycle: [VenuuMascot.Expression] = [
-        .cheerful, .happy, .looking, .excited, .wink, .proud, .kind
+        .happy, .cheerful, .looking, .excited, .wink, .proud, .kind
     ]
 
     private func cycleMascotExpression() async {

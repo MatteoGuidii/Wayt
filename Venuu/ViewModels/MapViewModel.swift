@@ -14,7 +14,6 @@ final class MapViewModel: ObservableObject {
     @Published var isSearching: Bool = false
     @Published var showSearchThisArea: Bool = false
     @Published var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
-    @Published var selectedCategory: VenueCategory?
 
     /// Clustered map items for the current zoom level.
     @Published var mapItems: [VenueMapItem] = []
@@ -22,15 +21,39 @@ final class MapViewModel: ObservableObject {
     /// The current visible region, used for clustering calculations.
     private var currentRegion: MKCoordinateRegion?
 
-    /// Venues filtered by the active category chip. Nil selection = show all.
+    // MARK: - Shared Filter
+
+    var filterState: VenueFilterState? {
+        didSet { observeFilter() }
+    }
+
+    private var filterCancellable: AnyCancellable?
+
+    private func observeFilter() {
+        filterCancellable = filterState?.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.recomputeClusters()
+                }
+            }
+    }
+
+    /// Venues filtered by the shared category + busyness filters.
     var filteredVenues: [Venue] {
-        guard let category = selectedCategory else { return venues }
-        return venues.filter { $0.category == category }
+        var result = venues
+        if let category = filterState?.selectedCategory {
+            result = result.filter { $0.category == category }
+        }
+        if let level = filterState?.selectedBusynessLevel {
+            result = result.filter { $0.busyness == level }
+        }
+        return result
     }
 
     func toggleCategoryFilter(_ category: VenueCategory) {
         withAnimation(.easeInOut(duration: 0.2)) {
-            selectedCategory = selectedCategory == category ? nil : category
+            filterState?.selectCategory(category)
         }
         recomputeClusters()
     }
