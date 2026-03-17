@@ -78,9 +78,9 @@ struct AuthRootView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(VenuuTheme.bodyBoldFont)
                             Text("Back")
-                                .font(.system(size: 16, weight: .medium))
+                                .font(VenuuTheme.bodyFont)
                         }
                         .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.8))
                     }
@@ -117,11 +117,11 @@ private struct AuthHeaderView: View {
             VenuuMascot(size: 80, expression: .looking, animated: false)
 
             Text("Venuu")
-                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .font(VenuuTheme.displayFont)
                 .foregroundStyle(VenuuTheme.mapsBlue)
 
             Text("Know before you go.")
-                .font(.system(size: 15, weight: .medium))
+                .font(VenuuTheme.subtitleFont)
                 .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.7))
         }
         .padding(.top, 12)

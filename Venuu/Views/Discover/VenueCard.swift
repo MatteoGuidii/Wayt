@@ -6,8 +6,8 @@ struct VenueCard: View {
     let venue: Venue
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Top: busyness color accent bar
+        VStack(alignment: .leading, spacing: 0) {
+            // Top color strip — busyness accent
             HStack(spacing: 0) {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(venue.busyness?.color ?? Color.gray.opacity(0.3))
@@ -23,7 +23,7 @@ struct VenueCard: View {
                             .fill(venue.category.color.opacity(0.15))
                             .frame(width: 36, height: 36)
                         Image(systemName: venue.category.icon)
-                            .font(.system(size: 15, weight: .bold))
+                            .font(VenuuTheme.cardTitleFont)
                             .foregroundStyle(venue.category.color)
                     }
 
@@ -35,7 +35,7 @@ struct VenueCard: View {
                                 .fill(busyness.color)
                                 .frame(width: 7, height: 7)
                             Text(busyness.label)
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .font(VenuuTheme.microFont)
                                 .foregroundStyle(busyness.color)
                         }
                         .padding(.horizontal, 8)
@@ -45,19 +45,17 @@ struct VenueCard: View {
                     }
                 }
 
-                // Venue name
                 Text(venue.name)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.subheadFont)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                // Wait time
                 if let wait = venue.estimatedWaitMinutes, wait > 0 {
                     HStack(spacing: 4) {
                         Image(systemName: "clock.fill")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(VenuuTheme.microFont)
                         Text("~\(wait) min wait")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(VenuuTheme.badgeFont)
                     }
                     .foregroundStyle(.orange)
                 }

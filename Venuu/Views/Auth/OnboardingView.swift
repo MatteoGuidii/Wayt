@@ -107,7 +107,7 @@ struct OnboardingView: View {
 
                 // Small floating icon badge
                 Image(systemName: page.accentIcon)
-                    .font(.system(size: 22, weight: .bold))
+                    .font(VenuuTheme.iconLargeFont)
                     .foregroundStyle(VenuuTheme.skyPunch)
                     .padding(12)
                     .background(
@@ -120,12 +120,12 @@ struct OnboardingView: View {
 
             VStack(spacing: 12) {
                 Text(page.headline)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.heroFont)
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
 
                 Text(page.subtitle)
-                    .font(.system(size: 16, weight: .regular))
+                    .font(VenuuTheme.bodyFont)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
@@ -158,7 +158,7 @@ struct OnboardingView: View {
             // Primary CTA
             Button(action: onGetStarted) {
                 Text("Get started")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .font(VenuuTheme.title3Font)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -172,7 +172,7 @@ struct OnboardingView: View {
             // Secondary CTA
             Button(action: onLogIn) {
                 Text("I already have an account")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .font(VenuuTheme.bodyFont)
                     .foregroundStyle(VenuuTheme.skyPunch)
             }
             .opacity(appeared ? 1 : 0)
@@ -183,7 +183,7 @@ struct OnboardingView: View {
 
     private var termsText: some View {
         Text("By continuing you agree to Venuu's\nTerms of Service and Privacy Policy")
-            .font(.system(size: 12))
+            .font(VenuuTheme.captionLightFont)
             .foregroundStyle(.tertiary)
             .multilineTextAlignment(.center)
     }
