@@ -7,19 +7,19 @@ struct VenuuThemeTests {
 
     // MARK: - Brand Colors
 
-    @Test("amber is a valid color (non-clear)")
-    func amberIsValid() {
-        #expect(VenuuTheme.amber != Color.clear)
+    @Test("skyPunch is a valid color (non-clear)")
+    func skyPunchIsValid() {
+        #expect(VenuuTheme.skyPunch != Color.clear)
     }
 
-    @Test("steel is a valid color (non-clear)")
-    func steelIsValid() {
-        #expect(VenuuTheme.steel != Color.clear)
+    @Test("mapsBlue is a valid color (non-clear)")
+    func mapsBlueIsValid() {
+        #expect(VenuuTheme.mapsBlue != Color.clear)
     }
 
-    @Test("amber and steel are distinct colors")
+    @Test("skyPunch and mapsBlue are distinct colors")
     func brandColorsAreDistinct() {
-        #expect(VenuuTheme.amber != VenuuTheme.steel)
+        #expect(VenuuTheme.skyPunch != VenuuTheme.mapsBlue)
     }
 
     // MARK: - Busyness Colors

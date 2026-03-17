@@ -13,8 +13,20 @@ final class MapViewModel: ObservableObject {
     @Published var searchText: String = ""
     @Published var isSearching: Bool = false
     @Published var showSearchThisArea: Bool = false
-    @Published var errorMessage: String?
     @Published var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
+    @Published var selectedCategory: VenueCategory?
+
+    /// Venues filtered by the active category chip. Nil selection = show all.
+    var filteredVenues: [Venue] {
+        guard let category = selectedCategory else { return venues }
+        return venues.filter { $0.category == category }
+    }
+
+    func toggleCategoryFilter(_ category: VenueCategory) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selectedCategory = selectedCategory == category ? nil : category
+        }
+    }
 
     // MARK: - Internal State
 
@@ -29,14 +41,17 @@ final class MapViewModel: ObservableObject {
 
     /// Search venues in the given region. Called on appear and when tapping "Search This Area".
     func searchVenues(in region: MKCoordinateRegion) {
+        let isInitialSearch = venues.isEmpty && lastSearchedRegion == nil
         searchTask?.cancel()
         searchTask = Task {
-            // Brief debounce to coalesce rapid-fire calls (e.g. tab switching, fast panning)
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
+            // Skip debounce on first launch for instant results
+            if !isInitialSearch {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+            }
 
             isSearching = true
-            errorMessage = nil
+            defer { isSearching = false }
             showSearchThisArea = false
 
             print("[MapViewModel] Searching region: \(region.center.latitude), \(region.center.longitude) span: \(region.span.latitudeDelta)")
@@ -81,11 +96,9 @@ final class MapViewModel: ObservableObject {
                 print("[MapViewModel] Loaded \(results.count) venues with busyness")
             } catch {
                 guard !Task.isCancelled else { return }
-                errorMessage = error.localizedDescription
                 print("[MapViewModel] Search error: \(error.localizedDescription)")
             }
 
-            isSearching = false
         }
     }
 
@@ -116,7 +129,7 @@ final class MapViewModel: ObservableObject {
             return ratio > 1.5 || ratio < (1.0 / 1.5)
         }()
 
-        if centerMoved || zoomChanged {
+        if (centerMoved || zoomChanged) && !isSearching {
             showSearchThisArea = true
         }
     }

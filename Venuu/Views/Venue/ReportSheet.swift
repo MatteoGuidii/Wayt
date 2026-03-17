@@ -41,16 +41,16 @@ struct ReportSheet: View {
                 VStack(spacing: 10) {
                     Toggle("Include wait time", isOn: $includeWaitTime)
                         .font(VenuuTheme.captionFont)
-                        .tint(VenuuTheme.amber)
+                        .tint(VenuuTheme.mapsBlue)
 
                     if includeWaitTime {
                         VStack(spacing: 4) {
                             Text("\(Int(waitMinutes)) min")
                                 .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundStyle(VenuuTheme.amber)
+                                .foregroundStyle(VenuuTheme.mapsBlue)
 
                             Slider(value: $waitMinutes, in: 0...90, step: 5)
-                                .tint(VenuuTheme.amber)
+                                .tint(VenuuTheme.mapsBlue)
 
                             HStack {
                                 Text("No wait")
@@ -95,7 +95,7 @@ struct ReportSheet: View {
                     .font(.system(size: 16, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(submitted ? .green : (selectedLevel != nil ? VenuuTheme.amber : .gray))
+                    .background(submitted ? .green : (selectedLevel != nil ? VenuuTheme.mapsBlue : .gray))
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }

@@ -35,7 +35,6 @@ final class ProfileViewModel: ObservableObject {
 
 struct UserProfile: Codable, Sendable {
     let userId: String
-    let username: String
     let totalReports: Int
     let joinedAt: String
 }

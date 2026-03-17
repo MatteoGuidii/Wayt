@@ -82,7 +82,7 @@ struct AuthRootView: View {
                             Text("Back")
                                 .font(.system(size: 16, weight: .medium))
                         }
-                        .foregroundStyle(VenuuTheme.steel.opacity(0.8))
+                        .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.8))
                     }
                     .padding(.leading, 20)
                     .padding(.top, 8)
@@ -114,15 +114,15 @@ private struct AuthHeaderView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            VenuuMascot(size: 80, expression: .happy, animated: false)
+            VenuuMascot(size: 80, expression: .looking, animated: false)
 
             Text("Venuu")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(VenuuTheme.steel)
+                .foregroundStyle(VenuuTheme.mapsBlue)
 
             Text("Know before you go.")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(VenuuTheme.steel.opacity(0.7))
+                .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.7))
         }
         .padding(.top, 12)
         .padding(.bottom, 4)
