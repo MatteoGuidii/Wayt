@@ -21,11 +21,11 @@ enum VenuuTheme {
 
     // MARK: - Backgrounds
 
-    /// Warm gradient for auth/onboarding screens
+    /// Cool ice-blue gradient for auth/onboarding screens
     static let backgroundGradient = LinearGradient(
         colors: [
-            Color(red: 0.99, green: 0.96, blue: 0.94),  // warm cream #FCEFE0
-            Color(red: 0.98, green: 0.94, blue: 0.91),  // soft copper tint #F8E8E0
+            Color(red: 0.93, green: 0.97, blue: 0.99),  // icy white #EEF7FC
+            Color(red: 0.88, green: 0.94, blue: 0.98),  // faint sky #E0F0FA
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
