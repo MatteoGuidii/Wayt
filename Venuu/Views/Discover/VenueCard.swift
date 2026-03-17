@@ -48,7 +48,6 @@ struct VenueCard: View {
                 Text(venue.name)
                     .font(VenuuTheme.subheadFont)
                     .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
 
                 if let wait = venue.estimatedWaitMinutes, wait > 0 {
                     HStack(spacing: 4) {
@@ -63,7 +62,7 @@ struct VenueCard: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
         }
-        .frame(width: 175, alignment: .leading)
+        .frame(width: 170, height: 120, alignment: .topLeading)
         .background(VenuuTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(

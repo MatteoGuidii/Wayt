@@ -13,10 +13,10 @@ struct DiscoverScreen: View {
                     greetingHeader
                     vibePulseSection
                     categoryStrip
-                    if !viewModel.sweetSpotVenues.isEmpty && viewModel.selectedBusynessLevel == nil {
+                    if !viewModel.sweetSpotVenues.isEmpty && showGoNow {
                         goNowSection
                     }
-                    if !viewModel.popularVenues.isEmpty && viewModel.selectedBusynessLevel == nil {
+                    if !viewModel.popularVenues.isEmpty && showOnFire {
                         buzzingSection
                     }
                     allSpotsSection
@@ -64,6 +64,18 @@ struct DiscoverScreen: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
+    }
+
+    /// Show "Go Now" when no busyness filter, or filtering empty/quiet/moderate
+    private var showGoNow: Bool {
+        guard let level = viewModel.selectedBusynessLevel else { return true }
+        return level.rawValue <= 3
+    }
+
+    /// Show "On Fire" when no busyness filter, or filtering busy/packed
+    private var showOnFire: Bool {
+        guard let level = viewModel.selectedBusynessLevel else { return true }
+        return level.rawValue >= 4
     }
 
     private var mascotExpression: VenuuMascot.Expression {
@@ -278,7 +290,7 @@ struct DiscoverScreen: View {
 
                 Spacer()
 
-                Text("No wait")
+                Text("\(viewModel.sweetSpotVenues.count) venues")
                     .font(VenuuTheme.badgeFont)
                     .foregroundStyle(.green)
                     .padding(.horizontal, 10)
@@ -329,7 +341,7 @@ struct DiscoverScreen: View {
 
             Text(venue.name)
                 .font(VenuuTheme.subheadFont)
-                .lineLimit(1)
+                .lineLimit(2)
                 .foregroundStyle(.primary)
 
             if let busyness = venue.busyness {
@@ -340,7 +352,7 @@ struct DiscoverScreen: View {
             }
         }
         .padding(14)
-        .frame(width: 170, alignment: .leading)
+        .frame(width: 170, height: 120, alignment: .topLeading)
         .background(VenuuTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
@@ -362,7 +374,7 @@ struct DiscoverScreen: View {
 
                 Spacer()
 
-                Text("High energy")
+                Text("\(viewModel.popularVenues.count) venues")
                     .font(VenuuTheme.badgeFont)
                     .foregroundStyle(.orange)
                     .padding(.horizontal, 10)

@@ -277,12 +277,13 @@ final class MapViewModel: ObservableObject {
 
     /// Apply offline busyness estimates to venues that have no report data.
     private func applyOfflineBusyness(to venues: [Venue]) -> [Venue] {
+        // ⚠️ TEST ONLY — REMOVE BEFORE PRODUCTION
+        // Assigns random busyness levels for UI testing.
+        // Revert to: busynessEngine.estimateOffline() fallback for venues with nil busyness.
         venues.map { venue in
-            guard venue.busyness == nil else { return venue }
             var v = venue
-            let estimate = busynessEngine.estimateOffline()
-            v.busyness = estimate.level
-            v.busynessConfidence = estimate.confidence
+            v.busyness = BusynessLevel.allCases.randomElement() ?? .moderate
+            v.busynessConfidence = .estimated
             return v
         }
     }
