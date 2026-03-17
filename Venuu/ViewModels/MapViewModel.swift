@@ -16,6 +16,12 @@ final class MapViewModel: ObservableObject {
     @Published var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
     @Published var selectedCategory: VenueCategory?
 
+    /// Clustered map items for the current zoom level.
+    @Published var mapItems: [VenueMapItem] = []
+
+    /// The current visible region, used for clustering calculations.
+    private var currentRegion: MKCoordinateRegion?
+
     /// Venues filtered by the active category chip. Nil selection = show all.
     var filteredVenues: [Venue] {
         guard let category = selectedCategory else { return venues }
@@ -25,6 +31,21 @@ final class MapViewModel: ObservableObject {
     func toggleCategoryFilter(_ category: VenueCategory) {
         withAnimation(.easeInOut(duration: 0.2)) {
             selectedCategory = selectedCategory == category ? nil : category
+        }
+        recomputeClusters()
+    }
+
+    /// Recompute clusters from current venues and zoom level.
+    private func recomputeClusters() {
+        guard let region = currentRegion else {
+            mapItems = filteredVenues.map { .single($0) }
+            return
+        }
+
+        if VenueClusterer.shouldCluster(region: region) {
+            mapItems = VenueClusterer.cluster(venues: filteredVenues, in: region)
+        } else {
+            mapItems = filteredVenues.map { .single($0) }
         }
     }
 
@@ -65,6 +86,7 @@ final class MapViewModel: ObservableObject {
                     results = await searchService.searchAllTypes(region: region) { [weak self] partial in
                         guard let self, !Task.isCancelled else { return }
                         self.venues = self.applyOfflineBusyness(to: partial)
+                        self.recomputeClusters()
                         self.isSearching = false // stop spinner on first batch
                     }
                 } else {
@@ -89,6 +111,7 @@ final class MapViewModel: ObservableObject {
                 if !results.isEmpty {
                     venues = results
                     lastSearchedRegion = region
+                    recomputeClusters()
                 }
                 print("[MapViewModel] Loaded \(results.count) venues with busyness")
             } catch {
@@ -112,6 +135,19 @@ final class MapViewModel: ObservableObject {
 
     /// Called when user pans/zooms the map
     func onRegionChanged(_ region: MKCoordinateRegion) {
+        // Always update current region for clustering
+        let previousRegion = currentRegion
+        currentRegion = region
+
+        // Recompute clusters if zoom changed meaningfully
+        let zoomRatio: Double = {
+            guard let prev = previousRegion, prev.span.latitudeDelta > 0 else { return 1.0 }
+            return region.span.latitudeDelta / prev.span.latitudeDelta
+        }()
+        if zoomRatio > 1.3 || zoomRatio < (1.0 / 1.3) {
+            recomputeClusters()
+        }
+
         guard let last = lastSearchedRegion else { return }
 
         // Check center movement
@@ -161,6 +197,7 @@ final class MapViewModel: ObservableObject {
             var updated = venues
             await overlayReports(on: &updated, region: region)
             venues = updated
+            recomputeClusters()
         }
     }
 
@@ -184,6 +221,7 @@ final class MapViewModel: ObservableObject {
                 var updated = venues
                 await overlayReports(on: &updated, region: region)
                 venues = updated
+                recomputeClusters()
                 print("[MapViewModel] Live refresh complete")
             }
         }

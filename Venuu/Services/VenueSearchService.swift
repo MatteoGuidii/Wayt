@@ -58,10 +58,18 @@ final class VenueSearchService {
         }
     }
 
+    private func cacheKey(for query: String, region: MKCoordinateRegion) -> String {
+        // Coarse region bucket so different zoom levels get separate entries
+        let latBucket = Int(region.center.latitude * 100)
+        let lngBucket = Int(region.center.longitude * 100)
+        let zoomBucket = Int(log2(max(region.span.latitudeDelta, 0.001) * 1000))
+        return "\(normalizedQuery(query))_\(latBucket)_\(lngBucket)_\(zoomBucket)"
+    }
+
     private func cachedResults(for query: String, region: MKCoordinateRegion) -> [Venue]? {
         pruneCacheIfNeeded()
-        let cacheKey = normalizedQuery(query)
-        guard let entry = queryCache[cacheKey],
+        let key = cacheKey(for: query, region: region)
+        guard let entry = queryCache[key],
               Date().timeIntervalSince(entry.timestamp) < Self.cacheTTL,
               entry.region.isClose(to: region) else {
             return nil
@@ -70,13 +78,38 @@ final class VenueSearchService {
     }
 
     /// Return cached results even if the region doesn't match closely (stale fallback).
-    private func staleCachedResults(for query: String) -> [Venue]? {
-        let cacheKey = normalizedQuery(query)
-        guard let entry = queryCache[cacheKey],
-              Date().timeIntervalSince(entry.timestamp) < Self.cacheTTL * 2 else {
-            return nil
+    /// Searches all cache entries matching the query prefix. Skips entries whose
+    /// region is much smaller than the requested region (would show too few venues).
+    private func staleCachedResults(for query: String, region: MKCoordinateRegion? = nil) -> [Venue]? {
+        let prefix = normalizedQuery(query)
+        let now = Date()
+
+        // Find the best matching stale entry for this query
+        var bestEntry: CachedSearch?
+        var bestScore = Double.greatestFiniteMagnitude
+
+        for (key, entry) in queryCache where key.hasPrefix(prefix) {
+            guard now.timeIntervalSince(entry.timestamp) < Self.cacheTTL * 2 else { continue }
+
+            // If we have a target region and the cached region is much smaller,
+            // the stale results are misleading — skip them
+            if let target = region {
+                let cachedSpan = entry.region.span.latitudeDelta
+                let targetSpan = target.span.latitudeDelta
+                if cachedSpan > 0, targetSpan / cachedSpan > 2.0 {
+                    continue
+                }
+            }
+
+            // Prefer the most recent entry
+            let age = now.timeIntervalSince(entry.timestamp)
+            if age < bestScore {
+                bestScore = age
+                bestEntry = entry
+            }
         }
-        return entry.results
+
+        return bestEntry?.results
     }
 
     // MARK: - Excluded Categories
@@ -109,7 +142,7 @@ final class VenueSearchService {
         // Rate-limit guard — return stale cache or skip instead of blocking
         if !canMakeRequest() {
             print("[VenueSearchService] Rate limit: returning stale cache for '\(query)'")
-            return staleCachedResults(for: query) ?? []
+            return staleCachedResults(for: query, region: region) ?? []
         }
 
         recordRequest()
@@ -146,7 +179,7 @@ final class VenueSearchService {
         }
 
         pruneCacheIfNeeded()
-        queryCache[normalizedQuery(query)] = CachedSearch(region: region, results: venues, timestamp: Date())
+        queryCache[cacheKey(for: query, region: region)] = CachedSearch(region: region, results: venues, timestamp: Date())
         return venues
     }
 
@@ -204,7 +237,7 @@ final class VenueSearchService {
         }
 
         // All retries exhausted — return stale cache if available
-        if let stale = staleCachedResults(for: query) {
+        if let stale = staleCachedResults(for: query, region: region) {
             print("[VenueSearchService] '\(query)' returning stale cache after retries")
             return stale
         }

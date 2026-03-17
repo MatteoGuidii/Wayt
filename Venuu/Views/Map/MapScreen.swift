@@ -20,21 +20,46 @@ struct MapScreen: View {
                 // User location
                 UserAnnotation()
 
-                // Venue markers
-                ForEach(viewModel.filteredVenues) { venue in
-                    let selected = viewModel.selectedVenue?.id == venue.id
-                    Annotation(
-                        "",
-                        coordinate: venue.coordinate,
-                        anchor: .bottom
-                    ) {
-                        VenueMarkerView(
-                            venue: venue,
-                            isSelected: selected
-                        )
-                        .zIndex(selected ? 100 : 0)
-                        .onTapGesture {
-                            viewModel.selectVenue(venue, heading: mapHeading, pitch: mapPitch)
+                // Venue markers (clustered)
+                ForEach(viewModel.mapItems) { item in
+                    switch item {
+                    case .single(let venue):
+                        let selected = viewModel.selectedVenue?.id == venue.id
+                        Annotation(
+                            "",
+                            coordinate: venue.coordinate,
+                            anchor: .bottom
+                        ) {
+                            VenueMarkerView(
+                                venue: venue,
+                                isSelected: selected
+                            )
+                            .zIndex(selected ? 100 : 0)
+                            .onTapGesture {
+                                viewModel.selectVenue(venue, heading: mapHeading, pitch: mapPitch)
+                            }
+                        }
+
+                    case .cluster(let cluster):
+                        Annotation(
+                            "",
+                            coordinate: cluster.coordinate,
+                            anchor: .bottom
+                        ) {
+                            ClusterMarkerView(cluster: cluster)
+                                .onTapGesture {
+                                    // Zoom into the cluster
+                                    let clusterRegion = MKCoordinateRegion(
+                                        center: cluster.coordinate,
+                                        span: MKCoordinateSpan(
+                                            latitudeDelta: visibleRegion.span.latitudeDelta / 3,
+                                            longitudeDelta: visibleRegion.span.longitudeDelta / 3
+                                        )
+                                    )
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                        viewModel.cameraPosition = .region(clusterRegion)
+                                    }
+                                }
                         }
                     }
                 }
