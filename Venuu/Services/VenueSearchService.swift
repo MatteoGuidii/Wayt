@@ -60,8 +60,8 @@ final class VenueSearchService {
 
     private func cacheKey(for query: String, region: MKCoordinateRegion) -> String {
         // Region bucket: ~100m precision for center, log-scale for zoom
-        let latBucket = Int(region.center.latitude * 1000)
-        let lngBucket = Int(region.center.longitude * 1000)
+        let latBucket = Int((region.center.latitude * 1000).rounded(.down))
+        let lngBucket = Int((region.center.longitude * 1000).rounded(.down))
         let zoomBucket = Int(log2(max(region.span.latitudeDelta, 0.001) * 1000))
         return "\(normalizedQuery(query))|\(latBucket)|\(lngBucket)|\(zoomBucket)"
     }

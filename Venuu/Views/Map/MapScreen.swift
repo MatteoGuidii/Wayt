@@ -10,6 +10,7 @@ struct MapScreen: View {
     @State private var mapHeading: Double = 0
     @State private var mapPitch: Double = 0
     @State private var is3D: Bool = false
+    @State private var selectedDetent: PresentationDetent = .large
 
     @Namespace private var mapScope
 
@@ -26,7 +27,7 @@ struct MapScreen: View {
                     case .single(let venue):
                         let selected = viewModel.selectedVenue?.id == venue.id
                         Annotation(
-                            "",
+                            venue.name,
                             coordinate: venue.coordinate,
                             anchor: .bottom
                         ) {
@@ -42,7 +43,7 @@ struct MapScreen: View {
 
                     case .cluster(let cluster):
                         Annotation(
-                            "",
+                            "\(cluster.count) venues",
                             coordinate: cluster.coordinate,
                             anchor: .bottom
                         ) {
@@ -98,7 +99,7 @@ struct MapScreen: View {
             viewModel.refreshAfterReport()
         }) { venue in
             VenueDetailSheet(venue: venue)
-                .presentationDetents([.large, .medium], selection: .constant(.large))
+                .presentationDetents([.large, .medium], selection: $selectedDetent)
                 .presentationDragIndicator(.visible)
         }
         .task {

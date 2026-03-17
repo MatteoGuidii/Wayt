@@ -105,15 +105,17 @@ struct VenueDetailSheet: View {
     @ViewBuilder
     private var lookAroundSection: some View {
         if let scene = lookAroundScene {
-            LookAroundPreview(initialScene: scene)
-                .frame(height: 160)
-                .clipShape(RoundedRectangle(cornerRadius: VenuuTheme.cornerRadius, style: .continuous))
-                .allowsHitTesting(false)
-                .overlay {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture { showFullLookAround = true }
-                }
+            ZStack {
+                LookAroundPreview(initialScene: scene)
+                    .allowsHitTesting(false)
+            }
+            .frame(height: 160)
+            .clipShape(RoundedRectangle(cornerRadius: VenuuTheme.cornerRadius, style: .continuous))
+            .overlay {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { showFullLookAround = true }
+            }
         }
     }
 
