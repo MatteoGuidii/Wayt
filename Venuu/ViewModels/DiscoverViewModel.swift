@@ -15,7 +15,7 @@ final class DiscoverViewModel: ObservableObject {
     @Published var selectedCategory: VenueCategory?
     @Published var popularVenues: [Venue] = []
     @Published var isLoading: Bool = false
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? = nil
 
     // MARK: - Private
 
@@ -27,7 +27,6 @@ final class DiscoverViewModel: ObservableObject {
     func loadVenues(near location: CLLocation?) async {
         guard let location else { return }
         isLoading = true
-        errorMessage = nil
 
         let region = MKCoordinateRegion(
             center: location.coordinate,

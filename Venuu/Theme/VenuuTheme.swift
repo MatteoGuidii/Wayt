@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Venuu Design System
 
@@ -6,26 +7,31 @@ enum VenuuTheme {
 
     // MARK: - Brand Colors
 
-    static let amber = Color(red: 0.855, green: 0.635, blue: 0.235)  // #DAA23C — energy, action, CTAs
-    static let steel = Color(red: 0.310, green: 0.325, blue: 0.400)  // #4F5366 — grounding, text, secondary
+    /// Sky Punch — primary accent for buttons, CTAs, icons, highlights
+    static let skyPunch = Color(red: 0.00, green: 0.70, blue: 0.95)   // #00B3F2
 
-    // Legacy aliases — keep until full migration, then remove
-    static let primaryPurple = amber
-    static let primaryBlue   = steel
+    /// Ultra Blue — gradient accent for mascot pin body
+    static let ultraBlue = Color(red: 0.20, green: 0.20, blue: 1.00)   // #3333FF
+
+    /// Maps blue — used for map controls (Apple Maps style)
+    static let mapsBlue = Color(red: 0.00, green: 0.48, blue: 1.00) // #007AFF
+
+    /// Dark ink — mascot face features (eyes, mouth)
+    static let ink = Color(red: 0.25, green: 0.20, blue: 0.35)   // #403357
 
     // MARK: - Backgrounds
 
-    /// Warm, bright background for auth/onboarding screens
+    /// Warm gradient for auth/onboarding screens
     static let backgroundGradient = LinearGradient(
         colors: [
-            Color(red: 0.996, green: 0.957, blue: 0.878),  // warm cream
-            Color(red: 0.988, green: 0.925, blue: 0.820),  // soft honey
+            Color(red: 0.99, green: 0.96, blue: 0.94),  // warm cream
+            Color(red: 0.98, green: 0.94, blue: 0.91),  // soft copper tint
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let cardBackground = Color(.systemBackground)
+    static let cardBackground = Color(UIColor.systemBackground)
 
     // MARK: - Busyness Colors (green → red spectrum)
 
