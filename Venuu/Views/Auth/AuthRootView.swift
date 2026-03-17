@@ -122,11 +122,11 @@ private struct AuthHeaderView: View {
 
             Text("Venuu")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(VenuuTheme.mapsBlue)
+                .foregroundStyle(VenuuTheme.ultraBlue)
 
             Text("Know before you go.")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.7))
+                .foregroundStyle(VenuuTheme.ultraBlue.opacity(0.7))
         }
         .padding(.top, 12)
         .padding(.bottom, 4)
@@ -171,9 +171,101 @@ private struct AuthenticatorContainer: View {
         t.components.field.backgroundColor = Color.white.opacity(0.92)
         t.components.field.cornerRadius = 12
 
+        t.colors.background.interactive = VenuuTheme.mapsBlue
+        t.colors.foreground.interactive = VenuuTheme.mapsBlue
+
         t.components.button.primary.cornerRadius = 16
         t.components.button.primary.padding = 16
 
         return t
     }()
+}
+
+// MARK: - Preview
+
+#Preview("Sign In Screen") {
+    ZStack {
+        VenuuTheme.backgroundGradient
+            .ignoresSafeArea()
+
+        VStack(spacing: 0) {
+            // Back button
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("Back")
+                        .font(.system(size: 16, weight: .medium))
+                }
+                .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.8))
+                .padding(.leading, 20)
+                .padding(.top, 8)
+
+                Spacer()
+            }
+
+            // Header
+            VStack(spacing: 8) {
+                VenuuMascot(size: 80, expression: .looking, animated: false)
+
+                Text("Venuu")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(VenuuTheme.ultraBlue)
+
+                Text("Know before you go.")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(VenuuTheme.ultraBlue.opacity(0.7))
+            }
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+
+            // Mock sign-in form
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Sign In")
+                    .font(.system(size: 28, weight: .bold))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Email").font(.system(size: 15, weight: .medium))
+                    TextField("Enter your email", text: .constant(""))
+                        .textFieldStyle(.plain)
+                        .padding(14)
+                        .background(Color.white.opacity(0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Password").font(.system(size: 15, weight: .medium))
+                    SecureField("Enter your password", text: .constant(""))
+                        .textFieldStyle(.plain)
+                        .padding(14)
+                        .background(Color.white.opacity(0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                Button {} label: {
+                    Text("Sign In")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(VenuuTheme.mapsBlue)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .padding(.top, 8)
+
+                HStack {
+                    Text("Forgot password?")
+                        .foregroundStyle(VenuuTheme.mapsBlue)
+                    Spacer()
+                    Text("Create account")
+                        .foregroundStyle(VenuuTheme.mapsBlue)
+                }
+                .font(.system(size: 15, weight: .medium))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+
+            Spacer()
+        }
+    }
 }
