@@ -1,61 +1,77 @@
 import SwiftUI
 
-/// Card showing venue info with busyness indicator.
+/// Bold venue card for horizontal carousels — playful, Waze-inspired.
 struct VenueCard: View {
 
     let venue: Venue
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Top: icon + busyness badge
-            HStack {
-                ZStack {
-                    Circle()
-                        .fill(venue.category.color.opacity(0.15))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: venue.category.icon)
-                        .font(.system(size: 16))
-                        .foregroundStyle(venue.category.color)
+        VStack(alignment: .leading, spacing: 8) {
+            // Top: busyness color accent bar
+            HStack(spacing: 0) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(venue.busyness?.color ?? Color.gray.opacity(0.3))
+                    .frame(height: 5)
+            }
+            .padding(.horizontal, 4)
+
+            VStack(alignment: .leading, spacing: 10) {
+                // Category icon + badge
+                HStack(spacing: 8) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(venue.category.color.opacity(0.15))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: venue.category.icon)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(venue.category.color)
+                    }
+
+                    Spacer()
+
+                    if let busyness = venue.busyness {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(busyness.color)
+                                .frame(width: 7, height: 7)
+                            Text(busyness.label)
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(busyness.color)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(busyness.color.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
                 }
 
-                Spacer()
+                // Venue name
+                Text(venue.name)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                BusynessBadge(
-                    level: venue.busyness,
-                    confidence: venue.busynessConfidence,
-                    style: .compact
-                )
-            }
-
-            // Name
-            Text(venue.name)
-                .font(.system(size: 15, weight: .semibold))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // Type + address
-            VStack(alignment: .leading, spacing: 2) {
-                Text(venue.category.displayName)
-                    .font(VenuuTheme.captionFont)
-                    .foregroundStyle(.secondary)
-
-                if let address = venue.address {
-                    Text(address)
-                        .font(VenuuTheme.badgeFont)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
-
-            // Wait time if available
-            if let wait = venue.estimatedWaitMinutes, wait > 0 {
-                Label("~\(wait) min wait", systemImage: "clock")
-                    .font(VenuuTheme.badgeFont)
+                // Wait time
+                if let wait = venue.estimatedWaitMinutes, wait > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("~\(wait) min wait")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                    }
                     .foregroundStyle(.orange)
+                }
             }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
         }
-        .padding(14)
-        .frame(width: 170, alignment: .leading)
-        .venuuCard()
+        .frame(width: 175, alignment: .leading)
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.orange.opacity(0.2), lineWidth: 2)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
     }
 }

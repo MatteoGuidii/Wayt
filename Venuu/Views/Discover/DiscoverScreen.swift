@@ -4,31 +4,32 @@ struct DiscoverScreen: View {
 
     @StateObject private var viewModel = DiscoverViewModel()
     @EnvironmentObject private var locationService: LocationService
+    @State private var selectedVenue: Venue?
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Category chips
-                    categoryFilter
-
-                    // Popular Now (horizontal scroll)
-                    if !viewModel.popularVenues.isEmpty {
-                        popularSection
+                VStack(alignment: .leading, spacing: 20) {
+                    greetingHeader
+                    vibePulseSection
+                    categoryStrip
+                    if !viewModel.sweetSpotVenues.isEmpty && viewModel.selectedBusynessLevel == nil {
+                        goNowSection
                     }
-
-                    // Near You (list)
-                    nearYouSection
+                    if !viewModel.popularVenues.isEmpty && viewModel.selectedBusynessLevel == nil {
+                        buzzingSection
+                    }
+                    allSpotsSection
                 }
-                .padding(.vertical, 8)
+                .padding(.bottom, 32)
             }
-            .navigationTitle("Discover")
+            .scrollIndicators(.hidden)
+            .background(Color(.systemGroupedBackground))
             .refreshable {
                 await viewModel.loadVenues(near: locationService.userLocation)
             }
         }
         .task {
-            // Skip re-loading on tab return when venues already exist
             guard viewModel.venues.isEmpty else { return }
             await viewModel.loadVenues(near: locationService.userLocation)
         }
@@ -38,59 +39,265 @@ struct DiscoverScreen: View {
                 await viewModel.loadVenues(near: newLocation)
             }
         }
+        .sheet(item: $selectedVenue) { venue in
+            VenueDetailSheet(venue: venue)
+                .presentationDetents([.medium, .large])
+        }
     }
 
-    // MARK: - Category Filter
+    // MARK: - Greeting Header
 
-    private var categoryFilter: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                categoryChip(label: "All", type: nil)
-                ForEach(VenueCategory.allCases, id: \.self) { type in
-                    categoryChip(label: type.displayName, type: type, icon: type.icon)
+    private var greetingHeader: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(viewModel.greeting)
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+
+                Text(viewModel.greetingSubtitle)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            VenuuMascot(size: 50, expression: mascotExpression, animated: true)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+    }
+
+    private var mascotExpression: VenuuMascot.Expression {
+        guard let mood = viewModel.areaMood else { return .looking }
+        switch mood {
+        case .empty:    return .looking
+        case .quiet:    return .happy
+        case .moderate: return .cheerful
+        case .busy:     return .excited
+        case .packed:   return .wink
+        }
+    }
+
+    // MARK: - Vibe Pulse (Tappable)
+
+    private var vibePulseSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "waveform.path")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(VenuuTheme.skyPunch)
+                Text("Area Vibe")
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+
+                Spacer()
+
+                if let level = viewModel.selectedBusynessLevel {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            viewModel.selectBusynessLevel(nil)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(level.label)
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundStyle(level.color)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(level.color.opacity(0.15))
+                        .clipShape(Capsule())
+                    }
                 }
+            }
+            .padding(.horizontal, 20)
+
+            if viewModel.venues.isEmpty && viewModel.isLoading {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .padding(.vertical, 20)
+                    Spacer()
+                }
+            } else if viewModel.venues.isEmpty {
+                emptyVibeState
+            } else {
+                vibeBarChart
+            }
+        }
+    }
+
+    private var vibeBarChart: some View {
+        HStack(spacing: 6) {
+            ForEach(BusynessLevel.allCases, id: \.self) { level in
+                let count = viewModel.vibePulse[level.rawValue] ?? 0
+                let maxCount = max(viewModel.vibePulse.values.max() ?? 1, 1)
+                let fraction = Double(count) / Double(maxCount)
+                let isSelected = viewModel.selectedBusynessLevel == level
+                let isFiltering = viewModel.selectedBusynessLevel != nil
+
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        viewModel.selectBusynessLevel(level)
+                    }
+                } label: {
+                    VStack(spacing: 5) {
+                        // Animated bar
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                LinearGradient(
+                                    colors: [level.color.opacity(0.7), level.color],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(height: max(12, CGFloat(fraction) * 56))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(isSelected ? level.color : .clear, lineWidth: 2.5)
+                            )
+                            .opacity(isFiltering && !isSelected ? 0.3 : 1.0)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: count)
+
+                        // Count badge
+                        Text("\(count)")
+                            .font(.system(size: 13, weight: .black, design: .rounded))
+                            .foregroundStyle(isSelected ? level.color : (isFiltering ? .secondary : level.color))
+
+                        // Label
+                        Text(level.label)
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .foregroundStyle(isSelected ? level.color : .secondary)
+                            .textCase(.uppercase)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        isSelected
+                            ? level.color.opacity(0.08)
+                            : Color.clear
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, 16)
+    }
+
+    private var emptyVibeState: some View {
+        VStack(spacing: 8) {
+            VenuuMascot(size: 48, expression: .looking, animated: false)
+            Text("Scanning your area...")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+    }
+
+    // MARK: - Category Strip (Horizontal Pills)
+
+    private var categoryStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(VenueCategory.allCases, id: \.self) { category in
+                    categoryPill(category)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private func categoryPill(_ category: VenueCategory) -> some View {
+        let isSelected = viewModel.selectedCategory == category
+        let count = viewModel.categoryCounts[category] ?? 0
+
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                if viewModel.selectedCategory == category {
+                    viewModel.selectCategory(nil)
+                } else {
+                    viewModel.selectCategory(category)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: category.icon)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(isSelected ? .white : category.color)
+
+                Text(category.shortName)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(isSelected ? .white : .primary)
+
+                Text("\(count)")
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
             }
             .padding(.horizontal, 16)
-        }
-    }
-
-    private func categoryChip(
-        label: String,
-        type: VenueCategory?,
-        icon: String? = nil
-    ) -> some View {
-        let isSelected = viewModel.selectedCategory == type
-        return Button {
-            viewModel.selectCategory(type)
-        } label: {
-            HStack(spacing: 4) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 12))
-                }
-                Text(label)
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .padding(.horizontal, 14)
-            .frame(height: VenuuTheme.chipHeight)
-            .background(isSelected ? VenuuTheme.skyPunch : Color(.tertiarySystemBackground))
-            .foregroundStyle(isSelected ? .white : .primary)
+            .padding(.vertical, 10)
+            .background(
+                isSelected
+                    ? category.color
+                    : VenuuTheme.cardBackground
+            )
             .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(
+                        isSelected ? category.color : Color.primary.opacity(0.08),
+                        lineWidth: isSelected ? 0 : 1.5
+                    )
+            )
+            .shadow(
+                color: isSelected ? category.color.opacity(0.3) : .black.opacity(0.04),
+                radius: isSelected ? 6 : 3,
+                x: 0,
+                y: isSelected ? 3 : 1
+            )
         }
+        .buttonStyle(.plain)
     }
 
-    // MARK: - Popular Now
+    // MARK: - Go Now (was Sweet Spots)
 
-    private var popularSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Popular Now 🔥")
-                .font(VenuuTheme.headlineFont)
-                .padding(.horizontal, 16)
+    private var goNowSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Text("🟢")
+                    .font(.system(size: 14))
+                Text("Go Now")
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+
+                Spacer()
+
+                Text("No wait")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.green.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 20)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(viewModel.popularVenues) { venue in
-                        VenueCard(venue: venue)
+                    ForEach(viewModel.sweetSpotVenues) { venue in
+                        Button { selectedVenue = venue } label: {
+                            goNowCard(venue)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -98,39 +305,162 @@ struct DiscoverScreen: View {
         }
     }
 
-    // MARK: - Near You
+    private func goNowCard(_ venue: Venue) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Top: icon + category
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(venue.category.color.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: venue.category.icon)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(venue.category.color)
+                }
 
-    private var nearYouSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+                Spacer()
+
+                if let busyness = venue.busyness {
+                    Text(busyness.label)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(busyness.color)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(busyness.color.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+            }
+
+            Text(venue.name)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .foregroundStyle(.primary)
+
+            if let busyness = venue.busyness {
+                Text(busyness.description)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(14)
+        .frame(width: 170, alignment: .leading)
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.green.opacity(0.2), lineWidth: 2)
+        )
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 3)
+    }
+
+    // MARK: - Buzzing (On Fire)
+
+    private var buzzingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Text("🔥")
+                    .font(.system(size: 14))
+                Text("On Fire")
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+
+                Spacer()
+
+                Text("High energy")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 20)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(viewModel.popularVenues) { venue in
+                        Button { selectedVenue = venue } label: {
+                            VenueCard(venue: venue)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    // MARK: - All Spots
+
+    private var allSpotsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Near You")
-                    .font(VenuuTheme.headlineFont)
+                HStack(spacing: 6) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(VenuuTheme.skyPunch)
+                    Text("All Spots")
+                        .font(.system(size: 16, weight: .black, design: .rounded))
+                }
 
                 Spacer()
 
                 if viewModel.isLoading {
                     ProgressView()
+                        .scaleEffect(0.8)
                 }
-            }
-            .padding(.horizontal, 16)
 
-            if viewModel.filteredVenues.isEmpty && !viewModel.isLoading {
-                ContentUnavailableView(
-                    "No venues found",
-                    systemImage: "mappin.slash",
-                    description: Text("Try a different category or move to a new area.")
-                )
-                .padding(.top, 40)
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(viewModel.filteredVenues) { venue in
-                        VenueRow(venue: venue, userLocation: locationService.userLocation)
-                            .padding(.horizontal, 16)
-                        Divider()
-                            .padding(.leading, 72)
+                if viewModel.selectedCategory != nil || viewModel.selectedBusynessLevel != nil {
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            viewModel.selectCategory(nil)
+                            viewModel.selectBusynessLevel(nil)
+                        }
+                    } label: {
+                        Text("Clear filters")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(VenuuTheme.skyPunch)
                     }
                 }
             }
+            .padding(.horizontal, 20)
+
+            if !viewModel.filteredVenues.isEmpty {
+                Text("\(viewModel.filteredVenues.count) spots found")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 20)
+            }
+
+            if viewModel.filteredVenues.isEmpty && !viewModel.isLoading {
+                emptyNearbyState
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(viewModel.filteredVenues) { venue in
+                        Button { selectedVenue = venue } label: {
+                            VenueRow(venue: venue, userLocation: locationService.userLocation)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
         }
+    }
+
+    private var emptyNearbyState: some View {
+        VStack(spacing: 12) {
+            VenuuMascot(size: 56, expression: .looking, animated: true)
+
+            Text("Nothing here yet")
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+
+            Text("Try a different filter or explore a new area")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
     }
 }
