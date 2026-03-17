@@ -11,6 +11,7 @@ struct AuthRootView: View {
     }
 
     @EnvironmentObject private var authState: AuthState
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var screen: Screen = .onboarding
 
     var body: some View {
@@ -19,6 +20,7 @@ struct AuthRootView: View {
             case .onboarding:
                 OnboardingView(
                     onGetStarted: {
+                        hasCompletedOnboarding = true
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                             screen = .browsing
                         }
@@ -41,8 +43,8 @@ struct AuthRootView: View {
             }
         }
         .onAppear {
-            // If user is already signed in (returning session), skip onboarding
-            if authState.isSignedIn {
+            // Skip onboarding if user already passed it or is signed in
+            if authState.isSignedIn || hasCompletedOnboarding {
                 screen = .browsing
             }
 
@@ -56,6 +58,7 @@ struct AuthRootView: View {
         .task {
             await authState.checkCurrentSession()
             if authState.isSignedIn {
+                hasCompletedOnboarding = true
                 screen = .browsing
             }
         }
@@ -96,6 +99,7 @@ struct AuthRootView: View {
                 // Isolated Authenticator — never re-renders from parent state changes
                 AuthenticatorContainer(onSignedIn: { username in
                     authState.didSignIn(username: username)
+                    hasCompletedOnboarding = true
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                         screen = .browsing
                     }
