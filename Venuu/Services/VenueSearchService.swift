@@ -59,11 +59,11 @@ final class VenueSearchService {
     }
 
     private func cacheKey(for query: String, region: MKCoordinateRegion) -> String {
-        // Coarse region bucket so different zoom levels get separate entries
-        let latBucket = Int(region.center.latitude * 100)
-        let lngBucket = Int(region.center.longitude * 100)
+        // Region bucket: ~100m precision for center, log-scale for zoom
+        let latBucket = Int(region.center.latitude * 1000)
+        let lngBucket = Int(region.center.longitude * 1000)
         let zoomBucket = Int(log2(max(region.span.latitudeDelta, 0.001) * 1000))
-        return "\(normalizedQuery(query))_\(latBucket)_\(lngBucket)_\(zoomBucket)"
+        return "\(normalizedQuery(query))|\(latBucket)|\(lngBucket)|\(zoomBucket)"
     }
 
     private func cachedResults(for query: String, region: MKCoordinateRegion) -> [Venue]? {
@@ -81,7 +81,7 @@ final class VenueSearchService {
     /// Searches all cache entries matching the query prefix. Skips entries whose
     /// region is much smaller than the requested region (would show too few venues).
     private func staleCachedResults(for query: String, region: MKCoordinateRegion? = nil) -> [Venue]? {
-        let prefix = normalizedQuery(query)
+        let prefix = normalizedQuery(query) + "|"
         let now = Date()
 
         // Find the best matching stale entry for this query
@@ -91,12 +91,19 @@ final class VenueSearchService {
         for (key, entry) in queryCache where key.hasPrefix(prefix) {
             guard now.timeIntervalSince(entry.timestamp) < Self.cacheTTL * 2 else { continue }
 
-            // If we have a target region and the cached region is much smaller,
-            // the stale results are misleading — skip them
             if let target = region {
+                // Skip if cached region is much smaller than requested
                 let cachedSpan = entry.region.span.latitudeDelta
                 let targetSpan = target.span.latitudeDelta
                 if cachedSpan > 0, targetSpan / cachedSpan > 2.0 {
+                    continue
+                }
+
+                // Skip if cached center is far from requested center
+                let latDiff = abs(entry.region.center.latitude - target.center.latitude)
+                let lngDiff = abs(entry.region.center.longitude - target.center.longitude)
+                let maxDrift = max(targetSpan, cachedSpan)
+                if latDiff > maxDrift || lngDiff > maxDrift {
                     continue
                 }
             }
