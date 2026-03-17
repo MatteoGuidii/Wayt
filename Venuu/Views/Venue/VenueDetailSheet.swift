@@ -1,18 +1,6 @@
 import SwiftUI
 import MapKit
 
-// MARK: - Full-Screen Look Around
-
-private struct LookAroundFullScreen: View {
-    let scene: MKLookAroundScene
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        LookAroundPreview(initialScene: scene, allowsNavigation: true)
-            .ignoresSafeArea()
-    }
-}
-
 // MARK: - Venue Detail Sheet
 
 struct VenueDetailSheet: View {
@@ -73,7 +61,8 @@ struct VenueDetailSheet: View {
         }
         .fullScreenCover(isPresented: $showFullLookAround) {
             if let scene = lookAroundScene {
-                LookAroundFullScreen(scene: scene)
+                LookAroundPreview(initialScene: scene, allowsNavigation: true)
+                    .ignoresSafeArea()
             }
         }
     }
@@ -121,7 +110,6 @@ struct VenueDetailSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: VenuuTheme.cornerRadius, style: .continuous))
                 .allowsHitTesting(false)
                 .overlay {
-                    // Invisible tap target covering the entire preview
                     Color.clear
                         .contentShape(Rectangle())
                         .onTapGesture { showFullLookAround = true }
