@@ -8,7 +8,7 @@ import SwiftUI
 struct VenuuMascot: View {
 
     enum Expression {
-        case happy      // default cat smile
+        case happy      // relaxed smile
         case excited    // wide half-moons, open "D" mouth
         case wink       // one eye closed
         case looking    // eyes shifted to one side
@@ -375,28 +375,6 @@ private struct WinkShape: Shape {
     }
 }
 
-/// Cat-like :3 mouth — two small bumps side by side
-private struct CatMouthShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let midX = rect.midX
-        let topY = rect.minY + rect.height * 0.3
-
-        // Left bump
-        path.move(to: CGPoint(x: rect.minX, y: topY))
-        path.addQuadCurve(
-            to: CGPoint(x: midX, y: topY),
-            control: CGPoint(x: rect.minX + rect.width * 0.25, y: rect.maxY)
-        )
-
-        // Right bump
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: topY),
-            control: CGPoint(x: midX + rect.width * 0.25, y: rect.maxY)
-        )
-        return path
-    }
-}
 
 /// Open "D" shaped mouth for excited expression
 private struct DShapeMouth: Shape {

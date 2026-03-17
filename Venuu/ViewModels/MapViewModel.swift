@@ -51,6 +51,7 @@ final class MapViewModel: ObservableObject {
             }
 
             isSearching = true
+            defer { isSearching = false }
             showSearchThisArea = false
 
             print("[MapViewModel] Searching region: \(region.center.latitude), \(region.center.longitude) span: \(region.span.latitudeDelta)")
@@ -98,7 +99,6 @@ final class MapViewModel: ObservableObject {
                 print("[MapViewModel] Search error: \(error.localizedDescription)")
             }
 
-            isSearching = false
         }
     }
 
