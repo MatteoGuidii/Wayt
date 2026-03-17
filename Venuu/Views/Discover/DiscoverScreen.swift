@@ -453,8 +453,43 @@ struct DiscoverScreen: View {
                     }
                 }
                 .padding(.horizontal, 16)
+
+                if !viewModel.filteredVenues.isEmpty && !mapViewModel.isSearching && !mapViewModel.isExpandingSearch {
+                    seeMoreButton
+                }
+
+                if mapViewModel.isExpandingSearch {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
             }
         }
+    }
+
+    private var seeMoreButton: some View {
+        Button {
+            mapViewModel.expandSearch()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "plus.magnifyingglass")
+                    .font(VenuuTheme.footnoteFont)
+                Text("See more venues")
+                    .font(VenuuTheme.subheadFont)
+            }
+            .foregroundStyle(VenuuTheme.mapsBlue)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(VenuuTheme.mapsBlue.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(VenuuTheme.mapsBlue.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
     }
 
     private var emptyNearbyState: some View {

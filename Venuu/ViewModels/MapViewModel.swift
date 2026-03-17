@@ -103,6 +103,7 @@ final class MapViewModel: ObservableObject {
         searchTask?.cancel()
         refreshTimer?.cancel()
         clusterDebounceTask?.cancel()
+        expandTask?.cancel()
     }
 
     // MARK: - Search Venues
@@ -111,6 +112,9 @@ final class MapViewModel: ObservableObject {
     func searchVenues(in region: MKCoordinateRegion) {
         let isInitialSearch = venues.isEmpty && lastSearchedRegion == nil
         searchTask?.cancel()
+        expandTask?.cancel()
+        isExpandingSearch = false
+        lastExpandedRegion = nil
         searchTask = Task {
             // Skip debounce on first launch for instant results
             if !isInitialSearch {
@@ -225,6 +229,53 @@ final class MapViewModel: ObservableObject {
                 heading: heading,
                 pitch: pitch
             ))
+        }
+    }
+
+    /// Expand the search area to find more venues for Discover.
+    /// Merges new results into existing venues without affecting the Map's search state.
+    @Published var isExpandingSearch: Bool = false
+
+    private var expandTask: Task<Void, Never>?
+    /// Tracks the last expanded region so repeated taps keep widening.
+    private var lastExpandedRegion: MKCoordinateRegion?
+
+    func expandSearch() {
+        guard !isExpandingSearch else { return }
+        let base = lastExpandedRegion ?? lastSearchedRegion
+        guard let base else { return }
+        let expanded = MKCoordinateRegion(
+            center: base.center,
+            span: MKCoordinateSpan(
+                latitudeDelta: base.span.latitudeDelta * 2,
+                longitudeDelta: base.span.longitudeDelta * 2
+            )
+        )
+
+        expandTask?.cancel()
+        expandTask = Task {
+            isExpandingSearch = true
+
+            let newResults = await searchService.searchAllTypes(region: expanded)
+
+            guard !Task.isCancelled else {
+                isExpandingSearch = false
+                return
+            }
+
+            // Merge: keep existing venues, add new ones
+            let existingIDs = Set(venues.map(\.id))
+            let additional = applyOfflineBusyness(
+                to: newResults.filter { !existingIDs.contains($0.id) }
+            )
+
+            if !additional.isEmpty {
+                venues.append(contentsOf: additional)
+                recomputeClusters()
+            }
+
+            lastExpandedRegion = expanded
+            isExpandingSearch = false
         }
     }
 
