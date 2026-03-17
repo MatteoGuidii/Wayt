@@ -163,19 +163,38 @@ private struct AuthenticatorContainer: View {
     private static let theme: AuthenticatorTheme = {
         var t = AuthenticatorTheme()
 
+        // Backgrounds
         t.colors.background.primary   = .clear
         t.colors.background.secondary = .clear
         t.colors.background.tertiary  = .clear
         t.components.authenticator.backgroundColor = .clear
 
+        // Fields
         t.components.field.backgroundColor = Color.white.opacity(0.92)
         t.components.field.cornerRadius = 12
 
+        // Accent color
         t.colors.background.interactive = VenuuTheme.skyPunch
         t.colors.foreground.interactive = VenuuTheme.skyPunch
 
+        // Buttons
         t.components.button.primary.cornerRadius = 16
         t.components.button.primary.padding = 16
+        t.components.button.primary.font = VenuuTheme.calloutBoldFont
+        t.components.button.link.font = VenuuTheme.subtitleFont
+
+        // Fonts — use Venuu's rounded design system
+        t.fonts.largeTitle = VenuuTheme.largeTitleFont
+        t.fonts.title      = VenuuTheme.heroFont
+        t.fonts.title2     = VenuuTheme.headlineFont
+        t.fonts.title3     = VenuuTheme.title3Font
+        t.fonts.headline   = VenuuTheme.bodyBoldFont
+        t.fonts.subheadline = VenuuTheme.subtitleFont
+        t.fonts.body       = VenuuTheme.bodyFont
+        t.fonts.callout    = VenuuTheme.subheadLightFont
+        t.fonts.caption    = VenuuTheme.captionFont
+        t.fonts.caption2   = VenuuTheme.captionLightFont
+        t.fonts.footnote   = VenuuTheme.footnoteFont
 
         return t
     }()
