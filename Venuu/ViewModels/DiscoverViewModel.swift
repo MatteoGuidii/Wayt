@@ -1,23 +1,35 @@
 import Combine
-import Foundation
-import MapKit
 import CoreLocation
+import Foundation
 
 @MainActor
 final class DiscoverViewModel: ObservableObject {
 
     // MARK: - Published
 
-    @Published var venues: [Venue] = [] {
-        didSet { updateDerivedState() }
-    }
+    @Published var venues: [Venue] = []
     @Published var filteredVenues: [Venue] = []
-    @Published var selectedCategory: VenueCategory?
-    @Published var selectedBusynessLevel: BusynessLevel?
     @Published var popularVenues: [Venue] = []
     @Published var sweetSpotVenues: [Venue] = []
-    @Published var isLoading: Bool = false
-    @Published var errorMessage: String? = nil
+
+    // MARK: - Shared Filter
+
+    var filterState: VenueFilterState? {
+        didSet { observeFilter() }
+    }
+
+    private var filterCancellable: AnyCancellable?
+
+    private func observeFilter() {
+        filterCancellable = filterState?.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                // Delay one runloop tick so the published values are updated
+                DispatchQueue.main.async {
+                    self?.applyFilter()
+                }
+            }
+    }
 
     // MARK: - Computed
 
@@ -70,70 +82,31 @@ final class DiscoverViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Private
+    // MARK: - Update Venues (from MapViewModel)
 
-    private let searchService = VenueSearchService()
-    private let busynessEngine = BusynessEngine.shared
-
-    // MARK: - Load Venues
-
-    func loadVenues(near location: CLLocation?) async {
-        guard let location else { return }
-        isLoading = true
-
-        let region = MKCoordinateRegion(
-            center: location.coordinate,
-            latitudinalMeters: AppConstants.defaultSearchRadius * 2,
-            longitudinalMeters: AppConstants.defaultSearchRadius * 2
-        )
-
-        var results = await searchService.searchAllTypes(region: region)
-
-        // ⚠️ TEST ONLY — REMOVE BEFORE PRODUCTION
-        // Assigns random busyness levels for UI testing.
-        // Revert to: busynessEngine.estimateOffline() fallback for venues with nil busyness.
-        results = results.map { venue in
-            var v = venue
-            v.busyness = BusynessLevel.allCases.randomElement() ?? .moderate
-            v.busynessConfidence = .estimated
-            return v
+    /// Receives venues from the shared MapViewModel and sorts by distance.
+    func updateVenues(_ newVenues: [Venue], userLocation: CLLocation?) {
+        var sorted = newVenues
+        if let location = userLocation {
+            sorted.sort { a, b in
+                let locA = CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude)
+                let locB = CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude)
+                return location.distance(from: locA) < location.distance(from: locB)
+            }
         }
-
-        // Sort by distance from user
-        results.sort { a, b in
-            let locA = CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude)
-            let locB = CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude)
-            return location.distance(from: locA) < location.distance(from: locB)
-        }
-
-        venues = results
-        isLoading = false
+        venues = sorted
+        applyFilter()
     }
 
     // MARK: - Filter
 
-    func selectCategory(_ category: VenueCategory?) {
-        selectedCategory = category
-        applyFilter()
-    }
-
-    func selectBusynessLevel(_ level: BusynessLevel?) {
-        if selectedBusynessLevel == level {
-            selectedBusynessLevel = nil
-        } else {
-            selectedBusynessLevel = level
-        }
-        applyFilter()
-    }
-
-    private func updateDerivedState() {
-        applyFilter()
-    }
-
     private func applyFilter() {
+        let category = filterState?.selectedCategory
+        let busynessLevel = filterState?.selectedBusynessLevel
+
         // Base set: apply category filter if active
         var base = venues
-        if let category = selectedCategory {
+        if let category {
             base = base.filter { $0.category == category }
         }
 
@@ -154,8 +127,8 @@ final class DiscoverViewModel: ObservableObject {
             .map { $0 }
 
         // Filtered venues: apply both category + busyness filter
-        if let level = selectedBusynessLevel {
-            base = base.filter { $0.busyness == level }
+        if let busynessLevel {
+            base = base.filter { $0.busyness == busynessLevel }
         }
 
         filteredVenues = base

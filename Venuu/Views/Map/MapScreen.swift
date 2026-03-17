@@ -3,9 +3,10 @@ import MapKit
 
 struct MapScreen: View {
 
-    @StateObject private var viewModel = MapViewModel()
+    @EnvironmentObject private var viewModel: MapViewModel
     @EnvironmentObject private var locationService: LocationService
     @EnvironmentObject private var authState: AuthState
+    @EnvironmentObject private var filterState: VenueFilterState
     @State private var visibleRegion: MKCoordinateRegion = .defaultRegion
     @State private var mapHeading: Double = 0
     @State private var mapPitch: Double = 0
@@ -111,11 +112,6 @@ struct MapScreen: View {
                     ? locationService.region : visibleRegion
                 viewModel.searchVenues(in: region)
             }
-
-            viewModel.startLiveRefresh()
-        }
-        .onDisappear {
-            viewModel.stopLiveRefresh()
         }
         .onChange(of: locationService.userLocation) { _, newLocation in
             guard newLocation != nil, viewModel.venues.isEmpty else { return }
@@ -167,7 +163,7 @@ struct MapScreen: View {
     private var categoryChips: some View {
         HStack(spacing: 8) {
             ForEach(VenueCategory.allCases, id: \.self) { category in
-                let isActive = viewModel.selectedCategory == category
+                let isActive = filterState.selectedCategory == category
 
                 Button {
                     viewModel.toggleCategoryFilter(category)

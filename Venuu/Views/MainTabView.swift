@@ -3,6 +3,8 @@ import SwiftUI
 struct MainTabView: View {
 
     @State private var selectedTab: Tab = .map
+    @StateObject private var filterState = VenueFilterState()
+    @StateObject private var mapViewModel = MapViewModel()
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -25,6 +27,12 @@ struct MainTabView: View {
                 .tag(Tab.profile)
         }
         .tint(VenuuTheme.mapsBlue)
+        .environmentObject(filterState)
+        .environmentObject(mapViewModel)
+        .task {
+            mapViewModel.filterState = filterState
+            mapViewModel.startLiveRefresh()
+        }
     }
 }
 
