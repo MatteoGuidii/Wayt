@@ -21,11 +21,11 @@ enum VenuuTheme {
 
     // MARK: - Backgrounds
 
-    /// Warm gradient for auth/onboarding screens
+    /// Cool ice-blue gradient for auth/onboarding screens
     static let backgroundGradient = LinearGradient(
         colors: [
-            Color(red: 0.99, green: 0.96, blue: 0.94),  // warm cream
-            Color(red: 0.98, green: 0.94, blue: 0.91),  // soft copper tint
+            Color(red: 0.93, green: 0.97, blue: 0.99),  // icy white #EEF7FC
+            Color(red: 0.88, green: 0.94, blue: 0.98),  // faint sky #E0F0FA
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
@@ -37,11 +37,11 @@ enum VenuuTheme {
 
     static func busynessColor(for level: Int) -> Color {
         switch level {
-        case 1: return Color(red: 0.20, green: 0.78, blue: 0.35) // green
-        case 2: return Color(red: 0.55, green: 0.80, blue: 0.25) // lime
-        case 3: return Color(red: 0.95, green: 0.75, blue: 0.10) // yellow
-        case 4: return Color(red: 0.95, green: 0.50, blue: 0.15) // orange
-        case 5: return Color(red: 0.90, green: 0.22, blue: 0.20) // red
+        case 1: return Color(red: 0.20, green: 0.78, blue: 0.35) // green #28C54A
+        case 2: return Color(red: 0.55, green: 0.80, blue: 0.25) // lime #8CD13B
+        case 3: return Color(red: 0.95, green: 0.75, blue: 0.10) // yellow #F2C01A
+        case 4: return Color(red: 0.95, green: 0.50, blue: 0.15) // orange #F28026
+        case 5: return Color(red: 0.90, green: 0.22, blue: 0.20) // red #E63A38
         default: return .gray
         }
     }

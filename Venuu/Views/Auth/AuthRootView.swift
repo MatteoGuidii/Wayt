@@ -11,6 +11,7 @@ struct AuthRootView: View {
     }
 
     @EnvironmentObject private var authState: AuthState
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var screen: Screen = .onboarding
 
     var body: some View {
@@ -19,6 +20,7 @@ struct AuthRootView: View {
             case .onboarding:
                 OnboardingView(
                     onGetStarted: {
+                        hasCompletedOnboarding = true
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                             screen = .browsing
                         }
@@ -41,8 +43,8 @@ struct AuthRootView: View {
             }
         }
         .onAppear {
-            // If user is already signed in (returning session), skip onboarding
-            if authState.isSignedIn {
+            // Skip onboarding if user already passed it or is signed in
+            if authState.isSignedIn || hasCompletedOnboarding {
                 screen = .browsing
             }
 
@@ -56,6 +58,7 @@ struct AuthRootView: View {
         .task {
             await authState.checkCurrentSession()
             if authState.isSignedIn {
+                hasCompletedOnboarding = true
                 screen = .browsing
             }
         }
@@ -96,6 +99,7 @@ struct AuthRootView: View {
                 // Isolated Authenticator — never re-renders from parent state changes
                 AuthenticatorContainer(onSignedIn: { username in
                     authState.didSignIn(username: username)
+                    hasCompletedOnboarding = true
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                         screen = .browsing
                     }
@@ -167,9 +171,101 @@ private struct AuthenticatorContainer: View {
         t.components.field.backgroundColor = Color.white.opacity(0.92)
         t.components.field.cornerRadius = 12
 
+        t.colors.background.interactive = VenuuTheme.skyPunch
+        t.colors.foreground.interactive = VenuuTheme.skyPunch
+
         t.components.button.primary.cornerRadius = 16
         t.components.button.primary.padding = 16
 
         return t
     }()
+}
+
+// MARK: - Preview
+
+#Preview("Sign In Screen") {
+    ZStack {
+        VenuuTheme.backgroundGradient
+            .ignoresSafeArea()
+
+        VStack(spacing: 0) {
+            // Back button
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("Back")
+                        .font(.system(size: 16, weight: .medium))
+                }
+                .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.8))
+                .padding(.leading, 20)
+                .padding(.top, 8)
+
+                Spacer()
+            }
+
+            // Header
+            VStack(spacing: 8) {
+                VenuuMascot(size: 80, expression: .looking, animated: false)
+
+                Text("Venuu")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(VenuuTheme.mapsBlue)
+
+                Text("Know before you go.")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.7))
+            }
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+
+            // Mock sign-in form
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Sign In")
+                    .font(.system(size: 28, weight: .bold))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Email").font(.system(size: 15, weight: .medium))
+                    TextField("Enter your email", text: .constant(""))
+                        .textFieldStyle(.plain)
+                        .padding(14)
+                        .background(Color.white.opacity(0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Password").font(.system(size: 15, weight: .medium))
+                    SecureField("Enter your password", text: .constant(""))
+                        .textFieldStyle(.plain)
+                        .padding(14)
+                        .background(Color.white.opacity(0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                Button {} label: {
+                    Text("Sign In")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(VenuuTheme.skyPunch)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .padding(.top, 8)
+
+                HStack {
+                    Text("Forgot password?")
+                        .foregroundStyle(VenuuTheme.skyPunch)
+                    Spacer()
+                    Text("Create account")
+                        .foregroundStyle(VenuuTheme.skyPunch)
+                }
+                .font(.system(size: 15, weight: .medium))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+
+            Spacer()
+        }
+    }
 }
