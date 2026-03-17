@@ -15,6 +15,7 @@ final class DiscoverViewModel: ObservableObject {
     @Published var selectedCategory: VenueCategory?
     @Published var popularVenues: [Venue] = []
     @Published var isLoading: Bool = false
+    @Published var errorMessage: String? = nil
 
     // MARK: - Private
 
