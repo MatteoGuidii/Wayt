@@ -89,13 +89,13 @@ final class DiscoverViewModel: ObservableObject {
 
         var results = await searchService.searchAllTypes(region: region)
 
-        // Apply offline fallback for venues without report data
+        // ⚠️ TEST ONLY — REMOVE BEFORE PRODUCTION
+        // Assigns random busyness levels for UI testing.
+        // Revert to: busynessEngine.estimateOffline() fallback for venues with nil busyness.
         results = results.map { venue in
-            guard venue.busyness == nil else { return venue }
             var v = venue
-            let estimate = busynessEngine.estimateOffline()
-            v.busyness = estimate.level
-            v.busynessConfidence = estimate.confidence
+            v.busyness = BusynessLevel.allCases.randomElement() ?? .moderate
+            v.busynessConfidence = .estimated
             return v
         }
 
@@ -128,35 +128,36 @@ final class DiscoverViewModel: ObservableObject {
 
     private func updateDerivedState() {
         applyFilter()
+    }
+
+    private func applyFilter() {
+        // Base set: apply category filter if active
+        var base = venues
+        if let category = selectedCategory {
+            base = base.filter { $0.category == category }
+        }
 
         // Popular / buzzing: busyness >= 4 (busy + packed)
-        popularVenues = venues
+        popularVenues = base
             .filter { ($0.busyness?.rawValue ?? 0) >= 4 }
             .sorted { ($0.busyness?.rawValue ?? 0) > ($1.busyness?.rawValue ?? 0) }
             .prefix(10)
             .map { $0 }
 
-        // Go Now picks: quiet or moderate (2–3) — comfortable, not dead
-        sweetSpotVenues = venues
+        // Go Now picks: quiet or moderate (1–3) — comfortable, not dead
+        sweetSpotVenues = base
             .filter {
                 let level = $0.busyness?.rawValue ?? 0
-                return level >= 2 && level <= 3
+                return level >= 1 && level <= 3
             }
             .prefix(8)
             .map { $0 }
-    }
 
-    private func applyFilter() {
-        var result = venues
-
-        if let category = selectedCategory {
-            result = result.filter { $0.category == category }
-        }
-
+        // Filtered venues: apply both category + busyness filter
         if let level = selectedBusynessLevel {
-            result = result.filter { $0.busyness == level }
+            base = base.filter { $0.busyness == level }
         }
 
-        filteredVenues = result
+        filteredVenues = base
     }
 }
