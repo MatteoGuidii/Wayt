@@ -53,6 +53,12 @@ enum VenuuTheme {
     static let captionFont = Font.system(size: 13, weight: .medium, design: .default)
     static let badgeFont   = Font.system(size: 11, weight: .bold, design: .rounded)
 
+    // MARK: - Additional Typography
+
+    static let largeTitleFont = Font.system(size: 28, weight: .bold, design: .rounded)
+    static let subtitleFont = Font.system(size: 15, weight: .medium, design: .rounded)
+    static let sectionFont = Font.system(size: 18, weight: .bold, design: .rounded)
+
     // MARK: - Dimensions
 
     static let cornerRadius: CGFloat = 14
