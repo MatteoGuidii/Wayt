@@ -1,6 +1,8 @@
 import SwiftUI
 import MapKit
 
+// MARK: - Venue Detail Sheet
+
 struct VenueDetailSheet: View {
 
     let venue: Venue
@@ -8,6 +10,8 @@ struct VenueDetailSheet: View {
     @EnvironmentObject private var authState: AuthState
     @Environment(\.dismiss) private var dismiss
     @State private var showAuthGate = false
+    @State private var lookAroundScene: MKLookAroundScene?
+    @State private var showFullLookAround = false
 
     init(venue: Venue) {
         self.venue = venue
@@ -19,6 +23,8 @@ struct VenueDetailSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     headerSection
+                        .padding(.top, -8)
+                    lookAroundSection
                     busynessSection
                     actionsSection
                     reportButton
@@ -31,13 +37,16 @@ struct VenueDetailSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.mapsBlue)
                             .font(.title3)
                     }
                 }
             }
         }
-        .task { await viewModel.loadReports() }
+        .task {
+            await viewModel.loadReports()
+            await fetchLookAroundScene()
+        }
         .sheet(isPresented: $viewModel.showReportSheet) {
             ReportSheet(venue: venue) { level, wait in
                 Task { await viewModel.submitReport(level: level, waitMinutes: wait) }
@@ -49,6 +58,12 @@ struct VenueDetailSheet: View {
                 authState.requestSignIn()
             }
             .presentationDetents([.medium, .large])
+        }
+        .fullScreenCover(isPresented: $showFullLookAround) {
+            if let scene = lookAroundScene {
+                LookAroundPreview(initialScene: scene, allowsNavigation: true)
+                    .ignoresSafeArea()
+            }
         }
     }
 
@@ -83,6 +98,30 @@ struct VenueDetailSheet: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    // MARK: - Look Around
+
+    @ViewBuilder
+    private var lookAroundSection: some View {
+        if let scene = lookAroundScene {
+            ZStack {
+                LookAroundPreview(initialScene: scene)
+                    .allowsHitTesting(false)
+            }
+            .frame(height: 160)
+            .clipShape(RoundedRectangle(cornerRadius: VenuuTheme.cornerRadius, style: .continuous))
+            .overlay {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { showFullLookAround = true }
+            }
+        }
+    }
+
+    private func fetchLookAroundScene() async {
+        let request = MKLookAroundSceneRequest(coordinate: venue.coordinate)
+        lookAroundScene = try? await request.scene
     }
 
     // MARK: - Busyness

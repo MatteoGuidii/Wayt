@@ -113,7 +113,7 @@ extension BusynessLevel {
     /// Initialize from a continuous value (1.0–5.0), rounding to nearest case.
     init(closestTo value: Double) {
         let clamped = min(5.0, max(1.0, value))
-        let rounded = Int(clamped.rounded())
+        let rounded = Int(clamped.rounded(.toNearestOrAwayFromZero))
         self = BusynessLevel(rawValue: rounded) ?? .moderate
     }
 }

@@ -58,15 +58,65 @@ final class VenueSearchService {
         }
     }
 
+    private func cacheKey(for query: String, region: MKCoordinateRegion) -> String {
+        // Region bucket: ~100m precision for center, log-scale for zoom
+        let latBucket = Int((region.center.latitude * 1000).rounded(.down))
+        let lngBucket = Int((region.center.longitude * 1000).rounded(.down))
+        let zoomBucket = Int(log2(max(region.span.latitudeDelta, 0.001) * 1000))
+        return "\(normalizedQuery(query))|\(latBucket)|\(lngBucket)|\(zoomBucket)"
+    }
+
     private func cachedResults(for query: String, region: MKCoordinateRegion) -> [Venue]? {
         pruneCacheIfNeeded()
-        let cacheKey = normalizedQuery(query)
-        guard let entry = queryCache[cacheKey],
+        let key = cacheKey(for: query, region: region)
+        guard let entry = queryCache[key],
               Date().timeIntervalSince(entry.timestamp) < Self.cacheTTL,
               entry.region.isClose(to: region) else {
             return nil
         }
         return entry.results
+    }
+
+    /// Return cached results even if the region doesn't match closely (stale fallback).
+    /// Searches all cache entries matching the query prefix. Skips entries whose
+    /// region is much smaller than the requested region (would show too few venues).
+    private func staleCachedResults(for query: String, region: MKCoordinateRegion? = nil) -> [Venue]? {
+        let prefix = normalizedQuery(query) + "|"
+        let now = Date()
+
+        // Find the best matching stale entry for this query
+        var bestEntry: CachedSearch?
+        var bestScore = Double.greatestFiniteMagnitude
+
+        for (key, entry) in queryCache where key.hasPrefix(prefix) {
+            guard now.timeIntervalSince(entry.timestamp) < Self.cacheTTL * 2 else { continue }
+
+            if let target = region {
+                // Skip if cached region is much smaller than requested
+                let cachedSpan = entry.region.span.latitudeDelta
+                let targetSpan = target.span.latitudeDelta
+                if cachedSpan > 0, targetSpan / cachedSpan > 2.0 {
+                    continue
+                }
+
+                // Skip if cached center is far from requested center
+                let latDiff = abs(entry.region.center.latitude - target.center.latitude)
+                let lngDiff = abs(entry.region.center.longitude - target.center.longitude)
+                let maxDrift = max(targetSpan, cachedSpan)
+                if latDiff > maxDrift || lngDiff > maxDrift {
+                    continue
+                }
+            }
+
+            // Prefer the most recent entry
+            let age = now.timeIntervalSince(entry.timestamp)
+            if age < bestScore {
+                bestScore = age
+                bestEntry = entry
+            }
+        }
+
+        return bestEntry?.results
     }
 
     // MARK: - Excluded Categories
@@ -96,15 +146,10 @@ final class VenueSearchService {
             return cached
         }
 
-        // Rate-limit guard — wait for budget to free up instead of dropping the query
+        // Rate-limit guard — return stale cache or skip instead of blocking
         if !canMakeRequest() {
-            print("[VenueSearchService] Rate limit guard: waiting before '\(query)'")
-            try await Task.sleep(for: .seconds(5))
-            // Re-check after wait; if still exhausted, skip
-            guard canMakeRequest() else {
-                print("[VenueSearchService] Rate limit guard: skipping '\(query)'")
-                return []
-            }
+            print("[VenueSearchService] Rate limit: returning stale cache for '\(query)'")
+            return staleCachedResults(for: query, region: region) ?? []
         }
 
         recordRequest()
@@ -141,46 +186,108 @@ final class VenueSearchService {
         }
 
         pruneCacheIfNeeded()
-        queryCache[normalizedQuery(query)] = CachedSearch(region: region, results: venues, timestamp: Date())
+        queryCache[cacheKey(for: query, region: region)] = CachedSearch(region: region, results: venues, timestamp: Date())
         return venues
     }
 
-    /// Search multiple venue types concurrently and deduplicate results.
+    // MARK: - Timeout-Protected Search
+
+    private static let maxRetries = 2
+
+    /// Execute a single search with timeout and retry. Falls back to stale cache on failure.
+    private func searchWithTimeout(
+        query: String,
+        region: MKCoordinateRegion
+    ) async -> [Venue] {
+        for attempt in 0...Self.maxRetries {
+            guard !Task.isCancelled else { return [] }
+
+            if attempt > 0 {
+                // Brief backoff before retry
+                try? await Task.sleep(for: .milliseconds(500 * attempt))
+                guard !Task.isCancelled else { return [] }
+                print("[VenueSearchService] Retrying '\(query)' (attempt \(attempt + 1))")
+            }
+
+            do {
+                let result: [Venue]? = try await withThrowingTaskGroup(of: [Venue]?.self) { group in
+                    group.addTask { [self] () -> [Venue]? in
+                        try await self.search(query: query, region: region)
+                    }
+                    group.addTask { () -> [Venue]? in
+                        try await Task.sleep(for: .seconds(AppConstants.mapKitQueryTimeout))
+                        return nil
+                    }
+
+                    for try await result in group {
+                        if let venues = result {
+                            group.cancelAll()
+                            return venues
+                        } else {
+                            group.cancelAll()
+                            return nil // timeout
+                        }
+                    }
+                    return nil
+                }
+
+                if let venues = result {
+                    return venues
+                }
+                // Timeout — retry
+                print("[VenueSearchService] '\(query)' timed out (attempt \(attempt + 1))")
+            } catch is CancellationError {
+                return []
+            } catch {
+                print("[VenueSearchService] '\(query)' failed (attempt \(attempt + 1)): \(error.localizedDescription)")
+            }
+        }
+
+        // All retries exhausted — return stale cache if available
+        if let stale = staleCachedResults(for: query, region: region) {
+            print("[VenueSearchService] '\(query)' returning stale cache after retries")
+            return stale
+        }
+        return []
+    }
+
+    // MARK: - Multi-Type Search
+
+    /// Search multiple venue types concurrently with progressive results.
     ///
-    /// Fires all 6 queries in parallel to minimize wall-clock time while staying
-    /// well under Apple's 50-req/60s limit.
-    func searchAllTypes(region: MKCoordinateRegion) async -> [Venue] {
+    /// Fires all 6 queries in parallel. Each completed query calls `onBatch` with
+    /// the deduplicated accumulated results so the UI can update progressively.
+    func searchAllTypes(
+        region: MKCoordinateRegion,
+        onBatch: (([Venue]) -> Void)? = nil
+    ) async -> [Venue] {
         let queries = ["restaurant", "bar", "cafe", "nightclub", "pub", "bakery"]
 
-        let allResults = await withTaskGroup(of: [Venue].self) { group in
+        var seen = Set<String>()
+        var accumulated: [Venue] = []
+
+        await withTaskGroup(of: [Venue].self) { group in
             for query in queries {
                 group.addTask {
-                    do {
-                        return try await self.search(query: query, region: region)
-                    } catch {
-                        print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
-                        return []
-                    }
+                    await self.searchWithTimeout(query: query, region: region)
                 }
             }
 
-            var collected: [Venue] = []
-            for await venues in group {
-                collected.append(contentsOf: venues)
+            for await batch in group {
+                for venue in batch where !seen.contains(venue.id) {
+                    seen.insert(venue.id)
+                    accumulated.append(venue)
+                }
+                if accumulated.count >= AppConstants.maxVisibleVenues {
+                    group.cancelAll()
+                    break
+                }
+                // Notify caller with current accumulated results
+                onBatch?(accumulated)
             }
-            return collected
         }
 
-        // Deduplicate
-        var seen = Set<String>()
-        var results: [Venue] = []
-        for venue in allResults where !seen.contains(venue.id) {
-            seen.insert(venue.id)
-            results.append(venue)
-            if results.count >= AppConstants.maxVisibleVenues { break }
-        }
-
-        return results
+        return accumulated
     }
 
 }
