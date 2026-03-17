@@ -19,6 +19,7 @@ struct VenueDetailSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     headerSection
+                        .padding(.top, -8)
                     busynessSection
                     actionsSection
                     reportButton
@@ -31,7 +32,7 @@ struct VenueDetailSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.mapsBlue)
                             .font(.title3)
                     }
                 }
