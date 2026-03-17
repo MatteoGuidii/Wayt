@@ -14,8 +14,11 @@ enum AppConstants {
     /// Default search radius in meters
     static let defaultSearchRadius: CLLocationDistance = 2_000
 
-    /// Maximum venues to display on the map at once
-    static let maxVisibleVenues = 100
+    /// Maximum venues to load per search (clustering keeps rendered annotations low)
+    static let maxVisibleVenues = 200
+
+    /// Per-query timeout for MapKit searches (seconds)
+    static let mapKitQueryTimeout: TimeInterval = 8
 
     /// Minimum camera movement before "Search This Area" appears (degrees)
     static let searchThisAreaThreshold: Double = 0.005

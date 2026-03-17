@@ -10,6 +10,7 @@ struct MapScreen: View {
     @State private var mapHeading: Double = 0
     @State private var mapPitch: Double = 0
     @State private var is3D: Bool = false
+    @State private var selectedDetent: PresentationDetent = .large
 
     @Namespace private var mapScope
 
@@ -20,19 +21,46 @@ struct MapScreen: View {
                 // User location
                 UserAnnotation()
 
-                // Venue markers
-                ForEach(viewModel.filteredVenues) { venue in
-                    Annotation(
-                        venue.name,
-                        coordinate: venue.coordinate,
-                        anchor: .bottom
-                    ) {
-                        VenueMarkerView(
-                            venue: venue,
-                            isSelected: viewModel.selectedVenue?.id == venue.id
-                        )
-                        .onTapGesture {
-                            viewModel.selectVenue(venue)
+                // Venue markers (clustered)
+                ForEach(viewModel.mapItems) { item in
+                    switch item {
+                    case .single(let venue):
+                        let selected = viewModel.selectedVenue?.id == venue.id
+                        Annotation(
+                            venue.name,
+                            coordinate: venue.coordinate,
+                            anchor: .bottom
+                        ) {
+                            VenueMarkerView(
+                                venue: venue,
+                                isSelected: selected
+                            )
+                            .zIndex(selected ? 100 : 0)
+                            .onTapGesture {
+                                viewModel.selectVenue(venue, heading: mapHeading, pitch: mapPitch)
+                            }
+                        }
+
+                    case .cluster(let cluster):
+                        Annotation(
+                            "\(cluster.count) venues",
+                            coordinate: cluster.coordinate,
+                            anchor: .bottom
+                        ) {
+                            ClusterMarkerView(cluster: cluster)
+                                .onTapGesture {
+                                    // Zoom into the cluster
+                                    let clusterRegion = MKCoordinateRegion(
+                                        center: cluster.coordinate,
+                                        span: MKCoordinateSpan(
+                                            latitudeDelta: visibleRegion.span.latitudeDelta / 3,
+                                            longitudeDelta: visibleRegion.span.longitudeDelta / 3
+                                        )
+                                    )
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                        viewModel.cameraPosition = .region(clusterRegion)
+                                    }
+                                }
                         }
                     }
                 }
@@ -71,7 +99,7 @@ struct MapScreen: View {
             viewModel.refreshAfterReport()
         }) { venue in
             VenueDetailSheet(venue: venue)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large, .medium], selection: $selectedDetent)
                 .presentationDragIndicator(.visible)
         }
         .task {

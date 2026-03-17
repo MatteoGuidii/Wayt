@@ -16,6 +16,12 @@ final class MapViewModel: ObservableObject {
     @Published var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
     @Published var selectedCategory: VenueCategory?
 
+    /// Clustered map items for the current zoom level.
+    @Published var mapItems: [VenueMapItem] = []
+
+    /// The current visible region, used for clustering calculations.
+    private var currentRegion: MKCoordinateRegion?
+
     /// Venues filtered by the active category chip. Nil selection = show all.
     var filteredVenues: [Venue] {
         guard let category = selectedCategory else { return venues }
@@ -25,6 +31,39 @@ final class MapViewModel: ObservableObject {
     func toggleCategoryFilter(_ category: VenueCategory) {
         withAnimation(.easeInOut(duration: 0.2)) {
             selectedCategory = selectedCategory == category ? nil : category
+        }
+        recomputeClusters()
+    }
+
+    /// Pending cluster recomputation (debounce during progressive loading).
+    private var clusterDebounceTask: Task<Void, Never>?
+
+    /// Recompute clusters from current venues and zoom level.
+    /// When `debounce` is true, coalesces rapid calls (e.g. progressive loading batches).
+    private func recomputeClusters(debounce: Bool = false) {
+        if debounce {
+            clusterDebounceTask?.cancel()
+            clusterDebounceTask = Task {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                applyClustering()
+            }
+        } else {
+            clusterDebounceTask?.cancel()
+            applyClustering()
+        }
+    }
+
+    private func applyClustering() {
+        guard let region = currentRegion else {
+            mapItems = filteredVenues.map { .single($0) }
+            return
+        }
+
+        if VenueClusterer.shouldCluster(region: region) {
+            mapItems = VenueClusterer.cluster(venues: filteredVenues, in: region)
+        } else {
+            mapItems = filteredVenues.map { .single($0) }
         }
     }
 
@@ -36,6 +75,12 @@ final class MapViewModel: ObservableObject {
     internal var lastSearchedRegion: MKCoordinateRegion?
     private var searchTask: Task<Void, Never>?
     private var refreshTimer: Task<Void, Never>?
+
+    deinit {
+        searchTask?.cancel()
+        refreshTimer?.cancel()
+        clusterDebounceTask?.cancel()
+    }
 
     // MARK: - Search Venues
 
@@ -51,7 +96,6 @@ final class MapViewModel: ObservableObject {
             }
 
             isSearching = true
-            defer { isSearching = false }
             showSearchThisArea = false
 
             print("[MapViewModel] Searching region: \(region.center.latitude), \(region.center.longitude) span: \(region.span.latitudeDelta)")
@@ -62,7 +106,13 @@ final class MapViewModel: ObservableObject {
 
                 var results: [Venue]
                 if searchText.isEmpty {
-                    results = await searchService.searchAllTypes(region: region)
+                    // Progressive loading: show venues as each query type completes
+                    results = await searchService.searchAllTypes(region: region) { [weak self] partial in
+                        guard let self, !Task.isCancelled else { return }
+                        self.venues = self.applyOfflineBusyness(to: partial)
+                        self.recomputeClusters(debounce: true)
+                        self.isSearching = false // stop spinner on first batch
+                    }
                 } else {
                     results = try await searchService.search(
                         query: searchText,
@@ -78,20 +128,14 @@ final class MapViewModel: ObservableObject {
                 let summaries = await reportsFuture
                 applyReports(summaries, to: &results)
 
-                // For venues without reports, apply offline fallback
-                results = results.map { venue in
-                    guard venue.busyness == nil else { return venue }
-                    var v = venue
-                    let estimate = busynessEngine.estimateOffline()
-                    v.busyness = estimate.level
-                    v.busynessConfidence = estimate.confidence
-                    return v
-                }
+                // Apply offline fallback for venues without reports
+                results = applyOfflineBusyness(to: results)
 
                 // Only update if we got results — keep stale venues visible if rate-limited
                 if !results.isEmpty {
                     venues = results
                     lastSearchedRegion = region
+                    recomputeClusters()
                 }
                 print("[MapViewModel] Loaded \(results.count) venues with busyness")
             } catch {
@@ -99,6 +143,7 @@ final class MapViewModel: ObservableObject {
                 print("[MapViewModel] Search error: \(error.localizedDescription)")
             }
 
+            isSearching = false
         }
     }
 
@@ -114,6 +159,19 @@ final class MapViewModel: ObservableObject {
 
     /// Called when user pans/zooms the map
     func onRegionChanged(_ region: MKCoordinateRegion) {
+        // Always update current region for clustering
+        let previousRegion = currentRegion
+        currentRegion = region
+
+        // Recompute clusters if zoom changed meaningfully
+        let zoomRatio: Double = {
+            guard let prev = previousRegion, prev.span.latitudeDelta > 0 else { return 1.0 }
+            return region.span.latitudeDelta / prev.span.latitudeDelta
+        }()
+        if zoomRatio > 1.3 || zoomRatio < (1.0 / 1.3) {
+            recomputeClusters()
+        }
+
         guard let last = lastSearchedRegion else { return }
 
         // Check center movement
@@ -135,14 +193,14 @@ final class MapViewModel: ObservableObject {
     }
 
     /// Select a venue (tap on marker)
-    func selectVenue(_ venue: Venue) {
+    func selectVenue(_ venue: Venue, heading: Double = 0, pitch: Double = 0) {
         selectedVenue = venue
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             cameraPosition = .camera(MapCamera(
                 centerCoordinate: venue.coordinate,
                 distance: 800,
-                heading: 0,
-                pitch: 0
+                heading: heading,
+                pitch: pitch
             ))
         }
     }
@@ -163,6 +221,7 @@ final class MapViewModel: ObservableObject {
             var updated = venues
             await overlayReports(on: &updated, region: region)
             venues = updated
+            recomputeClusters()
         }
     }
 
@@ -186,6 +245,7 @@ final class MapViewModel: ObservableObject {
                 var updated = venues
                 await overlayReports(on: &updated, region: region)
                 venues = updated
+                recomputeClusters()
                 print("[MapViewModel] Live refresh complete")
             }
         }
@@ -212,6 +272,18 @@ final class MapViewModel: ObservableObject {
         } catch {
             print("[MapViewModel] Reports unavailable: \(error.localizedDescription)")
             return [:]
+        }
+    }
+
+    /// Apply offline busyness estimates to venues that have no report data.
+    private func applyOfflineBusyness(to venues: [Venue]) -> [Venue] {
+        venues.map { venue in
+            guard venue.busyness == nil else { return venue }
+            var v = venue
+            let estimate = busynessEngine.estimateOffline()
+            v.busyness = estimate.level
+            v.busynessConfidence = estimate.confidence
+            return v
         }
     }
 
