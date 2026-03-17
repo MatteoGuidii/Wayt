@@ -43,9 +43,9 @@ struct AuthGateSheet: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(VenuuTheme.amber)
+                        .background(VenuuTheme.skyPunch)
                         .clipShape(Capsule())
-                        .shadow(color: VenuuTheme.amber.opacity(0.3), radius: 10, y: 5)
+                        .shadow(color: VenuuTheme.skyPunch.opacity(0.3), radius: 10, y: 5)
                 }
 
                 Button("Maybe later") {
@@ -63,7 +63,7 @@ struct AuthGateSheet: View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(VenuuTheme.amber)
+                .foregroundStyle(VenuuTheme.skyPunch)
                 .frame(width: 28)
 
             Text(text)

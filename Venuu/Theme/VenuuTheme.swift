@@ -7,11 +7,11 @@ enum VenuuTheme {
 
     // MARK: - Brand Colors
 
-    /// Copper Ember — primary accent for buttons, CTAs, icons, highlights
-    static let amber = Color(red: 0.00, green: 0.70, blue: 0.95)   // #00B3F2 Sky Punch
+    /// Sky Punch — primary accent for buttons, CTAs, icons, highlights
+    static let skyPunch = Color(red: 0.00, green: 0.70, blue: 0.95)   // #00B3F2
 
-    /// Deeper copper — gradient accent for mascot pin body
-    static let amberDark = Color(red: 0.20, green: 0.20, blue: 1.00)   // #3333FF Ultra Blue
+    /// Ultra Blue — gradient accent for mascot pin body
+    static let ultraBlue = Color(red: 0.20, green: 0.20, blue: 1.00)   // #3333FF
 
     /// Maps blue — used for map controls (Apple Maps style)
     static let mapsBlue = Color(red: 0.00, green: 0.48, blue: 1.00) // #007AFF
