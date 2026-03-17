@@ -22,15 +22,17 @@ struct MapScreen: View {
 
                 // Venue markers
                 ForEach(viewModel.filteredVenues) { venue in
+                    let selected = viewModel.selectedVenue?.id == venue.id
                     Annotation(
-                        venue.name,
+                        "",
                         coordinate: venue.coordinate,
                         anchor: .bottom
                     ) {
                         VenueMarkerView(
                             venue: venue,
-                            isSelected: viewModel.selectedVenue?.id == venue.id
+                            isSelected: selected
                         )
+                        .zIndex(selected ? 100 : 0)
                         .onTapGesture {
                             viewModel.selectVenue(venue)
                         }
