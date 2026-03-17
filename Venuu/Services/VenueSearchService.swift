@@ -69,6 +69,16 @@ final class VenueSearchService {
         return entry.results
     }
 
+    /// Return cached results even if the region doesn't match closely (stale fallback).
+    private func staleCachedResults(for query: String) -> [Venue]? {
+        let cacheKey = normalizedQuery(query)
+        guard let entry = queryCache[cacheKey],
+              Date().timeIntervalSince(entry.timestamp) < Self.cacheTTL * 2 else {
+            return nil
+        }
+        return entry.results
+    }
+
     // MARK: - Excluded Categories
 
     private static let excludedCategories: Set<MKPointOfInterestCategory> = [
@@ -96,15 +106,10 @@ final class VenueSearchService {
             return cached
         }
 
-        // Rate-limit guard — wait for budget to free up instead of dropping the query
+        // Rate-limit guard — return stale cache or skip instead of blocking
         if !canMakeRequest() {
-            print("[VenueSearchService] Rate limit guard: waiting before '\(query)'")
-            try await Task.sleep(for: .seconds(5))
-            // Re-check after wait; if still exhausted, skip
-            guard canMakeRequest() else {
-                print("[VenueSearchService] Rate limit guard: skipping '\(query)'")
-                return []
-            }
+            print("[VenueSearchService] Rate limit: returning stale cache for '\(query)'")
+            return staleCachedResults(for: query) ?? []
         }
 
         recordRequest()
@@ -145,42 +150,83 @@ final class VenueSearchService {
         return venues
     }
 
-    /// Search multiple venue types concurrently and deduplicate results.
-    ///
-    /// Fires all 6 queries in parallel to minimize wall-clock time while staying
-    /// well under Apple's 50-req/60s limit.
-    func searchAllTypes(region: MKCoordinateRegion) async -> [Venue] {
-        let queries = ["restaurant", "bar", "cafe", "nightclub", "pub", "bakery"]
+    // MARK: - Timeout-Protected Search
 
-        let allResults = await withTaskGroup(of: [Venue].self) { group in
-            for query in queries {
+    /// Execute a single search with a timeout guard. Returns empty on timeout instead of blocking.
+    private func searchWithTimeout(
+        query: String,
+        region: MKCoordinateRegion
+    ) async -> [Venue] {
+        do {
+            return try await withThrowingTaskGroup(of: [Venue]?.self) { group in
                 group.addTask {
-                    do {
-                        return try await self.search(query: query, region: region)
-                    } catch {
-                        print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
+                    try await self.search(query: query, region: region)
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(AppConstants.mapKitQueryTimeout))
+                    return nil // sentinel: timeout fired
+                }
+
+                for try await result in group {
+                    if let venues = result {
+                        // Search completed before timeout
+                        group.cancelAll()
+                        return venues
+                    } else {
+                        // Timeout fired first
+                        group.cancelAll()
+                        print("[VenueSearchService] '\(query)' timed out after \(AppConstants.mapKitQueryTimeout)s")
                         return []
                     }
                 }
+                return []
             }
-
-            var collected: [Venue] = []
-            for await venues in group {
-                collected.append(contentsOf: venues)
-            }
-            return collected
+        } catch is CancellationError {
+            // Expected when a new search cancels the previous one — no need to log
+            return []
+        } catch {
+            print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
+            return []
         }
+    }
 
-        // Deduplicate
+    // MARK: - Multi-Type Search
+
+    /// Search multiple venue types concurrently with progressive results.
+    ///
+    /// Fires all 6 queries in parallel. Each completed query calls `onBatch` with
+    /// the deduplicated accumulated results so the UI can update progressively.
+    func searchAllTypes(
+        region: MKCoordinateRegion,
+        onBatch: (([Venue]) -> Void)? = nil
+    ) async -> [Venue] {
+        let queries = ["restaurant", "bar", "cafe", "nightclub", "pub", "bakery"]
+
         var seen = Set<String>()
-        var results: [Venue] = []
-        for venue in allResults where !seen.contains(venue.id) {
-            seen.insert(venue.id)
-            results.append(venue)
-            if results.count >= AppConstants.maxVisibleVenues { break }
+        var accumulated: [Venue] = []
+
+        await withTaskGroup(of: [Venue].self) { group in
+            for query in queries {
+                group.addTask {
+                    await self.searchWithTimeout(query: query, region: region)
+                }
+            }
+
+            for await batch in group {
+                for venue in batch where !seen.contains(venue.id) {
+                    seen.insert(venue.id)
+                    accumulated.append(venue)
+                }
+                if accumulated.count >= AppConstants.maxVisibleVenues {
+                    group.cancelAll()
+                    break
+                }
+                // Notify caller with current accumulated results
+                onBatch?(accumulated)
+            }
         }
 
-        return results
+        return accumulated
     }
 
 }
