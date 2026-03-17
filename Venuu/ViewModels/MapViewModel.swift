@@ -35,8 +35,26 @@ final class MapViewModel: ObservableObject {
         recomputeClusters()
     }
 
+    /// Pending cluster recomputation (debounce during progressive loading).
+    private var clusterDebounceTask: Task<Void, Never>?
+
     /// Recompute clusters from current venues and zoom level.
-    private func recomputeClusters() {
+    /// When `debounce` is true, coalesces rapid calls (e.g. progressive loading batches).
+    private func recomputeClusters(debounce: Bool = false) {
+        if debounce {
+            clusterDebounceTask?.cancel()
+            clusterDebounceTask = Task {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                applyClustering()
+            }
+        } else {
+            clusterDebounceTask?.cancel()
+            applyClustering()
+        }
+    }
+
+    private func applyClustering() {
         guard let region = currentRegion else {
             mapItems = filteredVenues.map { .single($0) }
             return
@@ -57,6 +75,12 @@ final class MapViewModel: ObservableObject {
     internal var lastSearchedRegion: MKCoordinateRegion?
     private var searchTask: Task<Void, Never>?
     private var refreshTimer: Task<Void, Never>?
+
+    deinit {
+        searchTask?.cancel()
+        refreshTimer?.cancel()
+        clusterDebounceTask?.cancel()
+    }
 
     // MARK: - Search Venues
 
@@ -86,7 +110,7 @@ final class MapViewModel: ObservableObject {
                     results = await searchService.searchAllTypes(region: region) { [weak self] partial in
                         guard let self, !Task.isCancelled else { return }
                         self.venues = self.applyOfflineBusyness(to: partial)
-                        self.recomputeClusters()
+                        self.recomputeClusters(debounce: true)
                         self.isSearching = false // stop spinner on first batch
                     }
                 } else {
