@@ -8,9 +8,9 @@ struct AuthGateSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 5) {
             VenuuMascot(size: 90, expression: .looking)
-                .padding(.top, 16)
+                .padding(.top, 8)
 
             VStack(spacing: 12) {
                 Text("Join the community")
