@@ -34,7 +34,7 @@ struct MapScreen: View {
                         )
                         .zIndex(selected ? 100 : 0)
                         .onTapGesture {
-                            viewModel.selectVenue(venue)
+                            viewModel.selectVenue(venue, heading: mapHeading, pitch: mapPitch)
                         }
                     }
                 }
@@ -73,7 +73,7 @@ struct MapScreen: View {
             viewModel.refreshAfterReport()
         }) { venue in
             VenueDetailSheet(venue: venue)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large, .medium], selection: .constant(.large))
                 .presentationDragIndicator(.visible)
         }
         .task {

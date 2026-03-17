@@ -133,14 +133,14 @@ final class MapViewModel: ObservableObject {
     }
 
     /// Select a venue (tap on marker)
-    func selectVenue(_ venue: Venue) {
+    func selectVenue(_ venue: Venue, heading: Double = 0, pitch: Double = 0) {
         selectedVenue = venue
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             cameraPosition = .camera(MapCamera(
                 centerCoordinate: venue.coordinate,
                 distance: 800,
-                heading: 0,
-                pitch: 0
+                heading: heading,
+                pitch: pitch
             ))
         }
     }
