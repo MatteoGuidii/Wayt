@@ -7,7 +7,7 @@ import SwiftUI
 /// Use `expression` to switch faces for different onboarding pages.
 struct VenuuMascot: View {
 
-    enum Expression {
+    enum Expression: Hashable {
         case happy      // relaxed smile
         case excited    // wide half-moons, open "D" mouth
         case wink       // one eye closed
@@ -24,6 +24,7 @@ struct VenuuMascot: View {
     @State private var pulseScale: CGFloat = 1.0
     @State private var floatOffset: CGFloat = 0
     @State private var antennaWobble: Double = 0
+    @State private var headTilt: Double = 0
 
     private var pinColor: Color { VenuuTheme.skyPunch }
     private var accentColor: Color { VenuuTheme.ultraBlue }
@@ -46,6 +47,7 @@ struct VenuuMascot: View {
 
             // The pin body
             pinBody
+                .rotationEffect(.degrees(headTilt), anchor: .bottom)
                 .offset(y: floatOffset)
         }
         .frame(width: size * 1.5, height: size * 1.9)
@@ -59,6 +61,9 @@ struct VenuuMascot: View {
             }
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
                 antennaWobble = 8
+            }
+            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
+                headTilt = 5
             }
         }
     }
@@ -104,9 +109,12 @@ struct VenuuMascot: View {
                 .frame(width: size * 0.52, height: size * 0.46)
                 .offset(y: -size * 0.12)
 
-            // Face
+            // Face — crossfade between expressions
             faceView
+                .id(expression)
+                .transition(.opacity)
                 .offset(y: -size * 0.12)
+                .animation(.easeInOut(duration: 0.6), value: expression)
         }
     }
 
