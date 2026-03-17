@@ -152,42 +152,63 @@ final class VenueSearchService {
 
     // MARK: - Timeout-Protected Search
 
-    /// Execute a single search with a timeout guard. Returns empty on timeout instead of blocking.
+    private static let maxRetries = 2
+
+    /// Execute a single search with timeout and retry. Falls back to stale cache on failure.
     private func searchWithTimeout(
         query: String,
         region: MKCoordinateRegion
     ) async -> [Venue] {
-        do {
-            return try await withThrowingTaskGroup(of: [Venue]?.self) { group in
-                group.addTask {
-                    try await self.search(query: query, region: region)
-                }
-                group.addTask {
-                    try await Task.sleep(for: .seconds(AppConstants.mapKitQueryTimeout))
-                    return nil // sentinel: timeout fired
+        for attempt in 0...Self.maxRetries {
+            guard !Task.isCancelled else { return [] }
+
+            if attempt > 0 {
+                // Brief backoff before retry
+                try? await Task.sleep(for: .milliseconds(500 * attempt))
+                guard !Task.isCancelled else { return [] }
+                print("[VenueSearchService] Retrying '\(query)' (attempt \(attempt + 1))")
+            }
+
+            do {
+                let result: [Venue]? = try await withThrowingTaskGroup(of: [Venue]?.self) { group in
+                    group.addTask { [self] () -> [Venue]? in
+                        try await self.search(query: query, region: region)
+                    }
+                    group.addTask { () -> [Venue]? in
+                        try await Task.sleep(for: .seconds(AppConstants.mapKitQueryTimeout))
+                        return nil
+                    }
+
+                    for try await result in group {
+                        if let venues = result {
+                            group.cancelAll()
+                            return venues
+                        } else {
+                            group.cancelAll()
+                            return nil // timeout
+                        }
+                    }
+                    return nil
                 }
 
-                for try await result in group {
-                    if let venues = result {
-                        // Search completed before timeout
-                        group.cancelAll()
-                        return venues
-                    } else {
-                        // Timeout fired first
-                        group.cancelAll()
-                        print("[VenueSearchService] '\(query)' timed out after \(AppConstants.mapKitQueryTimeout)s")
-                        return []
-                    }
+                if let venues = result {
+                    return venues
                 }
+                // Timeout — retry
+                print("[VenueSearchService] '\(query)' timed out (attempt \(attempt + 1))")
+            } catch is CancellationError {
                 return []
+            } catch {
+                print("[VenueSearchService] '\(query)' failed (attempt \(attempt + 1)): \(error.localizedDescription)")
             }
-        } catch is CancellationError {
-            // Expected when a new search cancels the previous one — no need to log
-            return []
-        } catch {
-            print("[VenueSearchService] '\(query)' failed: \(error.localizedDescription)")
-            return []
         }
+
+        // All retries exhausted — return stale cache if available
+        if let stale = staleCachedResults(for: query) {
+            print("[VenueSearchService] '\(query)' returning stale cache after retries")
+            return stale
+        }
+        return []
     }
 
     // MARK: - Multi-Type Search
