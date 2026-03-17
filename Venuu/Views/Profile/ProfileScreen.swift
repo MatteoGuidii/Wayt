@@ -36,13 +36,13 @@ struct ProfileScreen: View {
                             .frame(width: 56, height: 56)
 
                         Text(initials(for: displayName))
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .font(VenuuTheme.iconLargeFont)
                             .foregroundStyle(VenuuTheme.skyPunch)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(displayName)
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(VenuuTheme.title3Font)
 
                         if !viewModel.memberSince.isEmpty {
                             Text("Member since \(viewModel.memberSince)")
@@ -60,7 +60,7 @@ struct ProfileScreen: View {
                     Label("Reports Submitted", systemImage: "megaphone.fill")
                     Spacer()
                     Text("\(viewModel.totalReports)")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(VenuuTheme.bodyBoldFont)
                         .foregroundStyle(VenuuTheme.skyPunch)
                 }
             }
@@ -109,10 +109,10 @@ struct ProfileScreen: View {
 
             VStack(spacing: 10) {
                 Text("Your profile")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.largeTitleFont)
 
                 Text("Sign in to track your reports,\nsave favorites, and more.")
-                    .font(.system(size: 16))
+                    .font(VenuuTheme.bodyFont)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
@@ -122,7 +122,7 @@ struct ProfileScreen: View {
                 authState.requestSignIn()
             } label: {
                 Text("Sign in or create account")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(VenuuTheme.calloutBoldFont)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 15)

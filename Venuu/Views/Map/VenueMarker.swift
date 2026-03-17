@@ -10,7 +10,7 @@ struct VenueMarkerView: View {
         VStack(spacing: 0) {
             // Icon circle — background color = busyness level
             Image(systemName: venue.category.icon)
-                .font(.system(size: 13, weight: .semibold))
+                .font(VenuuTheme.footnoteFont)
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
                 .background(busynessColor)

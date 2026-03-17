@@ -17,14 +17,14 @@ struct ReportSheet: View {
                 // Header
                 VStack(spacing: 6) {
                     Text("How busy is")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(VenuuTheme.title3Font)
                         .foregroundStyle(.secondary)
                     Text(venue.name)
                         .font(VenuuTheme.headlineFont)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                     Text("right now?")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(VenuuTheme.title3Font)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.top, 8)
@@ -46,7 +46,7 @@ struct ReportSheet: View {
                     if includeWaitTime {
                         VStack(spacing: 4) {
                             Text("\(Int(waitMinutes)) min")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .font(VenuuTheme.titleNumericFont)
                                 .foregroundStyle(VenuuTheme.mapsBlue)
 
                             Slider(value: $waitMinutes, in: 0...90, step: 5)
@@ -92,7 +92,7 @@ struct ReportSheet: View {
                             Text("Submit Report")
                         }
                     }
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(VenuuTheme.bodyBoldFont)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(submitted ? .green : (selectedLevel != nil ? VenuuTheme.mapsBlue : .gray))
@@ -128,7 +128,7 @@ struct ReportSheet: View {
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: level.icon)
-                    .font(.system(size: 22))
+                    .font(VenuuTheme.iconLargeFont)
                 Text(level.label)
                     .font(VenuuTheme.badgeFont)
             }

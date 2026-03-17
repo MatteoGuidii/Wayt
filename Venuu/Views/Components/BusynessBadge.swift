@@ -15,7 +15,7 @@ struct BusynessBadge: View {
                     .frame(width: dotSize, height: dotSize)
 
                 Text(level.label)
-                    .font(style == .compact ? VenuuTheme.badgeFont : VenuuTheme.captionFont)
+                    .font(style == .compact ? VenuuTheme.badgeFont : VenuuTheme.footnoteLightFont)
                     .fontWeight(.semibold)
                     .foregroundStyle(level.color)
 

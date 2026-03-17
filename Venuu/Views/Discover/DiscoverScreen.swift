@@ -51,10 +51,10 @@ struct DiscoverScreen: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(viewModel.greeting)
-                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .font(VenuuTheme.largeTitleFont)
 
                 Text(viewModel.greetingSubtitle)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(VenuuTheme.subheadLightFont)
                     .foregroundStyle(.secondary)
             }
 
@@ -83,10 +83,10 @@ struct DiscoverScreen: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: "waveform.path")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(VenuuTheme.footnoteFont)
                     .foregroundStyle(VenuuTheme.skyPunch)
                 Text("Area Vibe")
-                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .font(VenuuTheme.sectionFont)
 
                 Spacer()
 
@@ -98,9 +98,9 @@ struct DiscoverScreen: View {
                     } label: {
                         HStack(spacing: 4) {
                             Text(level.label)
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .font(VenuuTheme.badgeFont)
                             Image(systemName: "xmark")
-                                .font(.system(size: 9, weight: .bold))
+                                .font(VenuuTheme.nanoFont)
                         }
                         .foregroundStyle(level.color)
                         .padding(.horizontal, 10)
@@ -142,7 +142,6 @@ struct DiscoverScreen: View {
                     }
                 } label: {
                     VStack(spacing: 5) {
-                        // Animated bar
                         RoundedRectangle(cornerRadius: 8)
                             .fill(
                                 LinearGradient(
@@ -159,14 +158,12 @@ struct DiscoverScreen: View {
                             .opacity(isFiltering && !isSelected ? 0.3 : 1.0)
                             .animation(.spring(response: 0.5, dampingFraction: 0.7), value: count)
 
-                        // Count badge
                         Text("\(count)")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
+                            .font(VenuuTheme.footnoteFont)
                             .foregroundStyle(isSelected ? level.color : (isFiltering ? .secondary : level.color))
 
-                        // Label
                         Text(level.label)
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .font(VenuuTheme.nanoFont)
                             .foregroundStyle(isSelected ? level.color : .secondary)
                             .textCase(.uppercase)
                     }
@@ -198,7 +195,7 @@ struct DiscoverScreen: View {
         VStack(spacing: 8) {
             VenuuMascot(size: 48, expression: .looking, animated: false)
             Text("Scanning your area...")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(VenuuTheme.footnoteLightFont)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -233,15 +230,15 @@ struct DiscoverScreen: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: category.icon)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(VenuuTheme.subheadFont)
                     .foregroundStyle(isSelected ? .white : category.color)
 
                 Text(category.shortName)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.footnoteFont)
                     .foregroundStyle(isSelected ? .white : .primary)
 
                 Text("\(count)")
-                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .font(VenuuTheme.badgeFont)
                     .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
             }
             .padding(.horizontal, 16)
@@ -274,15 +271,15 @@ struct DiscoverScreen: View {
     private var goNowSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                Text("🟢")
-                    .font(.system(size: 14))
+                Text("\u{1F7E2}")
+                    .font(VenuuTheme.subheadFont)
                 Text("Go Now")
-                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .font(VenuuTheme.sectionFont)
 
                 Spacer()
 
                 Text("No wait")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.badgeFont)
                     .foregroundStyle(.green)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
@@ -307,14 +304,13 @@ struct DiscoverScreen: View {
 
     private func goNowCard(_ venue: Venue) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Top: icon + category
             HStack(spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(venue.category.color.opacity(0.15))
                         .frame(width: 36, height: 36)
                     Image(systemName: venue.category.icon)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(VenuuTheme.cardTitleFont)
                         .foregroundStyle(venue.category.color)
                 }
 
@@ -322,7 +318,7 @@ struct DiscoverScreen: View {
 
                 if let busyness = venue.busyness {
                     Text(busyness.label)
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .font(VenuuTheme.microFont)
                         .foregroundStyle(busyness.color)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -332,13 +328,13 @@ struct DiscoverScreen: View {
             }
 
             Text(venue.name)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .font(VenuuTheme.subheadFont)
                 .lineLimit(1)
                 .foregroundStyle(.primary)
 
             if let busyness = venue.busyness {
                 Text(busyness.description)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .font(VenuuTheme.badgeFont)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -359,15 +355,15 @@ struct DiscoverScreen: View {
     private var buzzingSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                Text("🔥")
-                    .font(.system(size: 14))
+                Text("\u{1F525}")
+                    .font(VenuuTheme.subheadFont)
                 Text("On Fire")
-                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .font(VenuuTheme.sectionFont)
 
                 Spacer()
 
                 Text("High energy")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.badgeFont)
                     .foregroundStyle(.orange)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
@@ -397,10 +393,10 @@ struct DiscoverScreen: View {
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(VenuuTheme.footnoteFont)
                         .foregroundStyle(VenuuTheme.skyPunch)
                     Text("All Spots")
-                        .font(.system(size: 16, weight: .black, design: .rounded))
+                        .font(VenuuTheme.sectionFont)
                 }
 
                 Spacer()
@@ -418,7 +414,7 @@ struct DiscoverScreen: View {
                         }
                     } label: {
                         Text("Clear filters")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .font(VenuuTheme.captionFont)
                             .foregroundStyle(VenuuTheme.skyPunch)
                     }
                 }
@@ -427,7 +423,7 @@ struct DiscoverScreen: View {
 
             if !viewModel.filteredVenues.isEmpty {
                 Text("\(viewModel.filteredVenues.count) spots found")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(VenuuTheme.captionLightFont)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 20)
             }
@@ -453,10 +449,10 @@ struct DiscoverScreen: View {
             VenuuMascot(size: 56, expression: .looking, animated: true)
 
             Text("Nothing here yet")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(VenuuTheme.bodyBoldFont)
 
             Text("Try a different filter or explore a new area")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(VenuuTheme.footnoteLightFont)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }

@@ -9,7 +9,7 @@ struct VenueRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Busyness accent bar (thick, bold)
+            // Busyness accent bar
             RoundedRectangle(cornerRadius: 3)
                 .fill(venue.busyness?.color ?? Color.gray.opacity(0.3))
                 .frame(width: 5, height: 52)
@@ -21,19 +21,19 @@ struct VenueRow: View {
                     .frame(width: 44, height: 44)
 
                 Image(systemName: venue.category.icon)
-                    .font(.system(size: 17, weight: .bold))
+                    .font(VenuuTheme.calloutBoldFont)
                     .foregroundStyle(venue.category.color)
             }
 
             // Venue info
             VStack(alignment: .leading, spacing: 4) {
                 Text(venue.name)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.cardTitleFont)
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
                     Text(venue.category.shortName)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(VenuuTheme.captionLightFont)
                         .foregroundStyle(.secondary)
 
                     if let distance = formattedDistance {
@@ -41,7 +41,7 @@ struct VenueRow: View {
                             .fill(Color.secondary.opacity(0.5))
                             .frame(width: 3, height: 3)
                         Text(distance)
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(VenuuTheme.captionLightFont)
                             .foregroundStyle(.secondary)
                     }
 
@@ -51,9 +51,9 @@ struct VenueRow: View {
                             .frame(width: 3, height: 3)
                         HStack(spacing: 2) {
                             Image(systemName: "clock.fill")
-                                .font(.system(size: 9, weight: .bold))
+                                .font(VenuuTheme.nanoFont)
                             Text("~\(wait)m")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(VenuuTheme.captionFont)
                         }
                         .foregroundStyle(.orange)
                     }
@@ -62,7 +62,6 @@ struct VenueRow: View {
 
             Spacer()
 
-            // Busyness badge
             BusynessBadge(
                 level: venue.busyness,
                 confidence: venue.busynessConfidence,
