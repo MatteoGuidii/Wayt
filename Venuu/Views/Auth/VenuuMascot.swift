@@ -12,18 +12,21 @@ struct VenuuMascot: View {
         case excited    // wide half-moons, open "D" mouth
         case wink       // one eye closed
         case looking    // eyes shifted to one side
+        case proud      // closed-eye content smile (^ ^)
+        case cheerful   // big open smile, half-moon happy eyes (:D)
+        case kind       // soft eyes with warm wide smile
     }
 
     var size: CGFloat = 160
-    var expression: Expression = .happy
+    var expression: Expression = .looking
     var animated: Bool = true
 
     @State private var pulseScale: CGFloat = 1.0
     @State private var floatOffset: CGFloat = 0
     @State private var antennaWobble: Double = 0
 
-    private var pinColor: Color { VenuuTheme.amber }
-    private var accentColor: Color { VenuuTheme.amberDark }
+    private var pinColor: Color { VenuuTheme.skyPunch }
+    private var accentColor: Color { VenuuTheme.ultraBlue }
 
     var body: some View {
         ZStack {
@@ -131,11 +134,11 @@ struct VenuuMascot: View {
     // MARK: - Face
 
     private var faceView: some View {
-        VStack(spacing: size * 0.015) {
+        VStack(spacing: expression == .proud ? size * 0.04 : size * 0.015) {
             // Eyes
             HStack(spacing: size * 0.10) {
-                eyeView(isWinking: expression == .wink)
-                eyeView(isWinking: false)
+                leftEyeView
+                rightEyeView
             }
             .offset(x: expression == .looking ? size * 0.055 : size * 0.035)
 
@@ -147,46 +150,88 @@ struct VenuuMascot: View {
         .offset(y: size * 0.01)
     }
 
-    private func eyeView(isWinking: Bool) -> some View {
+    private var leftEyeView: some View {
         ZStack {
-            if isWinking {
-                // Wink: cheeky curved line, slightly bigger
+            switch expression {
+            case .wink:
+                // Wink: cheeky curved line
                 WinkShape()
                     .stroke(VenuuTheme.ink, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                     .frame(width: size * 0.07, height: size * 0.035)
                     .rotationEffect(.degrees(-8))
-            } else {
-                // Soft round eye — friendly, not intense
-                Circle()
+            case .proud:
+                // Closed happy arc (^ shape)
+                HappyClosedEyeShape()
+                    .stroke(VenuuTheme.ink, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .frame(width: size * 0.065, height: size * 0.03)
+            case .cheerful:
+                // Half-moon happy eye
+                HalfMoonEyeShape()
                     .fill(VenuuTheme.ink)
-                    .frame(
-                        width: size * (expression == .excited ? 0.065 : 0.055),
-                        height: size * (expression == .excited ? 0.065 : 0.055)
-                    )
-                    .offset(x: expression == .looking ? size * 0.015 : 0)
-
-                // Eye shine
-                Circle()
-                    .fill(Color.white.opacity(0.9))
-                    .frame(width: size * 0.018, height: size * 0.018)
-                    .offset(x: -size * 0.008, y: -size * 0.01)
+                    .frame(width: size * 0.06, height: size * 0.035)
+            case .kind:
+                // Soft larger eye with bigger shine
+                kindEyeDot
+            default:
+                roundEyeDot
             }
+        }
+    }
+
+    private var rightEyeView: some View {
+        ZStack {
+            switch expression {
+            case .proud:
+                HappyClosedEyeShape()
+                    .stroke(VenuuTheme.ink, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .frame(width: size * 0.065, height: size * 0.03)
+            case .cheerful:
+                HalfMoonEyeShape()
+                    .fill(VenuuTheme.ink)
+                    .frame(width: size * 0.06, height: size * 0.035)
+            case .kind:
+                kindEyeDot
+            default:
+                roundEyeDot
+            }
+        }
+    }
+
+    /// Standard round eye with shine
+    private var roundEyeDot: some View {
+        ZStack {
+            Circle()
+                .fill(VenuuTheme.ink)
+                .frame(
+                    width: size * (expression == .excited ? 0.065 : 0.055),
+                    height: size * (expression == .excited ? 0.065 : 0.055)
+                )
+                .offset(x: expression == .looking ? size * 0.015 : 0)
+            Circle()
+                .fill(Color.white.opacity(0.9))
+                .frame(width: size * 0.018, height: size * 0.018)
+                .offset(x: -size * 0.008, y: -size * 0.01)
+        }
+    }
+
+    /// Kind expression: slightly larger, softer eye
+    private var kindEyeDot: some View {
+        ZStack {
+            Circle()
+                .fill(VenuuTheme.ink)
+                .frame(width: size * 0.058, height: size * 0.058)
+            Circle()
+                .fill(Color.white.opacity(0.9))
+                .frame(width: size * 0.022, height: size * 0.022)
+                .offset(x: -size * 0.008, y: -size * 0.012)
         }
     }
 
     private var mouthView: some View {
         Group {
             switch expression {
-            case .happy, .looking:
-                // Gentle curved smile
-                SmileShape()
-                    .stroke(
-                        VenuuTheme.ink,
-                        style: StrokeStyle(lineWidth: 2.0, lineCap: .round)
-                    )
-                    .frame(width: size * 0.11, height: size * 0.045)
-            case .wink:
-                // Cheeky smirk
+            case .happy, .looking, .wink:
+                // Gentle curved smile / smirk
                 SmileShape()
                     .stroke(
                         VenuuTheme.ink,
@@ -198,6 +243,27 @@ struct VenuuMascot: View {
                 DShapeMouth()
                     .fill(VenuuTheme.ink)
                     .frame(width: size * 0.09, height: size * 0.06)
+            case .proud:
+                // Content gentle smile — wider and softer
+                SmileShape()
+                    .stroke(
+                        VenuuTheme.ink,
+                        style: StrokeStyle(lineWidth: 2.2, lineCap: .round)
+                    )
+                    .frame(width: size * 0.13, height: size * 0.04)
+            case .cheerful:
+                // Big open "D" smile
+                DShapeMouth()
+                    .fill(VenuuTheme.ink)
+                    .frame(width: size * 0.11, height: size * 0.07)
+            case .kind:
+                // Warm wide smile
+                SmileShape()
+                    .stroke(
+                        VenuuTheme.ink,
+                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                    )
+                    .frame(width: size * 0.14, height: size * 0.05)
             }
         }
     }
@@ -254,6 +320,19 @@ private struct PinShape: Shape {
 }
 
 // MARK: - Face Shapes
+
+/// Happy closed eye — upward arc like ^ ^
+private struct HappyClosedEyeShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.maxY),
+            control: CGPoint(x: rect.midX, y: rect.minY - rect.height * 0.5)
+        )
+        return path
+    }
+}
 
 /// Half-moon / anime-style eye — a filled upside-down arc
 private struct HalfMoonEyeShape: Shape {
@@ -335,14 +414,48 @@ private struct DShapeMouth: Shape {
 }
 
 #Preview("Mascot") {
-    VStack(spacing: 30) {
-        HStack(spacing: 40) {
-            VenuuMascot(size: 100, expression: .happy)
-            VenuuMascot(size: 100, expression: .excited)
+    ScrollView {
+        VStack(spacing: 20) {
+            Text("Existing").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 40) {
+                VStack {
+                    VenuuMascot(size: 90, expression: .looking)
+                    Text("looking").font(.caption2)
+                }
+                VStack {
+                    VenuuMascot(size: 90, expression: .excited)
+                    Text("excited").font(.caption2)
+                }
+            }
+            HStack(spacing: 40) {
+                VStack {
+                    VenuuMascot(size: 90, expression: .happy)
+                    Text("happy").font(.caption2)
+                }
+                VStack {
+                    VenuuMascot(size: 90, expression: .wink)
+                    Text("wink").font(.caption2)
+                }
+            }
+
+            Divider().padding(.horizontal, 40)
+
+            Text("New — pick for \"Help your community\"").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 30) {
+                VStack {
+                    VenuuMascot(size: 90, expression: .proud)
+                    Text("proud").font(.caption2)
+                }
+                VStack {
+                    VenuuMascot(size: 90, expression: .cheerful)
+                    Text("cheerful").font(.caption2)
+                }
+                VStack {
+                    VenuuMascot(size: 90, expression: .kind)
+                    Text("kind").font(.caption2)
+                }
+            }
         }
-        HStack(spacing: 40) {
-            VenuuMascot(size: 100, expression: .wink)
-            VenuuMascot(size: 100, expression: .looking)
-        }
+        .padding()
     }
 }

@@ -114,7 +114,7 @@ private struct AuthHeaderView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            VenuuMascot(size: 80, expression: .happy, animated: false)
+            VenuuMascot(size: 80, expression: .looking, animated: false)
 
             Text("Venuu")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
