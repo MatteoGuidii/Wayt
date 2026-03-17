@@ -51,7 +51,7 @@ enum VenueClusterer {
 
     /// Grid density — how many cells per screen axis.
     /// Higher = smaller cells = fewer clusters = more individual pins.
-    private static let gridDensionFactor: Double = 8
+    private static let gridDensityFactor: Double = 8
 
     /// Cluster venues based on the current map region (zoom level).
     /// Returns a mix of single venues and clusters.
@@ -62,8 +62,8 @@ enum VenueClusterer {
         guard !venues.isEmpty else { return [] }
 
         // Cell size in degrees, proportional to visible span
-        let cellLat = region.span.latitudeDelta / gridDensionFactor
-        let cellLng = region.span.longitudeDelta / gridDensionFactor
+        let cellLat = region.span.latitudeDelta / gridDensityFactor
+        let cellLng = region.span.longitudeDelta / gridDensityFactor
 
         guard cellLat > 0, cellLng > 0 else {
             return venues.map { .single($0) }
