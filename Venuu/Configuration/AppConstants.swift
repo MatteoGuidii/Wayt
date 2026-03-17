@@ -17,6 +17,9 @@ enum AppConstants {
     /// Maximum venues to display on the map at once
     static let maxVisibleVenues = 100
 
+    /// Per-query timeout for MapKit searches (seconds)
+    static let mapKitQueryTimeout: TimeInterval = 8
+
     /// Minimum camera movement before "Search This Area" appears (degrees)
     static let searchThisAreaThreshold: Double = 0.005
 

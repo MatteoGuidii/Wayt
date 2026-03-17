@@ -51,7 +51,6 @@ final class MapViewModel: ObservableObject {
             }
 
             isSearching = true
-            defer { isSearching = false }
             showSearchThisArea = false
 
             print("[MapViewModel] Searching region: \(region.center.latitude), \(region.center.longitude) span: \(region.span.latitudeDelta)")
@@ -62,7 +61,12 @@ final class MapViewModel: ObservableObject {
 
                 var results: [Venue]
                 if searchText.isEmpty {
-                    results = await searchService.searchAllTypes(region: region)
+                    // Progressive loading: show venues as each query type completes
+                    results = await searchService.searchAllTypes(region: region) { [weak self] partial in
+                        guard let self, !Task.isCancelled else { return }
+                        self.venues = self.applyOfflineBusyness(to: partial)
+                        self.isSearching = false // stop spinner on first batch
+                    }
                 } else {
                     results = try await searchService.search(
                         query: searchText,
@@ -78,15 +82,8 @@ final class MapViewModel: ObservableObject {
                 let summaries = await reportsFuture
                 applyReports(summaries, to: &results)
 
-                // For venues without reports, apply offline fallback
-                results = results.map { venue in
-                    guard venue.busyness == nil else { return venue }
-                    var v = venue
-                    let estimate = busynessEngine.estimateOffline()
-                    v.busyness = estimate.level
-                    v.busynessConfidence = estimate.confidence
-                    return v
-                }
+                // Apply offline fallback for venues without reports
+                results = applyOfflineBusyness(to: results)
 
                 // Only update if we got results — keep stale venues visible if rate-limited
                 if !results.isEmpty {
@@ -99,6 +96,7 @@ final class MapViewModel: ObservableObject {
                 print("[MapViewModel] Search error: \(error.localizedDescription)")
             }
 
+            isSearching = false
         }
     }
 
@@ -212,6 +210,18 @@ final class MapViewModel: ObservableObject {
         } catch {
             print("[MapViewModel] Reports unavailable: \(error.localizedDescription)")
             return [:]
+        }
+    }
+
+    /// Apply offline busyness estimates to venues that have no report data.
+    private func applyOfflineBusyness(to venues: [Venue]) -> [Venue] {
+        venues.map { venue in
+            guard venue.busyness == nil else { return venue }
+            var v = venue
+            let estimate = busynessEngine.estimateOffline()
+            v.busyness = estimate.level
+            v.busynessConfidence = estimate.confidence
+            return v
         }
     }
 

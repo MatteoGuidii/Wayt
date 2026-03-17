@@ -122,11 +122,11 @@ private struct AuthHeaderView: View {
 
             Text("Venuu")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(VenuuTheme.ultraBlue)
+                .foregroundStyle(VenuuTheme.mapsBlue)
 
             Text("Know before you go.")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(VenuuTheme.ultraBlue.opacity(0.7))
+                .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.7))
         }
         .padding(.top, 12)
         .padding(.bottom, 4)
@@ -171,8 +171,8 @@ private struct AuthenticatorContainer: View {
         t.components.field.backgroundColor = Color.white.opacity(0.92)
         t.components.field.cornerRadius = 12
 
-        t.colors.background.interactive = VenuuTheme.mapsBlue
-        t.colors.foreground.interactive = VenuuTheme.mapsBlue
+        t.colors.background.interactive = VenuuTheme.skyPunch
+        t.colors.foreground.interactive = VenuuTheme.skyPunch
 
         t.components.button.primary.cornerRadius = 16
         t.components.button.primary.padding = 16
@@ -210,11 +210,11 @@ private struct AuthenticatorContainer: View {
 
                 Text("Venuu")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(VenuuTheme.ultraBlue)
+                    .foregroundStyle(VenuuTheme.mapsBlue)
 
                 Text("Know before you go.")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(VenuuTheme.ultraBlue.opacity(0.7))
+                    .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.7))
             }
             .padding(.top, 12)
             .padding(.bottom, 4)
@@ -248,17 +248,17 @@ private struct AuthenticatorContainer: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(VenuuTheme.mapsBlue)
+                        .background(VenuuTheme.skyPunch)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .padding(.top, 8)
 
                 HStack {
                     Text("Forgot password?")
-                        .foregroundStyle(VenuuTheme.mapsBlue)
+                        .foregroundStyle(VenuuTheme.skyPunch)
                     Spacer()
                     Text("Create account")
-                        .foregroundStyle(VenuuTheme.mapsBlue)
+                        .foregroundStyle(VenuuTheme.skyPunch)
                 }
                 .font(.system(size: 15, weight: .medium))
             }
