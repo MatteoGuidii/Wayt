@@ -55,7 +55,7 @@ final class MapViewModel: ObservableObject {
         withAnimation(.easeInOut(duration: 0.2)) {
             filterState?.selectCategory(category)
         }
-        recomputeClusters()
+        // No explicit recomputeClusters() — the filterState observer handles it
     }
 
     /// Pending cluster recomputation (debounce during progressive loading).

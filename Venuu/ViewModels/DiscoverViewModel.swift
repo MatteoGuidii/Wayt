@@ -110,6 +110,11 @@ final class DiscoverViewModel: ObservableObject {
             base = base.filter { $0.category == category }
         }
 
+        // Apply busyness filter to the same base used for all derived arrays
+        if let busynessLevel {
+            base = base.filter { $0.busyness == busynessLevel }
+        }
+
         // Popular / buzzing: busyness >= 4 (busy + packed)
         popularVenues = base
             .filter { ($0.busyness?.rawValue ?? 0) >= 4 }
@@ -125,11 +130,6 @@ final class DiscoverViewModel: ObservableObject {
             }
             .prefix(8)
             .map { $0 }
-
-        // Filtered venues: apply both category + busyness filter
-        if let busynessLevel {
-            base = base.filter { $0.busyness == busynessLevel }
-        }
 
         filteredVenues = base
     }
