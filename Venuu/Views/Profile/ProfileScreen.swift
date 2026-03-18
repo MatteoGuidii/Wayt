@@ -5,7 +5,7 @@ import AWSCognitoAuthPlugin
 struct ProfileScreen: View {
 
     @EnvironmentObject private var authState: AuthState
-    @StateObject private var viewModel = ProfileViewModel()
+    @EnvironmentObject private var viewModel: ProfileViewModel
     @State private var showSignOutConfirm = false
     @State private var mascotExpression: VenuuMascot.Expression = .happy
 
@@ -187,6 +187,7 @@ struct ProfileScreen: View {
                        case .failed = globalResult {
                         print("Sign-out failed")
                     } else {
+                        viewModel.reset()
                         authState.didSignOut()
                     }
                 }
@@ -356,7 +357,7 @@ struct ProfileScreen: View {
                             RoundedRectangle(cornerRadius: 6)
                                 .fill(
                                     LinearGradient(
-                                        colors: [rank.color, next.color],
+                                        colors: rank.progressBarColors,
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
@@ -605,6 +606,16 @@ enum UserRank: Int, CaseIterable {
         }
     }
 
+    var progressBarColors: [Color] {
+        switch self {
+        case .newbie:     return [Color.green.opacity(0.6), .green, .mint]
+        case .explorer:   return [.cyan, VenuuTheme.skyPunch, .blue]
+        case .scout:      return [.yellow, .orange, .red]
+        case .localGuide: return [.pink, .purple, .indigo]
+        case .legend:     return [Color(red: 1.0, green: 0.84, blue: 0.0), .orange, .red]
+        }
+    }
+
     var level: Int { rawValue }
 
     var minReports: Int {
@@ -652,6 +663,7 @@ enum UserRank: Int, CaseIterable {
 #Preview("Profile - Guest") {
     ProfileScreen()
         .environmentObject(AuthState())
+        .environmentObject(ProfileViewModel())
 }
 
 #Preview("Profile - Signed In") {
@@ -659,4 +671,5 @@ enum UserRank: Int, CaseIterable {
     auth.didSignIn(username: "Matteo")
     return ProfileScreen()
         .environmentObject(auth)
+        .environmentObject(ProfileViewModel())
 }

@@ -5,6 +5,7 @@ struct MainTabView: View {
     @State private var selectedTab: Tab = .map
     @StateObject private var filterState = VenueFilterState()
     @StateObject private var mapViewModel = MapViewModel()
+    @StateObject private var profileViewModel = ProfileViewModel()
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -29,6 +30,7 @@ struct MainTabView: View {
         .tint(VenuuTheme.mapsBlue)
         .environmentObject(filterState)
         .environmentObject(mapViewModel)
+        .environmentObject(profileViewModel)
         .task {
             mapViewModel.filterState = filterState
             mapViewModel.startLiveRefresh()

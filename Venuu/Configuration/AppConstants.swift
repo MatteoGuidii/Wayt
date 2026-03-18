@@ -1,6 +1,13 @@
 import Foundation
 import CoreLocation
 
+// MARK: - Notification Names
+
+extension Notification.Name {
+    /// Posted after a busyness report is successfully submitted.
+    static let reportSubmitted = Notification.Name("reportSubmitted")
+}
+
 /// App-wide constants. Accessible from any isolation domain.
 enum AppConstants {
 
@@ -38,6 +45,9 @@ enum AppConstants {
 
     /// Distance filter for location updates (meters)
     static let locationDistanceFilter: CLLocationDistance = 100
+
+    /// Maximum distance from a venue to allow submitting a report (meters)
+    static let reportProximityRadius: CLLocationDistance = 200
 
     // MARK: - Cache
 

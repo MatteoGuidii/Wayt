@@ -8,6 +8,7 @@ struct VenueDetailSheet: View {
     let venue: Venue
     @StateObject private var viewModel: VenueDetailViewModel
     @EnvironmentObject private var authState: AuthState
+    @EnvironmentObject private var locationService: LocationService
     @Environment(\.dismiss) private var dismiss
     @State private var showAuthGate = false
     @State private var lookAroundScene: MKLookAroundScene?
@@ -46,6 +47,10 @@ struct VenueDetailSheet: View {
         .task {
             await viewModel.loadReports()
             await fetchLookAroundScene()
+            viewModel.updateProximity(userLocation: locationService.userLocation)
+        }
+        .onChange(of: locationService.userLocation) { _, newLocation in
+            viewModel.updateProximity(userLocation: newLocation)
         }
         .sheet(isPresented: $viewModel.showReportSheet) {
             ReportSheet(venue: venue) { level, wait in
@@ -215,23 +220,41 @@ struct VenueDetailSheet: View {
     // MARK: - Report Button
 
     private var reportButton: some View {
-        Button {
-            if authState.isSignedIn {
-                viewModel.showReportSheet = true
+        VStack(spacing: 6) {
+            if viewModel.isWithinReportRange {
+                Button {
+                    if authState.isSignedIn {
+                        viewModel.showReportSheet = true
+                    } else {
+                        showAuthGate = true
+                    }
+                } label: {
+                    Label(
+                        viewModel.reportSubmitted ? "Thanks! Report again?" : "How busy is it?",
+                        systemImage: viewModel.reportSubmitted ? "checkmark.circle.fill" : "megaphone.fill"
+                    )
+                    .font(VenuuTheme.bodyBoldFont)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(viewModel.reportSubmitted ? .green : VenuuTheme.mapsBlue)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
             } else {
-                showAuthGate = true
+                Label("Get closer to report", systemImage: "location.fill")
+                    .font(VenuuTheme.bodyBoldFont)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(.systemGray4))
+                    .foregroundStyle(.secondary)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                if let distance = viewModel.distanceToVenue(from: locationService.userLocation) {
+                    Text("You're \(Int(distance))m away - must be within \(Int(AppConstants.reportProximityRadius))m")
+                        .font(VenuuTheme.captionFont)
+                        .foregroundStyle(.secondary)
+                }
             }
-        } label: {
-            Label(
-                viewModel.reportSubmitted ? "Thanks! Report again?" : "How busy is it?",
-                systemImage: viewModel.reportSubmitted ? "checkmark.circle.fill" : "megaphone.fill"
-            )
-            .font(VenuuTheme.bodyBoldFont)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(viewModel.reportSubmitted ? .green : VenuuTheme.mapsBlue)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 
