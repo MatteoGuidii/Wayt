@@ -13,6 +13,7 @@ struct ProfileScreen: View {
     @State private var showFirstTimeNameSheet = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var mascotExpression: VenuuMascot.Expression = .happy
+    @AppStorage("profileBannerStyle") private var bannerStyle: ProfileBannerStyle = .skyPunch
 
     var body: some View {
         NavigationStack {
@@ -215,7 +216,7 @@ struct ProfileScreen: View {
         ZStack {
             // Gradient background
             LinearGradient(
-                colors: [VenuuTheme.skyPunch, VenuuTheme.ultraBlue],
+                colors: bannerStyle.colors,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -236,6 +237,17 @@ struct ProfileScreen: View {
         .clipShape(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
         )
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                bannerStyle = bannerStyle.next
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            Image(systemName: "paintbrush.fill")
+                .font(.system(size: 20))
+                .foregroundStyle(.white.opacity(0.5))
+                .padding(12)
+        }
         .overlay(alignment: .bottom) {
             // Avatar + name overlay
             VStack(spacing: 12) {
@@ -458,15 +470,6 @@ struct ProfileScreen: View {
     private var actionsCard: some View {
         VStack(spacing: 0) {
             actionRow(
-                icon: "megaphone.fill",
-                color: VenuuTheme.skyPunch,
-                title: "My Reports",
-                subtitle: "\(viewModel.totalReports) submitted"
-            )
-
-            Divider().padding(.leading, 60)
-
-            actionRow(
                 icon: "bell.fill",
                 color: .orange,
                 title: "Notifications",
@@ -543,7 +546,7 @@ struct ProfileScreen: View {
                 .foregroundStyle(.red)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(Color.red.opacity(0.15))
+                .background(Color.red.opacity(0.35))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .padding(.horizontal, 16)
@@ -741,7 +744,7 @@ enum UserRank: Int, CaseIterable {
         case .explorer:   return VenuuTheme.skyPunch
         case .scout:      return .orange
         case .localGuide: return .purple
-        case .legend:     return Color(red: 1.0, green: 0.84, blue: 0.0)
+        case .legend:     return Color(red: 0.85, green: 0.55, blue: 0.0)
         }
     }
 
@@ -751,7 +754,7 @@ enum UserRank: Int, CaseIterable {
         case .explorer:   return [.cyan, VenuuTheme.skyPunch, .blue]
         case .scout:      return [.yellow, .orange, .red]
         case .localGuide: return [.pink, .purple, .indigo]
-        case .legend:     return [Color(red: 1.0, green: 0.84, blue: 0.0), .orange, .red]
+        case .legend:     return [Color(red: 0.85, green: 0.55, blue: 0.0), .orange, .red]
         }
     }
 
@@ -794,6 +797,45 @@ enum UserRank: Int, CaseIterable {
             if reports >= rank.minReports { return rank }
         }
         return .newbie
+    }
+}
+
+// MARK: - Profile Banner Style
+
+enum ProfileBannerStyle: String, CaseIterable {
+    case skyPunch
+    case sunset
+    case ocean
+    case midnight
+    case forest
+    case lavender
+
+    var displayName: String {
+        switch self {
+        case .skyPunch:  return "Sky Punch"
+        case .sunset:    return "Sunset"
+        case .ocean:     return "Ocean"
+        case .midnight:  return "Midnight"
+        case .forest:    return "Forest"
+        case .lavender:  return "Lavender"
+        }
+    }
+
+    var colors: [Color] {
+        switch self {
+        case .skyPunch:  return [VenuuTheme.skyPunch, VenuuTheme.ultraBlue]
+        case .sunset:    return [Color.orange, Color.pink]
+        case .ocean:     return [Color.cyan, Color.blue]
+        case .midnight:  return [Color.indigo, Color(red: 0.15, green: 0.1, blue: 0.3)]
+        case .forest:    return [Color.green, Color.teal]
+        case .lavender:  return [Color.purple, Color.pink.opacity(0.7)]
+        }
+    }
+
+    var next: ProfileBannerStyle {
+        let all = Self.allCases
+        let idx = all.firstIndex(of: self)!
+        return all[(idx + 1) % all.count]
     }
 }
 
