@@ -1,4 +1,5 @@
 import Combine
+import CoreLocation
 import Foundation
 
 @MainActor
@@ -11,6 +12,7 @@ final class VenueDetailViewModel: ObservableObject {
     @Published var isLoadingReports: Bool = false
     @Published var showReportSheet: Bool = false
     @Published var reportSubmitted: Bool = false
+    @Published var isWithinReportRange: Bool = false
 
     // MARK: - Private
 
@@ -54,6 +56,30 @@ final class VenueDetailViewModel: ObservableObject {
         isLoadingReports = false
     }
 
+    // MARK: - Proximity Check
+
+    func updateProximity(userLocation: CLLocation?) {
+        guard let userLocation else {
+            isWithinReportRange = false
+            return
+        }
+        let venueLocation = CLLocation(
+            latitude: venue.coordinate.latitude,
+            longitude: venue.coordinate.longitude
+        )
+        let distance = userLocation.distance(from: venueLocation)
+        isWithinReportRange = distance <= AppConstants.reportProximityRadius
+    }
+
+    func distanceToVenue(from userLocation: CLLocation?) -> CLLocationDistance? {
+        guard let userLocation else { return nil }
+        let venueLocation = CLLocation(
+            latitude: venue.coordinate.latitude,
+            longitude: venue.coordinate.longitude
+        )
+        return userLocation.distance(from: venueLocation)
+    }
+
     // MARK: - Submit Report
 
     func submitReport(level: BusynessLevel, waitMinutes: Int?) async {
@@ -77,6 +103,9 @@ final class VenueDetailViewModel: ObservableObject {
                     level: level,
                     waitMinutes: waitMinutes
                 )
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .reportSubmitted, object: nil)
+                }
                 print("[VenueDetail] Report submitted successfully")
             } catch {
                 print("[VenueDetail] Submit failed: \(error.localizedDescription)")
