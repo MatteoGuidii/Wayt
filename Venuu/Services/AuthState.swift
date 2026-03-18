@@ -9,6 +9,7 @@ final class AuthState: ObservableObject {
 
     @Published private(set) var isSignedIn = false
     @Published private(set) var username: String?
+    @Published private(set) var displayName: String?
 
     /// Callback set by AuthRootView so guest→sign-in can be triggered from anywhere.
     var onRequestSignIn: (() -> Void)?
@@ -46,7 +47,13 @@ final class AuthState: ObservableObject {
     /// Called after sign-out.
     func didSignOut() {
         username = nil
+        displayName = nil
         isSignedIn = false
+    }
+
+    /// Updates the display name from the profile view model.
+    func updateDisplayName(_ name: String) {
+        displayName = name
     }
 
     /// Prompts the sign-in flow from wherever the user is.

@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import Amplify
 import AWSCognitoAuthPlugin
 
@@ -7,6 +8,11 @@ struct ProfileScreen: View {
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var viewModel: ProfileViewModel
     @State private var showSignOutConfirm = false
+    @State private var showEditSheet = false
+    @State private var showPhotoPicker = false
+    @State private var showImagePreview = false
+    @State private var showFirstTimeNameSheet = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var mascotExpression: VenuuMascot.Expression = .happy
 
     var body: some View {
@@ -20,9 +26,36 @@ struct ProfileScreen: View {
         .task(id: authState.username ?? "") {
             if authState.isSignedIn {
                 await viewModel.loadProfile()
+                if viewModel.showFirstTimeNamePrompt {
+                    showFirstTimeNameSheet = true
+                }
             }
         }
         .task { await cycleMascotExpression() }
+        .sheet(isPresented: $showEditSheet) {
+            ProfileEditSheet(isFirstTime: false)
+                .environmentObject(viewModel)
+                .environmentObject(authState)
+        }
+        .sheet(isPresented: $showFirstTimeNameSheet) {
+            ProfileEditSheet(isFirstTime: true)
+                .environmentObject(viewModel)
+                .environmentObject(authState)
+        }
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $selectedPhotoItem,
+            matching: .images,
+            photoLibrary: .shared()
+        )
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            guard let newItem else { return }
+            selectedPhotoItem = nil
+            Task { await processAndUploadPhoto(newItem) }
+        }
+        .fullScreenCover(isPresented: $showImagePreview) {
+            profileImagePreview
+        }
     }
 
     // MARK: - Guest Content
@@ -42,7 +75,7 @@ struct ProfileScreen: View {
                     VenuuMascot(size: 130, expression: mascotExpression, animated: true)
 
                     VStack(spacing: 8) {
-                        Text("Join the crew!")
+                        Text("Join the community!")
                             .font(VenuuTheme.largeTitleFont)
 
                         Text("Be part of the community that\nknows where to go.")
@@ -145,7 +178,7 @@ struct ProfileScreen: View {
     // MARK: - Signed-In Content
 
     private var signedInContent: some View {
-        let displayName = authState.username ?? "User"
+        let displayName = viewModel.displayName ?? authState.displayName ?? "User"
         let rank = UserRank.from(reports: viewModel.totalReports)
 
         return ZStack {
@@ -224,35 +257,87 @@ struct ProfileScreen: View {
         )
         .overlay(alignment: .bottom) {
             // Avatar + name overlay
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 72, height: 72)
-                        .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+            VStack(spacing: 12) {
+                // Avatar + camera badge
+                ZStack(alignment: .bottomTrailing) {
+                    // Profile image — tap to preview
+                    Button {
+                        if viewModel.profileImageUrl != nil {
+                            showImagePreview = true
+                        } else {
+                            showPhotoPicker = true
+                        }
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 96, height: 96)
+                                .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
 
-                    Text(initials(for: displayName))
-                        .font(VenuuTheme.heroFont)
-                        .foregroundStyle(VenuuTheme.skyPunch)
+                            if let imageUrl = viewModel.profileImageUrl,
+                               let url = URL(string: imageUrl) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: 90, height: 90)
+                                            .clipShape(Circle())
+                                    default:
+                                        Text(initials(for: displayName))
+                                            .font(VenuuTheme.largeTitleFont)
+                                            .foregroundStyle(VenuuTheme.skyPunch)
+                                    }
+                                }
+                            } else {
+                                Text(initials(for: displayName))
+                                    .font(VenuuTheme.largeTitleFont)
+                                    .foregroundStyle(VenuuTheme.skyPunch)
+                            }
+                        }
+                        .overlay {
+                            if viewModel.isSavingImage {
+                                Circle()
+                                    .fill(Color.black.opacity(0.4))
+                                    .frame(width: 96, height: 96)
+                                ProgressView()
+                                    .tint(.white)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    // Camera badge — tap to change photo
+                    Button { showPhotoPicker = true } label: {
+                        ZStack {
+                            Circle()
+                                .fill(VenuuTheme.skyPunch)
+                                .frame(width: 32, height: 32)
+                                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .offset(x: 2, y: 2)
+                    }
+                    .buttonStyle(.plain)
                 }
 
-                Text(displayName)
-                    .font(VenuuTheme.title3Font)
-                    .foregroundStyle(.white)
+                // Name + edit button
+                HStack(spacing: 8) {
+                    Text(displayName)
+                        .font(VenuuTheme.headlineFont)
+                        .foregroundStyle(.white)
 
-                HStack(spacing: 6) {
-                    Image(systemName: rank.icon)
-                        .font(VenuuTheme.captionFont)
-                    Text(rank.title)
-                        .font(VenuuTheme.captionFont)
+                    Button { showEditSheet = true } label: {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
                 }
-                .foregroundStyle(.white.opacity(0.85))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 5)
-                .background(Color.white.opacity(0.2))
-                .clipShape(Capsule())
             }
-            .padding(.bottom, 16)
+            .padding(.bottom, 20)
         }
         .padding(.horizontal, 16)
         .padding(.top, 4)
@@ -519,6 +604,70 @@ struct ProfileScreen: View {
                 mascotExpression = Self.expressionCycle[index]
             }
         }
+    }
+
+    // MARK: - Image Preview
+
+    private var profileImagePreview: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+                .onTapGesture { showImagePreview = false }
+
+            if let imageUrl = viewModel.profileImageUrl,
+               let url = URL(string: imageUrl) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .clipShape(Circle())
+                            .padding(40)
+                    default:
+                        ProgressView()
+                            .tint(.white)
+                    }
+                }
+            }
+
+            // Close button
+            VStack {
+                HStack {
+                    Spacer()
+                    Button { showImagePreview = false } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .padding(20)
+                }
+                Spacer()
+            }
+        }
+    }
+
+    // MARK: - Photo Processing
+
+    private func processAndUploadPhoto(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let uiImage = UIImage(data: data) else { return }
+
+        // Resize to max 400x400
+        let size = uiImage.size
+        let ratio = min(400 / size.width, 400 / size.height)
+        let resized: UIImage
+        if ratio < 1 {
+            let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
+            let renderer = UIGraphicsImageRenderer(size: newSize)
+            resized = renderer.image { _ in
+                uiImage.draw(in: CGRect(origin: .zero, size: newSize))
+            }
+        } else {
+            resized = uiImage
+        }
+
+        guard let jpegData = resized.jpegData(compressionQuality: 0.7) else { return }
+        _ = await viewModel.uploadProfileImage(jpegData)
     }
 
     // MARK: - Helpers

@@ -6,6 +6,7 @@ import { APIGatewayProxyResult } from "aws-lambda";
 
 export const REPORTS_TABLE = process.env.REPORTS_TABLE!;
 export const USERS_TABLE = process.env.USERS_TABLE!;
+export const PROFILE_IMAGES_BUCKET = process.env.PROFILE_IMAGES_BUCKET!;
 
 // -----------------------------------------------
 // Report TTL: 2 hours

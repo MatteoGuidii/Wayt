@@ -9,8 +9,13 @@ final class ProfileViewModel: ObservableObject {
 
     @Published var totalReports: Int = 0
     @Published var memberSince: String = ""
+    @Published var displayName: String?
+    @Published var profileImageUrl: String?
     @Published var isLoading: Bool = false
     @Published var loadError: Bool = false
+    @Published var isUpdatingProfile: Bool = false
+    @Published var isSavingImage: Bool = false
+    @Published var showFirstTimeNamePrompt: Bool = false
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -39,11 +44,64 @@ final class ProfileViewModel: ObservableObject {
             let profile: UserProfile = try await APIClient.shared.get(path: "/user/profile")
             totalReports = profile.totalReports
             memberSince = profile.joinedAt
+            displayName = profile.displayName
+            profileImageUrl = profile.profileImageUrl
+
+            if profile.displayName == nil {
+                showFirstTimeNamePrompt = true
+            }
         } catch {
             loadError = true
             print("[Profile] Load failed: \(error.localizedDescription)")
         }
         isLoading = false
+    }
+
+    // MARK: - Update Display Name
+
+    func updateDisplayName(_ name: String) async -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2, trimmed.count <= 30 else { return false }
+
+        isUpdatingProfile = true
+        defer { isUpdatingProfile = false }
+
+        do {
+            let body = UpdateProfileBody(displayName: trimmed)
+            let _: UpdateProfileResponse = try await APIClient.shared.put(
+                path: "/user/profile",
+                body: body
+            )
+            displayName = trimmed
+            showFirstTimeNamePrompt = false
+            return true
+        } catch {
+            print("[Profile] Update failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    // MARK: - Upload Profile Image
+
+    func uploadProfileImage(_ imageData: Data) async -> Bool {
+        isSavingImage = true
+        defer { isSavingImage = false }
+
+        do {
+            let response: UploadURLResponse = try await APIClient.shared.get(
+                path: "/user/profile/upload-url"
+            )
+
+            guard let uploadURL = URL(string: response.uploadUrl) else { return false }
+            try await APIClient.shared.uploadImage(to: uploadURL, imageData: imageData)
+
+            // Reload profile to get the new presigned GET URL
+            await loadProfile()
+            return true
+        } catch {
+            print("[Profile] Image upload failed: \(error.localizedDescription)")
+            return false
+        }
     }
 
     // MARK: - Reset
@@ -53,7 +111,10 @@ final class ProfileViewModel: ObservableObject {
     func reset() {
         totalReports = 0
         memberSince = ""
+        displayName = nil
+        profileImageUrl = nil
         loadError = false
+        showFirstTimeNamePrompt = false
     }
 
     // MARK: - Sync After Report
@@ -70,10 +131,26 @@ final class ProfileViewModel: ObservableObject {
     }
 }
 
-// MARK: - API Model
+// MARK: - API Models
 
 struct UserProfile: Codable, Sendable {
     let userId: String
     let totalReports: Int
     let joinedAt: String
+    let displayName: String?
+    let profileImageUrl: String?
+}
+
+private struct UpdateProfileBody: Codable, Sendable {
+    let displayName: String
+}
+
+private struct UpdateProfileResponse: Codable, Sendable {
+    let message: String
+    let displayName: String
+}
+
+private struct UploadURLResponse: Codable, Sendable {
+    let uploadUrl: String
+    let imageKey: String
 }

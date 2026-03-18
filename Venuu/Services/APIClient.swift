@@ -59,6 +59,44 @@ actor APIClient {
         try validateResponse(response)
     }
 
+    // MARK: - PUT
+
+    func put<Body: Encodable, T: Decodable>(
+        path: String,
+        body: Body
+    ) async throws -> T {
+        var request = try await buildRequest(method: "PUT", path: path)
+        request.httpBody = try encoder.encode(body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try decoder.decode(T.self, from: data)
+    }
+
+    func put<Body: Encodable>(
+        path: String,
+        body: Body
+    ) async throws {
+        var request = try await buildRequest(method: "PUT", path: path)
+        request.httpBody = try encoder.encode(body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+    }
+
+    // MARK: - Image Upload
+
+    /// Uploads raw image data to a presigned S3 URL (no auth header needed).
+    func uploadImage(to presignedURL: URL, imageData: Data) async throws {
+        var request = URLRequest(url: presignedURL)
+        request.httpMethod = "PUT"
+        request.httpBody = imageData
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+    }
+
     // MARK: - Helpers
 
     private func buildRequest(
