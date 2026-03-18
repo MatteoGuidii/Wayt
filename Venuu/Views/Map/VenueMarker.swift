@@ -8,7 +8,6 @@ struct VenueMarkerView: View {
     let isSelected: Bool
 
     private let markerSize: CGFloat = 40
-    private let iconSize: CGFloat = 17
 
     var body: some View {
         VStack(spacing: 0) {
