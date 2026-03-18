@@ -42,7 +42,7 @@ struct DiscoverScreen: View {
             mapViewModel.refreshAfterReport()
         }) { venue in
             VenueDetailSheet(venue: venue)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
         }
     }
 
