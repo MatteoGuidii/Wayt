@@ -7,7 +7,6 @@ struct ProfileScreen: View {
 
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var viewModel: ProfileViewModel
-    @State private var showSignOutConfirm = false
     @State private var showEditSheet = false
     @State private var showPhotoPicker = false
     @State private var showImagePreview = false
@@ -208,24 +207,6 @@ struct ProfileScreen: View {
             .scrollIndicators(.hidden)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog(
-            "Sign out of Venuu?",
-            isPresented: $showSignOutConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Sign Out", role: .destructive) {
-                Task {
-                    let result = await Amplify.Auth.signOut()
-                    if let globalResult = result as? AWSCognitoSignOutResult,
-                       case .failed = globalResult {
-                        print("Sign-out failed")
-                    } else {
-                        viewModel.reset()
-                        authState.didSignOut()
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - Hero Header
@@ -542,7 +523,16 @@ struct ProfileScreen: View {
         VStack(spacing: 12) {
             // Sign out
             Button {
-                showSignOutConfirm = true
+                Task {
+                    let result = await Amplify.Auth.signOut()
+                    if let globalResult = result as? AWSCognitoSignOutResult,
+                       case .failed = globalResult {
+                        print("Sign-out failed")
+                    } else {
+                        viewModel.reset()
+                        authState.didSignOut()
+                    }
+                }
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
@@ -553,7 +543,7 @@ struct ProfileScreen: View {
                 .foregroundStyle(.red)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(Color.red.opacity(0.08))
+                .background(Color.red.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .padding(.horizontal, 16)
