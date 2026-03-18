@@ -1,7 +1,7 @@
 import SwiftUI
 import CoreLocation
 
-/// Reusable list row showing venue info + busyness badge.
+/// Bold card-style venue row — playful, glanceable, Waze-inspired.
 struct VenueRow: View {
 
     let venue: Venue
@@ -9,48 +9,73 @@ struct VenueRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Venue type icon
+            // Busyness accent bar
+            RoundedRectangle(cornerRadius: 3)
+                .fill(venue.busyness?.color ?? Color.gray.opacity(0.3))
+                .frame(width: 5, height: 52)
+
+            // Category icon
             ZStack {
-                Circle()
-                    .fill(venue.category.color.opacity(0.15))
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(venue.category.color.opacity(0.12))
                     .frame(width: 44, height: 44)
 
                 Image(systemName: venue.category.icon)
-                    .font(.system(size: 18))
+                    .font(VenuuTheme.calloutBoldFont)
                     .foregroundStyle(venue.category.color)
             }
 
-            // Info
+            // Venue info
             VStack(alignment: .leading, spacing: 4) {
                 Text(venue.name)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(VenuuTheme.cardTitleFont)
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
-                    Text(venue.category.displayName)
-                        .font(VenuuTheme.captionFont)
+                    Text(venue.category.shortName)
+                        .font(VenuuTheme.captionLightFont)
                         .foregroundStyle(.secondary)
 
                     if let distance = formattedDistance {
-                        Text("•")
-                            .foregroundStyle(.quaternary)
+                        Circle()
+                            .fill(Color.secondary.opacity(0.5))
+                            .frame(width: 3, height: 3)
                         Text(distance)
-                            .font(VenuuTheme.captionFont)
+                            .font(VenuuTheme.captionLightFont)
                             .foregroundStyle(.secondary)
+                    }
+
+                    if let wait = venue.estimatedWaitMinutes, wait > 0 {
+                        Circle()
+                            .fill(Color.secondary.opacity(0.5))
+                            .frame(width: 3, height: 3)
+                        HStack(spacing: 2) {
+                            Image(systemName: "clock.fill")
+                                .font(VenuuTheme.nanoFont)
+                            Text("~\(wait)m")
+                                .font(VenuuTheme.captionFont)
+                        }
+                        .foregroundStyle(.orange)
                     }
                 }
             }
 
             Spacer()
 
-            // Busyness badge
             BusynessBadge(
                 level: venue.busyness,
                 confidence: venue.busynessConfidence,
                 style: .compact
             )
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 
     // MARK: - Distance

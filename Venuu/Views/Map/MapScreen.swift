@@ -3,9 +3,10 @@ import MapKit
 
 struct MapScreen: View {
 
-    @StateObject private var viewModel = MapViewModel()
+    @EnvironmentObject private var viewModel: MapViewModel
     @EnvironmentObject private var locationService: LocationService
     @EnvironmentObject private var authState: AuthState
+    @EnvironmentObject private var filterState: VenueFilterState
     @State private var visibleRegion: MKCoordinateRegion = .defaultRegion
     @State private var mapHeading: Double = 0
     @State private var mapPitch: Double = 0
@@ -111,11 +112,6 @@ struct MapScreen: View {
                     ? locationService.region : visibleRegion
                 viewModel.searchVenues(in: region)
             }
-
-            viewModel.startLiveRefresh()
-        }
-        .onDisappear {
-            viewModel.stopLiveRefresh()
         }
         .onChange(of: locationService.userLocation) { _, newLocation in
             guard newLocation != nil, viewModel.venues.isEmpty else { return }
@@ -167,16 +163,16 @@ struct MapScreen: View {
     private var categoryChips: some View {
         HStack(spacing: 8) {
             ForEach(VenueCategory.allCases, id: \.self) { category in
-                let isActive = viewModel.selectedCategory == category
+                let isActive = filterState.selectedCategory == category
 
                 Button {
                     viewModel.toggleCategoryFilter(category)
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: category.icon)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(VenuuTheme.badgeFont)
                         Text(category.shortName)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(VenuuTheme.captionLightFont)
                             .lineLimit(1)
                     }
                     .frame(height: VenuuTheme.chipHeight)
@@ -242,7 +238,7 @@ struct MapScreen: View {
                         }
                     } label: {
                         Text(is3D ? "3D" : "2D")
-                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .font(VenuuTheme.calloutBoldFont)
                             .foregroundStyle(VenuuTheme.mapsBlue)
                             .frame(maxWidth: .infinity, minHeight: 54)
                     }
@@ -257,7 +253,7 @@ struct MapScreen: View {
                         }
                     } label: {
                         Image(systemName: "location.fill")
-                            .font(.system(size: 20, weight: .medium))
+                            .font(VenuuTheme.headlineFont)
                             .foregroundStyle(VenuuTheme.mapsBlue)
                             .frame(maxWidth: .infinity, minHeight: 54)
                     }
@@ -279,7 +275,7 @@ struct MapScreen: View {
         ZStack {
             // "N" letter
             Text("N")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(VenuuTheme.bodyBoldFont)
                 .foregroundStyle(VenuuTheme.mapsBlue)
 
             // Small red north triangle at the top
@@ -301,7 +297,7 @@ struct MapScreen: View {
                 viewModel.searchVenues(in: visibleRegion)
             } label: {
                 Label("Search This Area", systemImage: "arrow.clockwise")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(VenuuTheme.subheadLightFont)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(VenuuTheme.mapsBlue)
@@ -324,7 +320,7 @@ struct MapScreen: View {
                 ProgressView()
                     .tint(.white)
                 Text("Finding venues...")
-                    .font(VenuuTheme.captionFont)
+                    .font(VenuuTheme.footnoteLightFont)
                     .foregroundStyle(.white)
             }
             .padding(.horizontal, 16)

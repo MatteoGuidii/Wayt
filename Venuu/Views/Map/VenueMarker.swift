@@ -8,7 +8,6 @@ struct VenueMarkerView: View {
     let isSelected: Bool
 
     private let markerSize: CGFloat = 40
-    private let iconSize: CGFloat = 17
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,7 +15,7 @@ struct VenueMarkerView: View {
                 // Main pin circle + anchor
                 VStack(spacing: 0) {
                     Image(systemName: venue.category.icon)
-                        .font(.system(size: iconSize, weight: .semibold))
+                        .font(VenuuTheme.calloutBoldFont)
                         .foregroundStyle(.white)
                         .frame(width: markerSize, height: markerSize)
                         .background(markerBackground)
@@ -45,7 +44,7 @@ struct VenueMarkerView: View {
 
             // Venue name label
             Text(venue.name)
-                .font(.system(size: 10, weight: .semibold))
+                .font(VenuuTheme.microFont)
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .frame(maxWidth: 72)
@@ -86,7 +85,7 @@ struct VenueMarkerView: View {
 
     private func waitBadge(minutes: Int) -> some View {
         Text("\(minutes)m")
-            .font(.system(size: 9, weight: .bold, design: .rounded))
+            .font(VenuuTheme.nanoFont)
             .foregroundStyle(.white)
             .padding(.horizontal, 4)
             .padding(.vertical, 1)

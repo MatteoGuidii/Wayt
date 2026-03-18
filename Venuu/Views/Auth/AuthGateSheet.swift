@@ -14,11 +14,11 @@ struct AuthGateSheet: View {
 
             VStack(spacing: 12) {
                 Text("Join the community")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.largeTitleFont)
                     .multilineTextAlignment(.center)
 
                 Text("Create an account to share wait times\nwith the community")
-                    .font(.system(size: 16))
+                    .font(VenuuTheme.bodyFont)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
@@ -39,7 +39,7 @@ struct AuthGateSheet: View {
                     onSignUp()
                 }) {
                     Text("Create account")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(VenuuTheme.title3Font)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -51,7 +51,7 @@ struct AuthGateSheet: View {
                 Button("Maybe later") {
                     dismiss()
                 }
-                .font(.system(size: 17, weight: .medium))
+                .font(VenuuTheme.calloutBoldFont)
                 .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 32)
@@ -62,12 +62,12 @@ struct AuthGateSheet: View {
     private func benefitRow(icon: String, text: String) -> some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(VenuuTheme.bodyBoldFont)
                 .foregroundStyle(VenuuTheme.skyPunch)
                 .frame(width: 28)
 
             Text(text)
-                .font(.system(size: 15))
+                .font(VenuuTheme.subtitleFont)
                 .foregroundStyle(.primary)
 
             Spacer()

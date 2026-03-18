@@ -81,9 +81,9 @@ struct AuthRootView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(VenuuTheme.bodyBoldFont)
                             Text("Back")
-                                .font(.system(size: 16, weight: .medium))
+                                .font(VenuuTheme.bodyFont)
                         }
                         .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.8))
                     }
@@ -121,11 +121,11 @@ private struct AuthHeaderView: View {
             VenuuMascot(size: 80, expression: .looking, animated: false)
 
             Text("Venuu")
-                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .font(VenuuTheme.displayFont)
                 .foregroundStyle(VenuuTheme.mapsBlue)
 
             Text("Know before you go.")
-                .font(.system(size: 15, weight: .medium))
+                .font(VenuuTheme.subtitleFont)
                 .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.7))
         }
         .padding(.top, 12)
@@ -163,19 +163,38 @@ private struct AuthenticatorContainer: View {
     private static let theme: AuthenticatorTheme = {
         var t = AuthenticatorTheme()
 
+        // Backgrounds
         t.colors.background.primary   = .clear
         t.colors.background.secondary = .clear
         t.colors.background.tertiary  = .clear
         t.components.authenticator.backgroundColor = .clear
 
+        // Fields
         t.components.field.backgroundColor = Color.white.opacity(0.92)
         t.components.field.cornerRadius = 12
 
+        // Accent color
         t.colors.background.interactive = VenuuTheme.skyPunch
         t.colors.foreground.interactive = VenuuTheme.skyPunch
 
+        // Buttons
         t.components.button.primary.cornerRadius = 16
         t.components.button.primary.padding = 16
+        t.components.button.primary.font = VenuuTheme.calloutBoldFont
+        t.components.button.link.font = VenuuTheme.subtitleFont
+
+        // Fonts — use Venuu's rounded design system
+        t.fonts.largeTitle = VenuuTheme.largeTitleFont
+        t.fonts.title      = VenuuTheme.heroFont
+        t.fonts.title2     = VenuuTheme.headlineFont
+        t.fonts.title3     = VenuuTheme.title3Font
+        t.fonts.headline   = VenuuTheme.bodyBoldFont
+        t.fonts.subheadline = VenuuTheme.subtitleFont
+        t.fonts.body       = VenuuTheme.bodyFont
+        t.fonts.callout    = VenuuTheme.subheadLightFont
+        t.fonts.caption    = VenuuTheme.captionFont
+        t.fonts.caption2   = VenuuTheme.captionLightFont
+        t.fonts.footnote   = VenuuTheme.footnoteFont
 
         return t
     }()
@@ -193,9 +212,9 @@ private struct AuthenticatorContainer: View {
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(VenuuTheme.bodyBoldFont)
                     Text("Back")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(VenuuTheme.bodyFont)
                 }
                 .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.8))
                 .padding(.leading, 20)
@@ -209,11 +228,11 @@ private struct AuthenticatorContainer: View {
                 VenuuMascot(size: 80, expression: .looking, animated: false)
 
                 Text("Venuu")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.displayFont)
                     .foregroundStyle(VenuuTheme.mapsBlue)
 
                 Text("Know before you go.")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(VenuuTheme.subtitleFont)
                     .foregroundStyle(VenuuTheme.mapsBlue.opacity(0.7))
             }
             .padding(.top, 12)
@@ -222,10 +241,10 @@ private struct AuthenticatorContainer: View {
             // Mock sign-in form
             VStack(alignment: .leading, spacing: 16) {
                 Text("Sign In")
-                    .font(.system(size: 28, weight: .bold))
+                    .font(VenuuTheme.heroFont)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Email").font(.system(size: 15, weight: .medium))
+                    Text("Email").font(VenuuTheme.subtitleFont)
                     TextField("Enter your email", text: .constant(""))
                         .textFieldStyle(.plain)
                         .padding(14)
@@ -234,7 +253,7 @@ private struct AuthenticatorContainer: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Password").font(.system(size: 15, weight: .medium))
+                    Text("Password").font(VenuuTheme.subtitleFont)
                     SecureField("Enter your password", text: .constant(""))
                         .textFieldStyle(.plain)
                         .padding(14)
@@ -244,7 +263,7 @@ private struct AuthenticatorContainer: View {
 
                 Button {} label: {
                     Text("Sign In")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(VenuuTheme.calloutBoldFont)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -260,7 +279,7 @@ private struct AuthenticatorContainer: View {
                     Text("Create account")
                         .foregroundStyle(VenuuTheme.skyPunch)
                 }
-                .font(.system(size: 15, weight: .medium))
+                .font(VenuuTheme.subtitleFont)
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)

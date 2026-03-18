@@ -24,7 +24,7 @@ struct ClusterMarkerView: View {
                     )
 
                 Text("\(cluster.count)")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(VenuuTheme.bodyBoldFont)
                     .foregroundStyle(.white)
             }
 
