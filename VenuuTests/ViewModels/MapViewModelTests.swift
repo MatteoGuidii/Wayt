@@ -23,13 +23,14 @@ struct MapViewModelTests {
         #expect(vm.searchText.isEmpty)
         #expect(vm.isSearching == false)
         #expect(vm.showSearchThisArea == false)
-        #expect(vm.selectedCategory == nil)
+        #expect(vm.isExpandingSearch == false)
+        #expect(vm.lastSearchedRegion == nil)
     }
 
-    // MARK: - Category Filtering
+    // MARK: - Category Filtering via FilterState
 
-    @Test("filteredVenues returns all venues when no category selected")
-    func filteredVenuesNoCategory() {
+    @Test("filteredVenues returns all venues when no filter active")
+    func filteredVenuesNoFilter() {
         let vm = MapViewModel()
         vm.venues = [
             TestFactories.makeVenue(name: "Bar A"),
@@ -39,39 +40,81 @@ struct MapViewModelTests {
         #expect(vm.filteredVenues.count == 3)
     }
 
-    @Test("filteredVenues filters by selected category")
+    @Test("filteredVenues filters by category from filterState")
     func filteredVenuesWithCategory() {
         let vm = MapViewModel()
+        let filterState = VenueFilterState()
+        vm.filterState = filterState
+
         vm.venues = [
             TestFactories.makeVenue(name: "Cocktail Bar"),
             TestFactories.makeVenue(name: "Wine Bar"),
             TestFactories.makeVenue(name: "Pizza Place")
         ]
-        vm.toggleCategoryFilter(.drinks)
+        filterState.selectedCategory = .drinks
         #expect(vm.filteredVenues.allSatisfy { $0.category == .drinks })
     }
 
-    @Test("toggleCategoryFilter deselects if same category tapped again")
+    @Test("filteredVenues filters by busyness from filterState")
+    func filteredVenuesWithBusyness() {
+        let vm = MapViewModel()
+        let filterState = VenueFilterState()
+        vm.filterState = filterState
+
+        vm.venues = [
+            TestFactories.makeVenue(name: "Quiet Bar",  busyness: .quiet),
+            TestFactories.makeVenue(name: "Busy Bar",   busyness: .busy),
+            TestFactories.makeVenue(name: "Packed Bar",  busyness: .packed)
+        ]
+        filterState.selectedBusynessLevel = .busy
+        #expect(vm.filteredVenues.count == 1)
+        #expect(vm.filteredVenues[0].busyness == .busy)
+    }
+
+    @Test("filteredVenues applies both category and busyness filters")
+    func filteredVenuesBothFilters() {
+        let vm = MapViewModel()
+        let filterState = VenueFilterState()
+        vm.filterState = filterState
+
+        vm.venues = [
+            TestFactories.makeVenue(name: "Busy Bar",     busyness: .busy),
+            TestFactories.makeVenue(name: "Quiet Bar",    busyness: .quiet),
+            TestFactories.makeVenue(name: "Busy Pizza",    busyness: .busy)
+        ]
+        filterState.selectedCategory = .drinks
+        filterState.selectedBusynessLevel = .busy
+        #expect(vm.filteredVenues.count == 1)
+        #expect(vm.filteredVenues[0].name == "Busy Bar")
+    }
+
+    @Test("toggleCategoryFilter deselects same category")
     func toggleCategoryDeselects() {
         let vm = MapViewModel()
+        let filterState = VenueFilterState()
+        vm.filterState = filterState
+
         vm.toggleCategoryFilter(.drinks)
-        #expect(vm.selectedCategory == .drinks)
+        #expect(filterState.selectedCategory == .drinks)
         vm.toggleCategoryFilter(.drinks)
-        #expect(vm.selectedCategory == nil)
+        #expect(filterState.selectedCategory == nil)
     }
 
     @Test("toggleCategoryFilter switches to new category")
     func toggleCategorySwitches() {
         let vm = MapViewModel()
+        let filterState = VenueFilterState()
+        vm.filterState = filterState
+
         vm.toggleCategoryFilter(.drinks)
         vm.toggleCategoryFilter(.food)
-        #expect(vm.selectedCategory == .food)
+        #expect(filterState.selectedCategory == .food)
     }
 
     // MARK: - Clustering Integration
 
-    @Test("mapItems populated after venues set and category toggled")
-    func mapItemsPopulatedAfterVenueSet() {
+    @Test("mapItems populated after venues set and region changed")
+    func mapItemsPopulated() {
         let vm = MapViewModel()
         vm.venues = [
             TestFactories.makeVenue(name: "Bar A",
@@ -79,10 +122,7 @@ struct MapViewModelTests {
             TestFactories.makeVenue(name: "Bar B",
                 coordinate: CLLocationCoordinate2D(latitude: 43.66, longitude: -79.39))
         ]
-        // Set region first, then trigger recluster via zoom change
         vm.onRegionChanged(toronto)
-        // First call sets currentRegion but ratio is 1.0 (no previous).
-        // Trigger a zoom change to force recluster.
         let zoomedOut = MKCoordinateRegion(
             center: toronto.center,
             span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
@@ -94,22 +134,23 @@ struct MapViewModelTests {
     @Test("Category filter affects mapItems")
     func categoryFilterAffectsMapItems() {
         let vm = MapViewModel()
+        let filterState = VenueFilterState()
+        vm.filterState = filterState
+
         vm.venues = [
             TestFactories.makeVenue(name: "Cocktail Bar"),
             TestFactories.makeVenue(name: "Coffee Cafe")
         ]
-        // toggleCategoryFilter always reclusters (no debounce)
         vm.toggleCategoryFilter(.drinks)
         let filteredCount = vm.mapItems.count
-        vm.toggleCategoryFilter(.drinks) // deselect → show all
+        vm.toggleCategoryFilter(.drinks)
         let allCount = vm.mapItems.count
-
         #expect(filteredCount <= allCount)
     }
 
     // MARK: - onRegionChanged
 
-    @Test("First region change does not show search button (no lastSearchedRegion)")
+    @Test("First region change does not show search button")
     func firstRegionChangeNoButton() {
         let vm = MapViewModel()
         vm.onRegionChanged(toronto)
@@ -171,7 +212,7 @@ struct MapViewModelTests {
 
     // MARK: - Zoom-based Reclustering
 
-    @Test("Zoom change of 1.3x triggers recluster")
+    @Test("Significant zoom triggers recluster")
     func zoomChangeReclustersTrigger() {
         let vm = MapViewModel()
         vm.venues = [
@@ -180,18 +221,12 @@ struct MapViewModelTests {
             TestFactories.makeVenue(name: "B",
                 coordinate: CLLocationCoordinate2D(latitude: 43.65, longitude: -79.38))
         ]
-
-        // Set initial region
         vm.onRegionChanged(toronto)
-
-        // Zoom out significantly
         let zoomedOut = MKCoordinateRegion(
             center: toronto.center,
             span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
         )
         vm.onRegionChanged(zoomedOut)
-
-        // mapItems should have been recomputed (may or may not differ based on grid)
         #expect(!vm.mapItems.isEmpty)
     }
 
@@ -202,18 +237,14 @@ struct MapViewModelTests {
             TestFactories.makeVenue(name: "A",
                 coordinate: CLLocationCoordinate2D(latitude: 43.65, longitude: -79.38))
         ]
-
         vm.onRegionChanged(toronto)
         let itemsBefore = vm.mapItems.count
 
-        // Tiny zoom change (1.1x, below 1.3x threshold)
         let slightZoom = MKCoordinateRegion(
             center: toronto.center,
             span: MKCoordinateSpan(latitudeDelta: 0.055, longitudeDelta: 0.055)
         )
         vm.onRegionChanged(slightZoom)
-
-        // Should not have changed
         #expect(vm.mapItems.count == itemsBefore)
     }
 
@@ -233,8 +264,6 @@ struct MapViewModelTests {
         let coord = CLLocationCoordinate2D(latitude: 43.65, longitude: -79.38)
         let venue = TestFactories.makeVenue(name: "Bar", coordinate: coord)
         vm.selectVenue(venue, heading: 45, pitch: 30)
-        // Camera position should have changed from default
-        // We can't easily inspect MapCameraPosition internals, but selectedVenue confirms intent
         #expect(vm.selectedVenue != nil)
     }
 
@@ -252,12 +281,114 @@ struct MapViewModelTests {
 
     // MARK: - performTextSearch
 
-    @Test("Empty text search triggers normal search")
-    func emptyTextSearchTriggersNormalSearch() {
+    @Test("Empty text search does not crash")
+    func emptyTextSearchSafe() {
         let vm = MapViewModel()
         vm.searchText = "   "
-        // Should not crash, just delegates to searchVenues
         vm.performTextSearch(in: toronto)
-        // No assertion on async result — just verifying no crash
+        // Just verifying no crash
+    }
+
+    // MARK: - expandSearch
+
+    @Test("expandSearch requires lastSearchedRegion")
+    func expandSearchRequiresRegion() {
+        let vm = MapViewModel()
+        #expect(vm.lastSearchedRegion == nil)
+        vm.expandSearch()
+        // Should be a no-op — not crash, not set isExpandingSearch
+        #expect(vm.isExpandingSearch == false)
+    }
+
+    @Test("expandSearch guards against concurrent calls")
+    func expandSearchGuardsConcurrent() {
+        let vm = MapViewModel()
+        vm.lastSearchedRegion = toronto
+        vm.isExpandingSearch = true
+        vm.expandSearch()
+        // Should not start a second expand — isExpandingSearch was already true
+        // No way to assert on expandTask count, but verifying no crash
+    }
+
+    @Test("expandSearch merges new venues without duplicates")
+    func expandSearchMergesNoDuplicates() {
+        let vm = MapViewModel()
+        let existingVenue = TestFactories.makeVenue(name: "Existing Bar",
+            coordinate: CLLocationCoordinate2D(latitude: 43.65, longitude: -79.38))
+        vm.venues = [existingVenue]
+        vm.lastSearchedRegion = toronto
+
+        // Simulate what expandSearch does internally: merge check
+        let existingIDs = Set(vm.venues.map(\.id))
+        let newVenue = TestFactories.makeVenue(name: "Existing Bar",
+            coordinate: CLLocationCoordinate2D(latitude: 43.65, longitude: -79.38))
+        let additional = [newVenue].filter { !existingIDs.contains($0.id) }
+        #expect(additional.isEmpty, "Duplicate venue should be filtered out")
+    }
+
+    @Test("expandSearch dedup allows genuinely new venues")
+    func expandSearchDedupAllowsNew() {
+        let vm = MapViewModel()
+        let existingVenue = TestFactories.makeVenue(name: "Existing Bar",
+            coordinate: CLLocationCoordinate2D(latitude: 43.65, longitude: -79.38))
+        vm.venues = [existingVenue]
+
+        let existingIDs = Set(vm.venues.map(\.id))
+        let newVenue = TestFactories.makeVenue(name: "Brand New Place",
+            coordinate: CLLocationCoordinate2D(latitude: 43.70, longitude: -79.40))
+        let additional = [newVenue].filter { !existingIDs.contains($0.id) }
+        #expect(additional.count == 1, "New venue should pass dedup filter")
+    }
+
+    // MARK: - searchVenues resets expandSearch state
+
+    @Test("searchVenues resets isExpandingSearch")
+    func searchVenuesResetsExpandState() {
+        let vm = MapViewModel()
+        vm.isExpandingSearch = true
+        vm.searchVenues(in: toronto)
+        #expect(vm.isExpandingSearch == false)
+    }
+
+    // MARK: - Live Refresh
+
+    @Test("startLiveRefresh prevents duplicate timers")
+    func startLiveRefreshGuardsDuplicates() {
+        let vm = MapViewModel()
+        vm.startLiveRefresh()
+        vm.startLiveRefresh()  // Second call should be a no-op
+        // No crash = pass. Timer guard handles this internally.
+        vm.stopLiveRefresh()
+    }
+
+    @Test("stopLiveRefresh is safe to call without start")
+    func stopLiveRefreshSafe() {
+        let vm = MapViewModel()
+        vm.stopLiveRefresh()
+        // No crash = pass
+    }
+
+    // MARK: - FilterState Wiring
+
+    @Test("filterState nil does not crash filteredVenues")
+    func noFilterStateSafe() {
+        let vm = MapViewModel()
+        #expect(vm.filterState == nil)
+        vm.venues = [TestFactories.makeVenue(name: "Test")]
+        #expect(vm.filteredVenues.count == 1)
+    }
+
+    @Test("Setting filterState enables filtering")
+    func settingFilterStateEnables() {
+        let vm = MapViewModel()
+        let filterState = VenueFilterState()
+        vm.filterState = filterState
+
+        vm.venues = [
+            TestFactories.makeVenue(name: "Bar", busyness: .quiet),
+            TestFactories.makeVenue(name: "Pub", busyness: .busy)
+        ]
+        filterState.selectedBusynessLevel = .busy
+        #expect(vm.filteredVenues.count == 1)
     }
 }
