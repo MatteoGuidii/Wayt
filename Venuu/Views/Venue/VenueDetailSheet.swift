@@ -33,6 +33,7 @@ struct VenueDetailSheet: View {
                 }
                 .padding(VenuuTheme.cardPadding)
             }
+            .background(VenuuTheme.backgroundGradient)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

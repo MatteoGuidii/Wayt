@@ -26,7 +26,7 @@ struct DiscoverScreen: View {
                 .padding(.bottom, 32)
             }
             .scrollIndicators(.hidden)
-            .background(Color(.systemGroupedBackground))
+            .background(VenuuTheme.backgroundGradient)
         }
         .task {
             viewModel.filterState = filterState
@@ -42,7 +42,7 @@ struct DiscoverScreen: View {
             mapViewModel.refreshAfterReport()
         }) { venue in
             VenueDetailSheet(venue: venue)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
         }
     }
 

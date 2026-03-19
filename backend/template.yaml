@@ -11,6 +11,7 @@ Globals:
       Variables:
         REPORTS_TABLE: !Ref VenueReportsTable
         USERS_TABLE: !Ref UserProfilesTable
+        PROFILE_IMAGES_BUCKET: !Ref ProfileImagesBucket
 
 Parameters:
   CognitoUserPoolArn:
@@ -110,12 +111,56 @@ Resources:
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UserProfilesTable
+        - Statement:
+            - Effect: Allow
+              Action: s3:GetObject
+              Resource: !Sub "${ProfileImagesBucket.Arn}/profiles/*"
       Events:
         GetProfile:
           Type: Api
           Properties:
             RestApiId: !Ref VenuuApi
             Path: /user/profile
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  UpdateUserProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/updateUserProfile.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserProfilesTable
+      Events:
+        UpdateProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /user/profile
+            Method: PUT
+    Metadata:
+      BuildMethod: makefile
+
+  GetProfileUploadUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getProfileUploadUrl.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserProfilesTable
+        - Statement:
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource: !Sub "${ProfileImagesBucket.Arn}/profiles/*"
+      Events:
+        GetUploadUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /user/profile/upload-url
             Method: GET
     Metadata:
       BuildMethod: makefile
@@ -154,6 +199,25 @@ Resources:
         - AttributeName: userId
           KeyType: HASH
 
+  # -----------------------------------------------
+  # S3 Buckets
+  # -----------------------------------------------
+  ProfileImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "venuu-profile-images-${AWS::AccountId}-${Stage}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [PUT]
+            AllowedOrigins: ["*"]
+            MaxAge: 300
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL
@@ -162,5 +226,7 @@ Outputs:
     Value: !Ref VenueReportsTable
   UserProfilesTableName:
     Value: !Ref UserProfilesTable
+  ProfileImagesBucketName:
+    Value: !Ref ProfileImagesBucket
   Stage:
     Value: !Ref Stage

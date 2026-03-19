@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 import Amplify
 import AWSCognitoAuthPlugin
 
@@ -6,8 +8,13 @@ struct ProfileScreen: View {
 
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var viewModel: ProfileViewModel
-    @State private var showSignOutConfirm = false
+    @State private var showEditSheet = false
+    @State private var showPhotoPicker = false
+    @State private var showImagePreview = false
+    @State private var showFirstTimeNameSheet = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var mascotExpression: VenuuMascot.Expression = .happy
+    @State private var pulsePhase: CGFloat = 0
 
     var body: some View {
         NavigationStack {
@@ -20,9 +27,36 @@ struct ProfileScreen: View {
         .task(id: authState.username ?? "") {
             if authState.isSignedIn {
                 await viewModel.loadProfile()
+                if viewModel.showFirstTimeNamePrompt {
+                    showFirstTimeNameSheet = true
+                }
             }
         }
         .task { await cycleMascotExpression() }
+        .sheet(isPresented: $showEditSheet) {
+            ProfileEditSheet(isFirstTime: false)
+                .environmentObject(viewModel)
+                .environmentObject(authState)
+        }
+        .sheet(isPresented: $showFirstTimeNameSheet) {
+            ProfileEditSheet(isFirstTime: true)
+                .environmentObject(viewModel)
+                .environmentObject(authState)
+        }
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $selectedPhotoItem,
+            matching: .images,
+            photoLibrary: .shared()
+        )
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            guard let newItem else { return }
+            selectedPhotoItem = nil
+            Task { await processAndUploadPhoto(newItem) }
+        }
+        .fullScreenCover(isPresented: $showImagePreview) {
+            profileImagePreview
+        }
     }
 
     // MARK: - Guest Content
@@ -42,7 +76,7 @@ struct ProfileScreen: View {
                     VenuuMascot(size: 130, expression: mascotExpression, animated: true)
 
                     VStack(spacing: 8) {
-                        Text("Join the crew!")
+                        Text("Join the community!")
                             .font(VenuuTheme.largeTitleFont)
 
                         Text("Be part of the community that\nknows where to go.")
@@ -145,11 +179,11 @@ struct ProfileScreen: View {
     // MARK: - Signed-In Content
 
     private var signedInContent: some View {
-        let displayName = authState.username ?? "User"
+        let displayName = viewModel.displayName ?? authState.displayName ?? "User"
         let rank = UserRank.from(reports: viewModel.totalReports)
 
         return ZStack {
-            Color(.systemGroupedBackground)
+            VenuuTheme.backgroundGradient
                 .ignoresSafeArea()
 
             ScrollView {
@@ -157,8 +191,8 @@ struct ProfileScreen: View {
                     // Hero header
                     profileHero(displayName: displayName, rank: rank)
 
-                    // Stats cards
-                    statsRow(rank: rank)
+                    // Stats
+                    statsStrip(rank: rank)
 
                     // Rank progress
                     rankCard(rank: rank)
@@ -175,12 +209,372 @@ struct ProfileScreen: View {
             .scrollIndicators(.hidden)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog(
-            "Sign out of Venuu?",
-            isPresented: $showSignOutConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Sign Out", role: .destructive) {
+    }
+
+    // MARK: - Hero Header
+
+    private func profileHero(displayName: String, rank: UserRank) -> some View {
+        VStack(spacing: 0) {
+            // Signal Pulse Banner
+            ZStack {
+                // Dark base with rank-tinted gradient
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.06, green: 0.06, blue: 0.12),
+                        rank.color.opacity(0.35),
+                        Color(red: 0.06, green: 0.06, blue: 0.12)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                // Orbital contour lines + signal pulse
+                GeometryReader { geo in
+                    let cx = geo.size.width * 0.5
+                    let cy = geo.size.height + 20
+
+                    // Orbital arcs
+                    ForEach(0..<3, id: \.self) { i in
+                        let radius = CGFloat(i) * 44 + 40
+                        Ellipse()
+                            .stroke(
+                                rank.color.opacity(0.14 + Double(i) * 0.04),
+                                lineWidth: 1.2
+                            )
+                            .frame(
+                                width: radius * 2.6 + 40,
+                                height: radius * 1.2 + 20
+                            )
+                            .position(x: cx, y: cy)
+                    }
+
+                    // Tilted orbit crossing the others
+                    Ellipse()
+                        .stroke(rank.color.opacity(0.18), lineWidth: 1.0)
+                        .frame(width: geo.size.width * 0.85, height: 90)
+                        .rotationEffect(.degrees(-25))
+                        .position(x: cx, y: cy - 35)
+
+                    // Pulsing signal rings
+                    ForEach(0..<3, id: \.self) { i in
+                        let ringPhase = (pulsePhase + CGFloat(i) * 0.33)
+                            .truncatingRemainder(dividingBy: 1.0)
+                        let ringSize = 40 + ringPhase * max(geo.size.width, geo.size.height) * 0.8
+
+                        Circle()
+                            .stroke(
+                                rank.color.opacity(0.5 * (1 - ringPhase)),
+                                lineWidth: 2.0 - ringPhase * 1.5
+                            )
+                            .frame(width: ringSize, height: ringSize)
+                            .position(x: cx, y: cy)
+                    }
+
+                    // Coordinate grid dots
+                    let cols = Int(geo.size.width / 28)
+                    let rows = Int(geo.size.height / 28)
+                    ForEach(0..<rows, id: \.self) { row in
+                        ForEach(0..<cols, id: \.self) { col in
+                            Circle()
+                                .fill(.white.opacity(0.05))
+                                .frame(width: 1.5, height: 1.5)
+                                .position(
+                                    x: CGFloat(col) * 28 + 14,
+                                    y: CGFloat(row) * 28 + 14
+                                )
+                        }
+                    }
+                }
+            }
+            .frame(height: 140)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .onAppear {
+                withAnimation(
+                    .linear(duration: 3)
+                    .repeatForever(autoreverses: false)
+                ) {
+                    pulsePhase = 1.0
+                }
+            }
+            .overlay(alignment: .bottom) {
+                // Avatar floats half over the banner
+                ZStack(alignment: .bottomTrailing) {
+                    Button {
+                        if viewModel.profileImageUrl != nil {
+                            showImagePreview = true
+                        } else {
+                            showPhotoPicker = true
+                        }
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color(red: 0.93, green: 0.97, blue: 0.99))
+                                .frame(width: 100, height: 100)
+
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 92, height: 92)
+                                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+
+                            if let imageUrl = viewModel.profileImageUrl,
+                               let url = URL(string: imageUrl) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: 86, height: 86)
+                                            .clipShape(Circle())
+                                    default:
+                                        Text(initials(for: displayName))
+                                            .font(VenuuTheme.largeTitleFont)
+                                            .foregroundStyle(VenuuTheme.skyPunch)
+                                    }
+                                }
+                            } else {
+                                Text(initials(for: displayName))
+                                    .font(VenuuTheme.largeTitleFont)
+                                    .foregroundStyle(VenuuTheme.skyPunch)
+                            }
+                        }
+                        .overlay {
+                            if viewModel.isSavingImage {
+                                Circle()
+                                    .fill(Color.black.opacity(0.4))
+                                    .frame(width: 92, height: 92)
+                                ProgressView()
+                                    .tint(.white)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    // Camera badge
+                    Button { showPhotoPicker = true } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 34, height: 34)
+                            Circle()
+                                .fill(VenuuTheme.skyPunch)
+                                .frame(width: 30, height: 30)
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .offset(x: 2, y: 2)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .offset(y: 46)
+            }
+
+            // Name below avatar
+            VStack(spacing: 4) {
+                Spacer().frame(height: 50)
+
+                HStack(spacing: 6) {
+                    Image(systemName: rank.icon)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(rank.color)
+
+                    Text(displayName)
+                        .font(VenuuTheme.headlineFont)
+
+                    Button { showEditSheet = true } label: {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text(rank.subtitle)
+                    .font(VenuuTheme.subheadLightFont)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+    }
+
+    // MARK: - Stats Strip
+
+    private func statsStrip(rank: UserRank) -> some View {
+        HStack(spacing: 0) {
+            // Reports
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: "megaphone.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(VenuuTheme.skyPunch)
+                    Text("\(viewModel.totalReports)")
+                        .font(VenuuTheme.headlineFont)
+                }
+                Text("reports")
+                    .font(VenuuTheme.subheadLightFont)
+            }
+            .frame(maxWidth: .infinity)
+
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color(.separator).opacity(0.25))
+                .frame(width: 1, height: 36)
+
+            // Rank
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: rank.icon)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(rank.color)
+                    Text("Lv.\(rank.level)")
+                        .font(VenuuTheme.headlineFont)
+                }
+                Text("rank")
+                    .font(VenuuTheme.subheadLightFont)
+            }
+            .frame(maxWidth: .infinity)
+
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color(.separator).opacity(0.25))
+                .frame(width: 1, height: 36)
+
+            // Joined
+            VStack(spacing: 4) {
+                Text(memberSinceShort)
+                    .font(VenuuTheme.headlineFont)
+                Text("joined")
+                    .font(VenuuTheme.subheadLightFont)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.vertical, 16)
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Rank Progress
+
+    private func rankCard(rank: UserRank) -> some View {
+        HStack(spacing: 14) {
+            // Mascot on the left
+            VenuuMascot(size: 48, expression: mascotExpression, animated: true)
+
+            // Progress content
+            VStack(alignment: .leading, spacing: 10) {
+                // Current rank name + report count
+                HStack {
+                    Text(rank.title)
+                        .font(VenuuTheme.bodyBoldFont)
+                        .foregroundStyle(rank.color)
+
+                    Spacer()
+
+                    if let next = rank.nextRank {
+                        Text("\(viewModel.totalReports) of \(next.minReports)")
+                            .font(VenuuTheme.subheadFont)
+                    }
+                }
+
+                if let next = rank.nextRank {
+                    // Progress bar with rank icons at each end
+                    HStack(spacing: 8) {
+                        Image(systemName: rank.icon)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(rank.color)
+
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(Color(.systemGray5))
+                                    .frame(height: 8)
+
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: rank.progressBarColors,
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(
+                                        width: geo.size.width * rank.progress(reports: viewModel.totalReports),
+                                        height: 8
+                                    )
+                            }
+                        }
+                        .frame(height: 8)
+
+                        Image(systemName: next.icon)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(next.color.opacity(0.4))
+                    }
+
+                    Text("\(next.minReports - viewModel.totalReports) more reports to \(next.title)")
+                        .font(VenuuTheme.subheadLightFont)
+                } else {
+                    HStack(spacing: 5) {
+                        Image(systemName: "trophy.fill")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Highest rank reached")
+                            .font(VenuuTheme.captionFont)
+                    }
+                    .foregroundStyle(rank.color)
+                }
+            }
+        }
+        .padding(16)
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Quick Actions
+
+    private var actionsCard: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "bell.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.orange)
+                Text("Notifications")
+                    .font(VenuuTheme.subheadFont)
+                Spacer()
+                Text("Soon")
+                    .font(VenuuTheme.captionFont)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+
+            Divider().padding(.leading, 40)
+
+            HStack {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text("Settings")
+                    .font(VenuuTheme.subheadFont)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+        }
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Footer
+
+    private var footerCard: some View {
+        VStack(spacing: 16) {
+            Button {
                 Task {
                     let result = await Amplify.Auth.signOut()
                     if let globalResult = result as? AWSCognitoSignOutResult,
@@ -191,296 +585,26 @@ struct ProfileScreen: View {
                         authState.didSignOut()
                     }
                 }
-            }
-        }
-    }
-
-    // MARK: - Hero Header
-
-    private func profileHero(displayName: String, rank: UserRank) -> some View {
-        ZStack {
-            // Gradient background
-            LinearGradient(
-                colors: [VenuuTheme.skyPunch, VenuuTheme.ultraBlue],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            // Decorative dots
-            GeometryReader { geo in
-                Circle()
-                    .fill(Color.white.opacity(0.08))
-                    .frame(width: 120)
-                    .offset(x: geo.size.width - 60, y: -30)
-                Circle()
-                    .fill(Color.white.opacity(0.06))
-                    .frame(width: 80)
-                    .offset(x: -20, y: geo.size.height - 50)
-            }
-        }
-        .frame(height: 200)
-        .clipShape(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-        )
-        .overlay(alignment: .bottom) {
-            // Avatar + name overlay
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 72, height: 72)
-                        .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
-
-                    Text(initials(for: displayName))
-                        .font(VenuuTheme.heroFont)
-                        .foregroundStyle(VenuuTheme.skyPunch)
-                }
-
-                Text(displayName)
-                    .font(VenuuTheme.title3Font)
-                    .foregroundStyle(.white)
-
-                HStack(spacing: 6) {
-                    Image(systemName: rank.icon)
-                        .font(VenuuTheme.captionFont)
-                    Text(rank.title)
-                        .font(VenuuTheme.captionFont)
-                }
-                .foregroundStyle(.white.opacity(0.85))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 5)
-                .background(Color.white.opacity(0.2))
-                .clipShape(Capsule())
-            }
-            .padding(.bottom, 16)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-    }
-
-    // MARK: - Stats Row
-
-    private func statsRow(rank: UserRank) -> some View {
-        HStack(spacing: 12) {
-            statCard(
-                value: "\(viewModel.totalReports)",
-                label: "Reports",
-                icon: "megaphone.fill",
-                color: VenuuTheme.skyPunch
-            )
-
-            statCard(
-                value: rank.title,
-                label: "Rank",
-                icon: rank.icon,
-                color: rank.color
-            )
-
-            statCard(
-                value: memberSinceShort,
-                label: "Joined",
-                icon: "calendar",
-                color: .green
-            )
-        }
-        .padding(.horizontal, 16)
-    }
-
-    private func statCard(value: String, label: String, icon: String, color: Color) -> some View {
-        VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(color.opacity(0.12))
-                    .frame(width: 36, height: 36)
-                Image(systemName: icon)
-                    .font(VenuuTheme.subtitleFont)
-                    .foregroundStyle(color)
-            }
-
-            Text(value)
-                .font(VenuuTheme.bodyBoldFont)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-
-            Text(label)
-                .font(VenuuTheme.captionLightFont)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(VenuuTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
-    }
-
-    // MARK: - Rank Progress Card
-
-    private func rankCard(rank: UserRank) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                VenuuMascot(size: 44, expression: mascotExpression, animated: true)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(rank.title)
-                        .font(VenuuTheme.sectionFont)
-                    Text(rank.subtitle)
-                        .font(VenuuTheme.captionLightFont)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Text("Lv.\(rank.level)")
-                    .font(VenuuTheme.titleNumericFont)
-                    .foregroundStyle(rank.color)
-            }
-
-            // Progress bar
-            if let next = rank.nextRank {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("\(viewModel.totalReports) / \(next.minReports) reports")
-                            .font(VenuuTheme.captionFont)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("Next: \(next.title)")
-                            .font(VenuuTheme.captionFont)
-                            .foregroundStyle(next.color)
-                    }
-
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color(.systemGray5))
-                                .frame(height: 10)
-
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(
-                                    LinearGradient(
-                                        colors: rank.progressBarColors,
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .frame(
-                                    width: geo.size.width * rank.progress(reports: viewModel.totalReports),
-                                    height: 10
-                                )
-                        }
-                    }
-                    .frame(height: 10)
-                }
-            } else {
-                Text("You've reached the highest rank!")
-                    .font(VenuuTheme.captionFont)
-                    .foregroundStyle(rank.color)
-            }
-        }
-        .padding(16)
-        .background(VenuuTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(rank.color.opacity(0.2), lineWidth: 1.5)
-        )
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
-        .padding(.horizontal, 16)
-    }
-
-    // MARK: - Quick Actions
-
-    private var actionsCard: some View {
-        VStack(spacing: 0) {
-            actionRow(
-                icon: "megaphone.fill",
-                color: VenuuTheme.skyPunch,
-                title: "My Reports",
-                subtitle: "\(viewModel.totalReports) submitted"
-            )
-
-            Divider().padding(.leading, 60)
-
-            actionRow(
-                icon: "bell.fill",
-                color: .orange,
-                title: "Notifications",
-                subtitle: "Coming soon"
-            )
-
-            Divider().padding(.leading, 60)
-
-            actionRow(
-                icon: "gearshape.fill",
-                color: .gray,
-                title: "Settings",
-                subtitle: "Account & preferences"
-            )
-        }
-        .background(VenuuTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
-        .padding(.horizontal, 16)
-    }
-
-    private func actionRow(icon: String, color: Color, title: String, subtitle: String) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(color.opacity(0.12))
-                    .frame(width: 40, height: 40)
-                Image(systemName: icon)
-                    .font(VenuuTheme.bodyBoldFont)
-                    .foregroundStyle(color)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(VenuuTheme.subheadFont)
-                Text(subtitle)
-                    .font(VenuuTheme.captionLightFont)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(VenuuTheme.captionFont)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-
-    // MARK: - Footer
-
-    private var footerCard: some View {
-        VStack(spacing: 12) {
-            // Sign out
-            Button {
-                showSignOutConfirm = true
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
-                        .font(VenuuTheme.subtitleFont)
+                        .font(.system(size: 13, weight: .semibold))
                     Text("Sign Out")
-                        .font(VenuuTheme.subtitleFont)
+                        .font(VenuuTheme.subheadFont)
                 }
-                .foregroundStyle(.red)
+                .foregroundStyle(.red.opacity(0.8))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.red.opacity(0.08))
+                .padding(.vertical, 12)
+                .background(VenuuTheme.cardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
             }
             .padding(.horizontal, 16)
 
-            HStack(spacing: 4) {
-                Image(systemName: "info.circle")
-                    .font(VenuuTheme.captionFont)
-                Text("Venuu v\(appVersion)")
-                    .font(VenuuTheme.captionFont)
-            }
-            .foregroundStyle(.tertiary)
-            .padding(.bottom, 8)
+            Text("Venuu v\(appVersion)")
+                .font(VenuuTheme.captionLightFont)
+                .foregroundStyle(.quaternary)
+                .padding(.bottom, 8)
         }
     }
 
@@ -519,6 +643,71 @@ struct ProfileScreen: View {
                 mascotExpression = Self.expressionCycle[index]
             }
         }
+    }
+
+    // MARK: - Image Preview
+
+    private var profileImagePreview: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+                .onTapGesture { showImagePreview = false }
+
+            if let imageUrl = viewModel.profileImageUrl,
+               let url = URL(string: imageUrl) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .clipShape(Circle())
+                            .padding(40)
+                    default:
+                        ProgressView()
+                            .tint(.white)
+                    }
+                }
+            }
+
+            // Close button
+            VStack {
+                HStack {
+                    Spacer()
+                    Button { showImagePreview = false } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .padding(20)
+                }
+                Spacer()
+            }
+        }
+    }
+
+    // MARK: - Photo Processing
+
+    private func processAndUploadPhoto(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let uiImage = UIImage(data: data) else { return }
+
+        // Resize to max 400x400 on the main actor to keep UIKit drawing thread-safe
+        let resized: UIImage = await MainActor.run {
+            let size = uiImage.size
+            let ratio = min(400 / size.width, 400 / size.height)
+            if ratio < 1 {
+                let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
+                let renderer = UIGraphicsImageRenderer(size: newSize)
+                return renderer.image { _ in
+                    uiImage.draw(in: CGRect(origin: .zero, size: newSize))
+                }
+            } else {
+                return uiImage
+            }
+        }
+
+        guard let jpegData = resized.jpegData(compressionQuality: 0.7) else { return }
+        _ = await viewModel.uploadProfileImage(jpegData)
     }
 
     // MARK: - Helpers
@@ -581,7 +770,7 @@ enum UserRank: Int, CaseIterable {
         case .newbie:     return "Just getting started"
         case .explorer:   return "Curious and on the move"
         case .scout:      return "The community counts on you"
-        case .localGuide: return "A true venue expert"
+        case .localGuide: return "A true Venuu expert"
         case .legend:     return "Hall of fame material"
         }
     }
@@ -602,7 +791,7 @@ enum UserRank: Int, CaseIterable {
         case .explorer:   return VenuuTheme.skyPunch
         case .scout:      return .orange
         case .localGuide: return .purple
-        case .legend:     return Color(red: 1.0, green: 0.84, blue: 0.0)
+        case .legend:     return Color(red: 0.85, green: 0.55, blue: 0.0)
         }
     }
 
@@ -612,7 +801,7 @@ enum UserRank: Int, CaseIterable {
         case .explorer:   return [.cyan, VenuuTheme.skyPunch, .blue]
         case .scout:      return [.yellow, .orange, .red]
         case .localGuide: return [.pink, .purple, .indigo]
-        case .legend:     return [Color(red: 1.0, green: 0.84, blue: 0.0), .orange, .red]
+        case .legend:     return [Color(red: 0.85, green: 0.55, blue: 0.0), .orange, .red]
         }
     }
 
@@ -657,6 +846,7 @@ enum UserRank: Int, CaseIterable {
         return .newbie
     }
 }
+
 
 // MARK: - Previews
 
