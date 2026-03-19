@@ -239,16 +239,16 @@ struct DiscoverScreen: View {
                 HStack(spacing: 6) {
                     Image(systemName: "bookmark.fill")
                         .font(VenuuTheme.footnoteFont)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(VenuuTheme.savedOrange)
                     Text("Saved Places")
                         .font(VenuuTheme.sectionFont)
 
                     Text("\(nearbySavedVenues.count)")
                         .font(VenuuTheme.badgeFont)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(VenuuTheme.savedOrange)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Color.orange.opacity(0.12))
+                        .background(VenuuTheme.savedOrange.opacity(0.12))
                         .clipShape(Capsule())
 
                     Spacer()
@@ -322,19 +322,19 @@ struct DiscoverScreen: View {
             .padding(.vertical, 10)
             .background(
                 isSelected
-                    ? category.color
+                    ? VenuuTheme.skyPunch
                     : VenuuTheme.cardBackground
             )
             .clipShape(Capsule())
             .overlay(
                 Capsule()
                     .stroke(
-                        isSelected ? category.color : Color.primary.opacity(0.08),
+                        isSelected ? VenuuTheme.skyPunch : Color.primary.opacity(0.08),
                         lineWidth: isSelected ? 0 : 1.5
                     )
             )
             .shadow(
-                color: isSelected ? category.color.opacity(0.3) : .black.opacity(0.04),
+                color: isSelected ? VenuuTheme.skyPunch.opacity(0.3) : .black.opacity(0.04),
                 radius: isSelected ? 6 : 3,
                 x: 0,
                 y: isSelected ? 3 : 1
@@ -357,10 +357,10 @@ struct DiscoverScreen: View {
 
                 Text("\(viewModel.sweetSpotVenues.count) venues")
                     .font(VenuuTheme.badgeFont)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Color.green.opacity(0.12))
+                    .background(Color(.systemGray6))
                     .clipShape(Capsule())
             }
             .padding(.horizontal, 20)
@@ -422,7 +422,7 @@ struct DiscoverScreen: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.green.opacity(0.2), lineWidth: 2)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 3)
     }
@@ -441,10 +441,10 @@ struct DiscoverScreen: View {
 
                 Text("\(viewModel.popularVenues.count) venues")
                     .font(VenuuTheme.badgeFont)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.12))
+                    .background(Color(.systemGray6))
                     .clipShape(Capsule())
             }
             .padding(.horizontal, 20)

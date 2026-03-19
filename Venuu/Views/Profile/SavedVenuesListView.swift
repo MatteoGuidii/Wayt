@@ -61,7 +61,7 @@ struct SavedVenuesListView: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [.orange, .orange.opacity(0.7)],
+                            colors: [VenuuTheme.savedOrange, VenuuTheme.savedOrange.opacity(0.7)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -191,7 +191,7 @@ struct SavedVenuesListView: View {
                 } label: {
                     Image(systemName: "bookmark.slash.fill")
                         .font(.system(size: 14))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(VenuuTheme.savedOrange)
                 }
             }
         }

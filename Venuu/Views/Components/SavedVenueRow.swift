@@ -44,7 +44,7 @@ struct SavedVenueRow: View {
                 } label: {
                     Image(systemName: "bookmark.slash.fill")
                         .font(.system(size: 14))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(VenuuTheme.savedOrange)
                 }
             }
 

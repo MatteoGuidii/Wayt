@@ -536,7 +536,7 @@ struct ProfileScreen: View {
             HStack(spacing: 6) {
                 Image(systemName: "bookmark.fill")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(VenuuTheme.savedOrange)
                 Text("Saved Venues")
                     .font(VenuuTheme.bodyBoldFont)
 
@@ -544,10 +544,10 @@ struct ProfileScreen: View {
 
                 Text("\(savedVenuesVM.savedVenues.count)")
                     .font(VenuuTheme.badgeFont)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(VenuuTheme.savedOrange)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Color.orange.opacity(0.12))
+                    .background(VenuuTheme.savedOrange.opacity(0.12))
                     .clipShape(Capsule())
             }
 

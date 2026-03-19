@@ -55,7 +55,7 @@ struct VenueRow: View {
                             Text("~\(wait)m")
                                 .font(VenuuTheme.captionFont)
                         }
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                     }
                 }
             }

@@ -42,7 +42,7 @@ struct VenueMarkerView: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
                         .padding(3)
-                        .background(.orange, in: Circle())
+                        .background(VenuuTheme.savedOrange, in: Circle())
                         .overlay(Circle().strokeBorder(.white, lineWidth: 1))
                         .offset(x: -6, y: -4)
                 }

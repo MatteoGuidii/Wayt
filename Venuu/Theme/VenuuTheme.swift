@@ -19,6 +19,9 @@ enum VenuuTheme {
     /// Dark ink — mascot face features (eyes, mouth)
     static let ink = Color(red: 0.25, green: 0.20, blue: 0.35)   // #403357
 
+    /// Saved/bookmark accent — matches busyness "Busy" orange
+    static let savedOrange = Color(red: 0.95, green: 0.50, blue: 0.15) // #F28026
+
     // MARK: - Backgrounds
 
     /// Cool ice-blue gradient for auth/onboarding screens
