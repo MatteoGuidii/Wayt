@@ -20,9 +20,6 @@ struct MapScreen: View {
         ZStack(alignment: .top) {
             // MARK: - Map
             Map(position: $viewModel.cameraPosition, scope: mapScope) {
-                // User location
-                UserAnnotation()
-
                 // Venue markers (clustered)
                 ForEach(viewModel.mapItems) { item in
                     switch item {
@@ -67,6 +64,9 @@ struct MapScreen: View {
                         }
                     }
                 }
+
+                // User location — rendered last so it draws on top of venue markers
+                UserAnnotation()
             }
             .mapScope(mapScope)
             .mapControls { } // Disable default controls — we use custom ones

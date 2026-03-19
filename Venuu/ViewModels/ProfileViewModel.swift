@@ -17,27 +17,126 @@ final class ProfileViewModel: ObservableObject {
     @Published var isSavingImage: Bool = false
     @Published var showFirstTimeNamePrompt: Bool = false
 
+    /// Locally cached profile image data for instant display.
+    @Published var cachedImageData: Data?
+
     private var cancellables = Set<AnyCancellable>()
+    private var hasLoadedFromCache = false
+    /// True after the first successful API fetch — prevents duplicate loads.
+    private(set) var hasLoadedFromAPI = false
+
+    // MARK: - Cache Keys
+
+    private enum CacheKey {
+        static let totalReports = "venuu_profile_totalReports"
+        static let memberSince = "venuu_profile_memberSince"
+        static let displayName = "venuu_profile_displayName"
+        static let profileImageUrl = "venuu_profile_imageUrl"
+    }
 
     // MARK: - Init
 
     init() {
+        loadFromCache()
+
         NotificationCenter.default.publisher(for: .reportSubmitted)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.totalReports += 1
+                self.cacheValue(self.totalReports, forKey: CacheKey.totalReports)
                 Task { await self.syncProfile() }
             }
             .store(in: &cancellables)
     }
 
+    // MARK: - Local Cache
+
+    private func loadFromCache() {
+        let defaults = UserDefaults.standard
+        let cached = defaults.integer(forKey: CacheKey.totalReports)
+        let member = defaults.string(forKey: CacheKey.memberSince)
+        let name = defaults.string(forKey: CacheKey.displayName)
+
+        // Only apply if we have cached data (memberSince is set on first load)
+        if let member, !member.isEmpty {
+            totalReports = cached
+            memberSince = member
+            displayName = name
+            hasLoadedFromCache = true
+        }
+
+        // Load cached profile image from disk
+        if let data = Self.loadCachedImage() {
+            cachedImageData = data
+        }
+    }
+
+    private func saveToCache() {
+        let defaults = UserDefaults.standard
+        defaults.set(totalReports, forKey: CacheKey.totalReports)
+        defaults.set(memberSince, forKey: CacheKey.memberSince)
+        defaults.set(displayName, forKey: CacheKey.displayName)
+        defaults.set(profileImageUrl, forKey: CacheKey.profileImageUrl)
+    }
+
+    private func cacheValue(_ value: Any?, forKey key: String) {
+        UserDefaults.standard.set(value, forKey: key)
+    }
+
+    private func clearCache() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: CacheKey.totalReports)
+        defaults.removeObject(forKey: CacheKey.memberSince)
+        defaults.removeObject(forKey: CacheKey.displayName)
+        defaults.removeObject(forKey: CacheKey.profileImageUrl)
+        Self.deleteCachedImage()
+        cachedImageData = nil
+        hasLoadedFromCache = false
+    }
+
+    // MARK: - Profile Image Disk Cache
+
+    private static var imageCacheURL: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("venuu_profile_avatar.jpg")
+    }
+
+    private static func loadCachedImage() -> Data? {
+        try? Data(contentsOf: imageCacheURL)
+    }
+
+    private static func saveCachedImage(_ data: Data) {
+        try? data.write(to: imageCacheURL)
+    }
+
+    private static func deleteCachedImage() {
+        try? FileManager.default.removeItem(at: imageCacheURL)
+    }
+
+    /// Downloads and caches the profile image from the presigned URL.
+    private func cacheProfileImage() async {
+        guard let urlString = profileImageUrl,
+              let url = URL(string: urlString) else { return }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            Self.saveCachedImage(data)
+            cachedImageData = data
+        } catch {
+            // Non-critical — AsyncImage will still work as fallback
+        }
+    }
+
     // MARK: - Load Profile
 
-    /// Fetches the user profile from the API. Safe to call multiple times
-    /// (e.g. every time the profile tab appears).
+    /// Fetches the user profile from the API. Shows cached data instantly,
+    /// then refreshes from network in the background.
     func loadProfile() async {
-        isLoading = true
+        // Only show loading spinner if we have no cached data
+        if !hasLoadedFromCache {
+            isLoading = true
+        }
         loadError = false
 
         do {
@@ -46,10 +145,20 @@ final class ProfileViewModel: ObservableObject {
             memberSince = profile.joinedAt
             displayName = profile.displayName
             profileImageUrl = profile.profileImageUrl
+            hasLoadedFromAPI = true
+            saveToCache()
+
+            // Cache profile image to disk if we don't have one yet
+            if profile.profileImageUrl != nil, cachedImageData == nil {
+                Task { await cacheProfileImage() }
+            }
 
             showFirstTimeNamePrompt = (profile.displayName == nil)
         } catch {
-            loadError = true
+            // Only show error if we had no cached data to display
+            if !hasLoadedFromCache {
+                loadError = true
+            }
             print("[Profile] Load failed: \(error.localizedDescription)")
         }
         isLoading = false
@@ -93,6 +202,10 @@ final class ProfileViewModel: ObservableObject {
             guard let uploadURL = URL(string: response.uploadUrl) else { return false }
             try await APIClient.shared.uploadImage(to: uploadURL, imageData: imageData)
 
+            // Immediately cache the uploaded image locally for instant display
+            Self.saveCachedImage(imageData)
+            cachedImageData = imageData
+
             // Reload profile to get the new presigned GET URL
             await loadProfile()
             return true
@@ -104,8 +217,8 @@ final class ProfileViewModel: ObservableObject {
 
     // MARK: - Reset
 
-    /// Clears all profile data. Call on sign-out so stale data from the
-    /// previous user is never shown to the next one.
+    /// Clears all profile data and local cache. Call on sign-out so stale
+    /// data from the previous user is never shown to the next one.
     func reset() {
         totalReports = 0
         memberSince = ""
@@ -113,6 +226,8 @@ final class ProfileViewModel: ObservableObject {
         profileImageUrl = nil
         loadError = false
         showFirstTimeNamePrompt = false
+        hasLoadedFromAPI = false
+        clearCache()
     }
 
     // MARK: - Sync After Report
