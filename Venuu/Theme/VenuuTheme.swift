@@ -65,6 +65,28 @@ enum VenuuTheme {
     /// Saved/bookmark accent — matches busyness "Busy" orange
     static let savedOrange = Color(red: 0.95, green: 0.50, blue: 0.15) // #F28026
 
+    // MARK: - Rank Colors (muted in dark mode to reduce glare)
+
+    static let rankGreen = adaptive(
+        light: .systemGreen,
+        dark:  UIColor(red: 0.30, green: 0.65, blue: 0.30, alpha: 1)
+    )
+
+    static let rankOrange = adaptive(
+        light: .systemOrange,
+        dark:  UIColor(red: 0.75, green: 0.50, blue: 0.18, alpha: 1)
+    )
+
+    static let rankPurple = adaptive(
+        light: .systemPurple,
+        dark:  UIColor(red: 0.55, green: 0.35, blue: 0.70, alpha: 1)
+    )
+
+    static let rankGold = adaptive(
+        light: UIColor(red: 0.85, green: 0.55, blue: 0.0, alpha: 1),
+        dark:  UIColor(red: 0.70, green: 0.48, blue: 0.10, alpha: 1)
+    )
+
     // MARK: - Text Colors
 
     /// Primary text — pure black in light, softened white in dark to reduce glare
