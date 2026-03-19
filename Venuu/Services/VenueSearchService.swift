@@ -284,17 +284,15 @@ final class VenueSearchService {
             }
         }
 
-        // Sort by distance from region center — closest venues first
-        accumulated.sort { a, b in
-            let distA = center.distance(from: CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude))
-            let distB = center.distance(from: CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude))
-            return distA < distB
+        // Precompute distances, sort, and cap at limit — closest venues first
+        let distances = accumulated.map { venue in
+            center.distance(from: CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude))
         }
-
-        // Cap at limit, keeping closest venues
-        if accumulated.count > AppConstants.maxVisibleVenues {
-            accumulated = Array(accumulated.prefix(AppConstants.maxVisibleVenues))
-        }
+        let sortedIndices = distances.enumerated()
+            .sorted { $0.element < $1.element }
+            .prefix(AppConstants.maxVisibleVenues)
+            .map(\.offset)
+        accumulated = sortedIndices.map { accumulated[$0] }
 
         return accumulated
     }

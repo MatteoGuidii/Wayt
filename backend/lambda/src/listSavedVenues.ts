@@ -22,15 +22,23 @@ export async function handler(
       return badRequest("Unauthorized");
     }
 
-    const result = await ddb.send(
-      new QueryCommand({
-        TableName: SAVED_VENUES_TABLE,
-        KeyConditionExpression: "userId = :uid",
-        ExpressionAttributeValues: { ":uid": userId },
-      })
-    );
+    let venues: Record<string, unknown>[] = [];
+    let lastKey: Record<string, unknown> | undefined;
 
-    const venues = (result.Items ?? []).sort(
+    do {
+      const result = await ddb.send(
+        new QueryCommand({
+          TableName: SAVED_VENUES_TABLE,
+          KeyConditionExpression: "userId = :uid",
+          ExpressionAttributeValues: { ":uid": userId },
+          ...(lastKey && { ExclusiveStartKey: lastKey }),
+        })
+      );
+      venues.push(...(result.Items ?? []));
+      lastKey = result.LastEvaluatedKey;
+    } while (lastKey);
+
+    venues.sort(
       (a, b) => new Date(b.savedAt as string).getTime() - new Date(a.savedAt as string).getTime()
     );
 

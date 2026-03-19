@@ -1,7 +1,7 @@
 import SwiftUI
 import MapKit
 
-/// Full-screen list of all saved venues with swipe-to-unsave.
+/// Full-screen list of all saved venues.
 struct SavedVenuesListView: View {
 
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
@@ -132,83 +132,82 @@ struct SavedVenuesListView: View {
     }
 
     private func savedVenueCard(_ venue: SavedVenue) -> some View {
-        Button {
+        HStack(spacing: 14) {
+            // Category icon badge
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(venue.category.color.opacity(0.12))
+                    .frame(width: 44, height: 44)
+                Image(systemName: venue.category.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(venue.category.color)
+            }
+
+            // Venue info
+            VStack(alignment: .leading, spacing: 3) {
+                Text(venue.venueName)
+                    .font(VenuuTheme.subheadFont)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                if let address = venue.address {
+                    Text(address)
+                        .font(VenuuTheme.captionLightFont)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                // Category pill
+                Text(venue.category.shortName)
+                    .font(VenuuTheme.badgeFont)
+                    .foregroundStyle(venue.category.color)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(venue.category.color.opacity(0.1))
+                    .clipShape(Capsule())
+            }
+
+            Spacer()
+
+            // Actions
+            VStack(spacing: 8) {
+                // Directions
+                Button {
+                    let placemark = MKPlacemark(coordinate: venue.coordinate)
+                    let mapItem = MKMapItem(placemark: placemark)
+                    mapItem.name = venue.venueName
+                    mapItem.openInMaps(launchOptions: [
+                        MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault
+                    ])
+                } label: {
+                    Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(VenuuTheme.mapsBlue)
+                }
+
+                // Unsave
+                Button {
+                    Task { await savedVenuesVM.toggleSaveById(venue.venueId) }
+                } label: {
+                    Image(systemName: "bookmark.slash.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .padding(14)
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onTapGesture {
             dismiss()
             onNavigate?(venue)
-        } label: {
-            HStack(spacing: 14) {
-                // Category icon badge
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(venue.category.color.opacity(0.12))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: venue.category.icon)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(venue.category.color)
-                }
-
-                // Venue info
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(venue.venueName)
-                        .font(VenuuTheme.subheadFont)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    if let address = venue.address {
-                        Text(address)
-                            .font(VenuuTheme.captionLightFont)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    // Category pill
-                    Text(venue.category.shortName)
-                        .font(VenuuTheme.badgeFont)
-                        .foregroundStyle(venue.category.color)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(venue.category.color.opacity(0.1))
-                        .clipShape(Capsule())
-                }
-
-                Spacer()
-
-                // Actions
-                VStack(spacing: 8) {
-                    // Directions
-                    Button {
-                        let placemark = MKPlacemark(coordinate: venue.coordinate)
-                        let mapItem = MKMapItem(placemark: placemark)
-                        mapItem.name = venue.venueName
-                        mapItem.openInMaps(launchOptions: [
-                            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault
-                        ])
-                    } label: {
-                        Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(VenuuTheme.mapsBlue)
-                    }
-
-                    // Unsave
-                    Button {
-                        Task { await savedVenuesVM.toggleSaveById(venue.venueId) }
-                    } label: {
-                        Image(systemName: "bookmark.slash.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.orange)
-                    }
-                }
-            }
-            .padding(14)
-            .background(VenuuTheme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Color.gray.opacity(0.15), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
         }
-        .buttonStyle(.plain)
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.gray.opacity(0.15), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
     }
 
     // MARK: - Empty States
