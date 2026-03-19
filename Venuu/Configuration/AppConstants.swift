@@ -44,7 +44,7 @@ enum AppConstants {
     // MARK: - Location
 
     /// Distance filter for location updates (meters)
-    static let locationDistanceFilter: CLLocationDistance = 100
+    static let locationDistanceFilter: CLLocationDistance = 10
 
     /// Maximum distance from a venue to allow submitting a report (meters)
     static let reportProximityRadius: CLLocationDistance = 200

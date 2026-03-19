@@ -14,16 +14,23 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 export async function handler(
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
-  try {
-    const userId = getUserId(
-      event.requestContext.authorizer?.claims as Record<string, string> | undefined
-    );
-    if (!userId) {
-      return badRequest("Unauthorized");
-    }
+  const userId = getUserId(
+    event.requestContext.authorizer?.claims as Record<string, string> | undefined
+  );
+  if (!userId) {
+    return badRequest("Unauthorized");
+  }
 
-    const body = JSON.parse(event.body ?? "{}");
-    const { venueId } = body as { venueId?: string };
+  let body: { venueId?: string };
+  try {
+    body = JSON.parse(event.body ?? "{}");
+  } catch {
+    return badRequest("Invalid JSON in request body");
+  }
+
+  const { venueId } = body;
+
+  try {
 
     if (!venueId) {
       return badRequest("Missing required field: venueId");
