@@ -867,19 +867,11 @@ enum UserRank: Int, CaseIterable {
 
     var color: Color {
         switch self {
-        case .newbie:     return Color(UIColor { $0.userInterfaceStyle == .dark
-            ? UIColor(red: 0.30, green: 0.65, blue: 0.30, alpha: 1)
-            : UIColor.systemGreen })
+        case .newbie:     return VenuuTheme.rankGreen
         case .explorer:   return VenuuTheme.skyPunch
-        case .scout:      return Color(UIColor { $0.userInterfaceStyle == .dark
-            ? UIColor(red: 0.75, green: 0.50, blue: 0.18, alpha: 1)
-            : UIColor.systemOrange })
-        case .localGuide: return Color(UIColor { $0.userInterfaceStyle == .dark
-            ? UIColor(red: 0.55, green: 0.35, blue: 0.70, alpha: 1)
-            : UIColor.systemPurple })
-        case .legend:     return Color(UIColor { $0.userInterfaceStyle == .dark
-            ? UIColor(red: 0.70, green: 0.48, blue: 0.10, alpha: 1)
-            : UIColor(red: 0.85, green: 0.55, blue: 0.0, alpha: 1) })
+        case .scout:      return VenuuTheme.rankOrange
+        case .localGuide: return VenuuTheme.rankPurple
+        case .legend:     return VenuuTheme.rankGold
         }
     }
 
