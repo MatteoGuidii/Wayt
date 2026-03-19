@@ -237,12 +237,11 @@ struct ProfileScreen: View {
                     endPoint: .bottomTrailing
                 )
 
-                // Orbital contour lines + signal pulse
+                // Orbital contour lines (static)
                 GeometryReader { geo in
                     let cx = geo.size.width * 0.5
                     let cy = geo.size.height + 20
 
-                    // Orbital arcs
                     ForEach(0..<3, id: \.self) { i in
                         let radius = CGFloat(i) * 44 + 40
                         Ellipse()
@@ -257,14 +256,13 @@ struct ProfileScreen: View {
                             .position(x: cx, y: cy)
                     }
 
-                    // Tilted orbit crossing the others
                     Ellipse()
                         .stroke(rank.color.opacity(0.18), lineWidth: 1.0)
                         .frame(width: geo.size.width * 0.85, height: 90)
                         .rotationEffect(.degrees(-25))
                         .position(x: cx, y: cy - 35)
 
-                    // Pulsing signal rings
+                    // Pulsing signal rings — driven by repeating animation
                     ForEach(0..<2, id: \.self) { i in
                         let ringPhase = (pulsePhase + CGFloat(i) * 0.5)
                             .truncatingRemainder(dividingBy: 1.0)
@@ -281,15 +279,12 @@ struct ProfileScreen: View {
                 }
             }
             .frame(height: 140)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .onAppear {
-                withAnimation(
-                    .linear(duration: 5)
-                    .repeatForever(autoreverses: false)
-                ) {
+                withAnimation(.linear(duration: 5).repeatForever(autoreverses: false)) {
                     pulsePhase = 1.0
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(alignment: .bottom) {
                 // Avatar floats half over the banner
                 ZStack(alignment: .bottomTrailing) {
@@ -452,7 +447,7 @@ struct ProfileScreen: View {
     private func rankCard(rank: UserRank) -> some View {
         HStack(spacing: 14) {
             // Mascot on the left
-            VenuuMascot(size: 48, expression: mascotExpression, animated: true)
+            VenuuMascot(size: 48, expression: mascotExpression, animated: false)
 
             // Progress content
             VStack(alignment: .leading, spacing: 10) {
@@ -697,7 +692,7 @@ struct ProfileScreen: View {
     private func cycleMascotExpression() async {
         var index = 0
         while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(6))
+            try? await Task.sleep(for: .seconds(12))
             guard !Task.isCancelled else { break }
             index = (index + 1) % Self.expressionCycle.count
             withAnimation(.easeInOut(duration: 0.5)) {
@@ -785,23 +780,31 @@ struct ProfileScreen: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
+    // Cached formatters to avoid re-creating on every render
+    private static let isoFormatterFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+    private static let displayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM yyyy"
+        return f
+    }()
+
     private var memberSinceShort: String {
         let raw = viewModel.memberSince
         guard !raw.isEmpty else { return "--" }
-        // Try parsing ISO date, fall back to raw string
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: raw) {
-            let display = DateFormatter()
-            display.dateFormat = "MMM yyyy"
-            return display.string(from: date)
+        if let date = Self.isoFormatterFractional.date(from: raw) {
+            return Self.displayFormatter.string(from: date)
         }
-        // Try without fractional seconds
-        formatter.formatOptions = [.withInternetDateTime]
-        if let date = formatter.date(from: raw) {
-            let display = DateFormatter()
-            display.dateFormat = "MMM yyyy"
-            return display.string(from: date)
+        if let date = Self.isoFormatter.date(from: raw) {
+            return Self.displayFormatter.string(from: date)
         }
         return String(raw.prefix(7))
     }
