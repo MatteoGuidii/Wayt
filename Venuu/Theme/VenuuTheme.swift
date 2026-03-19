@@ -46,8 +46,8 @@ enum VenuuTheme {
 
     static func busynessColor(for level: Int) -> Color {
         switch level {
-        case 1: return Color(red: 0.13, green: 0.66, blue: 0.23) // green #21a83f
-        case 2: return Color(red: 0.55, green: 0.80, blue: 0.25) // lime #8CD13B
+        case 1: return Color(red: 0.55, green: 0.80, blue: 0.25) // lime #8CD13B
+        case 2: return Color(red: 42/255.0, green: 157/255.0, blue: 92/255.0) // green #2A9D5C
         case 3: return Color(red: 0.95, green: 0.75, blue: 0.10) // yellow #F2C01A
         case 4: return Color(red: 0.95, green: 0.50, blue: 0.15) // orange #F28026
         case 5: return Color(red: 0.90, green: 0.22, blue: 0.20) // red #E63A38
