@@ -263,26 +263,20 @@ struct DiscoverScreen: View {
             .buttonStyle(.plain)
             .padding(.horizontal, 20)
 
-            if isSavedExpanded {
-                VStack(spacing: 8) {
-                    ForEach(nearbySavedVenues) { venue in
-                        Button { selectedVenue = venue } label: {
-                            VenueRow(venue: venue, userLocation: locationService.userLocation)
-                        }
-                        .buttonStyle(.plain)
+            VStack(spacing: 8) {
+                ForEach(nearbySavedVenues) { venue in
+                    Button { selectedVenue = venue } label: {
+                        VenueRow(venue: venue, userLocation: locationService.userLocation)
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .transition(
-                    .asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .top)),
-                        removal: .opacity
-                    )
-                )
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .frame(maxHeight: isSavedExpanded ? .none : 0, alignment: .top)
+            .clipped()
+            .opacity(isSavedExpanded ? 1 : 0)
         }
-        .clipped()
     }
 
     // MARK: - Category Strip (Horizontal Pills)
