@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import UIKit
 import Amplify
 import AWSCognitoAuthPlugin
 
@@ -690,18 +691,19 @@ struct ProfileScreen: View {
         guard let data = try? await item.loadTransferable(type: Data.self),
               let uiImage = UIImage(data: data) else { return }
 
-        // Resize to max 400x400
-        let size = uiImage.size
-        let ratio = min(400 / size.width, 400 / size.height)
-        let resized: UIImage
-        if ratio < 1 {
-            let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
-            let renderer = UIGraphicsImageRenderer(size: newSize)
-            resized = renderer.image { _ in
-                uiImage.draw(in: CGRect(origin: .zero, size: newSize))
+        // Resize to max 400x400 on the main actor to keep UIKit drawing thread-safe
+        let resized: UIImage = await MainActor.run {
+            let size = uiImage.size
+            let ratio = min(400 / size.width, 400 / size.height)
+            if ratio < 1 {
+                let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
+                let renderer = UIGraphicsImageRenderer(size: newSize)
+                return renderer.image { _ in
+                    uiImage.draw(in: CGRect(origin: .zero, size: newSize))
+                }
+            } else {
+                return uiImage
             }
-        } else {
-            resized = uiImage
         }
 
         guard let jpegData = resized.jpegData(compressionQuality: 0.7) else { return }

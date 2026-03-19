@@ -205,7 +205,7 @@ Resources:
   ProfileImagesBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "venuu-profile-images-${Stage}"
+      BucketName: !Sub "venuu-profile-images-${AWS::AccountId}-${Stage}"
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders: ["*"]

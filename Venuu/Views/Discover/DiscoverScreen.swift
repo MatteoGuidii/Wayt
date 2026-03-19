@@ -26,7 +26,7 @@ struct DiscoverScreen: View {
                 .padding(.bottom, 32)
             }
             .scrollIndicators(.hidden)
-            .background(Color(.systemGroupedBackground))
+            .background(VenuuTheme.backgroundGradient)
         }
         .task {
             viewModel.filterState = filterState

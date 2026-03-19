@@ -47,9 +47,7 @@ final class ProfileViewModel: ObservableObject {
             displayName = profile.displayName
             profileImageUrl = profile.profileImageUrl
 
-            if profile.displayName == nil {
-                showFirstTimeNamePrompt = true
-            }
+            showFirstTimeNamePrompt = (profile.displayName == nil)
         } catch {
             loadError = true
             print("[Profile] Load failed: \(error.localizedDescription)")

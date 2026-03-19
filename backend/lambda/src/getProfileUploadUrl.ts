@@ -46,7 +46,7 @@ export async function handler(
         TableName: USERS_TABLE,
         Key: { userId },
         UpdateExpression:
-          "SET profileImageKey = :key, joinedAt = if_not_exists(joinedAt, :now)",
+          "SET profileImageKey = :key, joinedAt = if_not_exists(joinedAt, :now), updatedAt = :now",
         ExpressionAttributeValues: {
           ":key": imageKey,
           ":now": new Date().toISOString(),

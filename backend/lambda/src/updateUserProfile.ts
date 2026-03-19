@@ -17,7 +17,12 @@ export async function handler(
       return badRequest("Unauthorized");
     }
 
-    const body = JSON.parse(event.body ?? "{}");
+    let body: Record<string, unknown>;
+    try {
+      body = event.body ? JSON.parse(event.body) : {};
+    } catch {
+      return badRequest("Invalid JSON in request body");
+    }
     const { displayName } = body;
 
     if (typeof displayName !== "string") {
