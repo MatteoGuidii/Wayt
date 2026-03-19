@@ -62,14 +62,14 @@ struct VenueMarkerView: View {
                 .frame(maxWidth: 72)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 2)
-                .background(.ultraThinMaterial.opacity(0.8))
+                .background(Color(.systemBackground).opacity(0.85))
                 .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .padding(.top, 2)
         }
         .shadow(
-            color: isSelected ? markerBackground.opacity(0.45) : .black.opacity(0.18),
-            radius: isSelected ? 8 : 4,
-            y: isSelected ? 3 : 2
+            color: .black.opacity(isSelected ? 0.25 : 0.15),
+            radius: isSelected ? 6 : 3,
+            y: 2
         )
         .scaleEffect(isSelected ? 1.12 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)

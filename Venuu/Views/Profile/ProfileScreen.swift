@@ -265,33 +265,18 @@ struct ProfileScreen: View {
                         .position(x: cx, y: cy - 35)
 
                     // Pulsing signal rings
-                    ForEach(0..<3, id: \.self) { i in
-                        let ringPhase = (pulsePhase + CGFloat(i) * 0.33)
+                    ForEach(0..<2, id: \.self) { i in
+                        let ringPhase = (pulsePhase + CGFloat(i) * 0.5)
                             .truncatingRemainder(dividingBy: 1.0)
                         let ringSize = 40 + ringPhase * max(geo.size.width, geo.size.height) * 0.8
 
                         Circle()
                             .stroke(
-                                rank.color.opacity(0.5 * (1 - ringPhase)),
-                                lineWidth: 2.0 - ringPhase * 1.5
+                                rank.color.opacity(0.4 * (1 - ringPhase)),
+                                lineWidth: 1.5 - ringPhase
                             )
                             .frame(width: ringSize, height: ringSize)
                             .position(x: cx, y: cy)
-                    }
-
-                    // Coordinate grid dots
-                    let cols = Int(geo.size.width / 28)
-                    let rows = Int(geo.size.height / 28)
-                    ForEach(0..<rows, id: \.self) { row in
-                        ForEach(0..<cols, id: \.self) { col in
-                            Circle()
-                                .fill(.white.opacity(0.05))
-                                .frame(width: 1.5, height: 1.5)
-                                .position(
-                                    x: CGFloat(col) * 28 + 14,
-                                    y: CGFloat(row) * 28 + 14
-                                )
-                        }
                     }
                 }
             }
@@ -299,7 +284,7 @@ struct ProfileScreen: View {
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .onAppear {
                 withAnimation(
-                    .linear(duration: 3)
+                    .linear(duration: 5)
                     .repeatForever(autoreverses: false)
                 ) {
                     pulsePhase = 1.0
@@ -712,7 +697,7 @@ struct ProfileScreen: View {
     private func cycleMascotExpression() async {
         var index = 0
         while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(6))
             guard !Task.isCancelled else { break }
             index = (index + 1) % Self.expressionCycle.count
             withAnimation(.easeInOut(duration: 0.5)) {

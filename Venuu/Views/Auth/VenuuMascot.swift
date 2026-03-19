@@ -42,28 +42,20 @@ struct VenuuMascot: View {
                     )
                 )
                 .frame(width: size * 1.4, height: size * 1.2)
-                .scaleEffect(pulseScale)
                 .offset(y: -size * 0.1)
 
             // The pin body
             pinBody
-                .rotationEffect(.degrees(headTilt), anchor: .bottom)
                 .offset(y: floatOffset)
         }
         .frame(width: size * 1.5, height: size * 1.9)
         .onAppear {
             guard animated else { return }
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                pulseScale = 1.12
-            }
             withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
                 floatOffset = -6
             }
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
                 antennaWobble = 8
-            }
-            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
-                headTilt = 5
             }
         }
     }
@@ -93,7 +85,7 @@ struct VenuuMascot: View {
                         .stroke(Color.black, lineWidth: 2.5)
                 )
                 .frame(width: size * 0.72, height: size * 1.05)
-                .shadow(color: pinColor.opacity(0.35), radius: 12, y: 6)
+                .shadow(color: .black.opacity(0.15), radius: 6, y: 4)
 
             // Antenna
             antennaView

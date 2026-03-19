@@ -22,7 +22,7 @@ enum AppConstants {
     static let defaultSearchRadius: CLLocationDistance = 2_000
 
     /// Maximum venues to load per search (clustering keeps rendered annotations low)
-    static let maxVisibleVenues = 200
+    static let maxVisibleVenues = 300
 
     /// Per-query timeout for MapKit searches (seconds)
     static let mapKitQueryTimeout: TimeInterval = 8
@@ -57,5 +57,5 @@ enum AppConstants {
     // MARK: - Live Refresh
 
     /// How often the map auto-refreshes busyness data (seconds)
-    static let liveRefreshInterval: TimeInterval = 60 // every 60 seconds
+    static let liveRefreshInterval: TimeInterval = 120 // every 2 minutes
 }
