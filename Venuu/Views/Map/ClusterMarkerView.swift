@@ -34,7 +34,7 @@ struct ClusterMarkerView: View {
                 .frame(width: 10, height: 6)
                 .offset(y: -1)
         }
-        .shadow(color: markerColor.opacity(0.35), radius: 6, y: 3)
+        .shadow(color: .black.opacity(0.15), radius: 3, y: 2)
     }
 }
 

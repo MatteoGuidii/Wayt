@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import MapKit
 
@@ -262,6 +263,7 @@ final class VenueSearchService {
         onBatch: (([Venue]) -> Void)? = nil
     ) async -> [Venue] {
         let queries = ["restaurant", "bar", "cafe", "nightclub", "pub", "bakery"]
+        let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
 
         var seen = Set<String>()
         var accumulated: [Venue] = []
@@ -278,13 +280,20 @@ final class VenueSearchService {
                     seen.insert(venue.id)
                     accumulated.append(venue)
                 }
-                if accumulated.count >= AppConstants.maxVisibleVenues {
-                    group.cancelAll()
-                    break
-                }
-                // Notify caller with current accumulated results
                 onBatch?(accumulated)
             }
+        }
+
+        // Sort by distance from region center — closest venues first
+        accumulated.sort { a, b in
+            let distA = center.distance(from: CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude))
+            let distB = center.distance(from: CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude))
+            return distA < distB
+        }
+
+        // Cap at limit, keeping closest venues
+        if accumulated.count > AppConstants.maxVisibleVenues {
+            accumulated = Array(accumulated.prefix(AppConstants.maxVisibleVenues))
         }
 
         return accumulated
