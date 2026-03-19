@@ -40,6 +40,17 @@ struct SavedVenueRow: View {
 
                 Spacer()
 
+                // Unsave button
+                if let onUnsave {
+                    Button {
+                        onUnsave()
+                    } label: {
+                        Image(systemName: "bookmark.slash.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.orange)
+                    }
+                }
+
                 // Directions button (secondary action)
                 Button {
                     let placemark = MKPlacemark(coordinate: venue.coordinate)

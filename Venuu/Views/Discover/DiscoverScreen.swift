@@ -274,9 +274,15 @@ struct DiscoverScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 10)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    )
+                )
             }
         }
+        .clipped()
     }
 
     // MARK: - Category Strip (Horizontal Pills)
