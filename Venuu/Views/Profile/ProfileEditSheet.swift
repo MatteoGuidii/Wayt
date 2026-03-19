@@ -25,7 +25,7 @@ struct ProfileEditSheet: View {
                 if isFirstTime {
                     Text("Pick a name that other users will see.")
                         .font(VenuuTheme.subtitleFont)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                         .multilineTextAlignment(.center)
                 }
 

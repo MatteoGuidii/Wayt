@@ -29,8 +29,8 @@ struct SavedVenueRow: View {
 
                 if let address = venue.address {
                     Text(address)
-                        .font(VenuuTheme.captionFont)
-                        .foregroundStyle(.secondary)
+                        .font(VenuuTheme.badgeFont)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                         .lineLimit(1)
                 }
             }

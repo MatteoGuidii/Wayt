@@ -7,12 +7,26 @@ struct BusynessBadge: View {
     let confidence: BusynessConfidence
     var style: BadgeStyle = .standard
 
+    @State private var isPulsing = false
+
     var body: some View {
         if let level {
             HStack(spacing: 4) {
-                Circle()
-                    .fill(level.color)
-                    .frame(width: dotSize, height: dotSize)
+                ZStack {
+                    Circle()
+                        .fill(level.color.opacity(0.35))
+                        .frame(width: dotSize, height: dotSize)
+                        .scaleEffect(isPulsing ? 1.6 : 1.0)
+                        .animation(
+                            .easeInOut(duration: 1.2)
+                                .repeatForever(autoreverses: true),
+                            value: isPulsing
+                        )
+                    Circle()
+                        .fill(level.color)
+                        .frame(width: dotSize, height: dotSize)
+                }
+                .onAppear { isPulsing = true }
 
                 Text(level.label)
                     .font(style == .compact ? VenuuTheme.badgeFont : VenuuTheme.footnoteLightFont)
@@ -22,7 +36,7 @@ struct BusynessBadge: View {
                 if style == .standard, confidence != .none {
                     Text("• \(confidence.label)")
                         .font(VenuuTheme.badgeFont)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                 }
             }
             .padding(.horizontal, style == .compact ? 6 : 8)
@@ -32,7 +46,7 @@ struct BusynessBadge: View {
         } else {
             Text("No data")
                 .font(VenuuTheme.badgeFont)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(VenuuTheme.secondaryText)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .background(Color.gray.opacity(0.10))

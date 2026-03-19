@@ -14,6 +14,7 @@ final class LookAroundCache {
     /// Coordinates that have no LookAround coverage — avoid re-requesting.
     private var misses = Set<String>()
     private let maxEntries = 80
+    private let maxMisses = 200
 
     private init() {}
 
@@ -35,11 +36,16 @@ final class LookAroundCache {
     }
 
     func storeMiss(for coordinate: CLLocationCoordinate2D) {
+        if misses.count >= maxMisses {
+            misses.removeAll()
+        }
         misses.insert(key(for: coordinate))
     }
 
+    private static let posixLocale = Locale(identifier: "en_US_POSIX")
+
     private func key(for coordinate: CLLocationCoordinate2D) -> String {
-        String(format: "%.5f,%.5f", coordinate.latitude, coordinate.longitude)
+        String(format: "%.5f,%.5f", locale: Self.posixLocale, coordinate.latitude, coordinate.longitude)
     }
 }
 
@@ -162,14 +168,14 @@ struct VenueDetailSheet: View {
 
                     Text(venue.category.displayName)
                         .font(VenuuTheme.captionFont)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                 }
             }
 
             if let address = venue.address {
                 Label(address, systemImage: "mappin")
                     .font(VenuuTheme.captionFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
             }
         }
     }
@@ -253,7 +259,7 @@ struct VenueDetailSheet: View {
                     if let wait = viewModel.estimate.waitMinutes {
                         Label("~\(wait) min wait", systemImage: "clock")
                             .font(VenuuTheme.captionFont)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.secondaryText)
                     }
                 }
             }
@@ -351,13 +357,13 @@ struct VenueDetailSheet: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(Color(.systemGray4))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 if let distance = viewModel.distanceToVenue(from: locationService.userLocation) {
                     Text("You're \(Int(distance))m away - must be within \(Int(AppConstants.reportProximityRadius))m")
                         .font(VenuuTheme.captionFont)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                 }
             }
         }
@@ -383,7 +389,7 @@ struct VenueDetailSheet: View {
 
                         Text(report.timestamp, style: .relative)
                             .font(VenuuTheme.badgeFont)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.secondaryText)
                     }
                     .padding(.vertical, 4)
                 }
@@ -392,7 +398,7 @@ struct VenueDetailSheet: View {
                     ProgressView()
                     Text("Loading reports...")
                         .font(VenuuTheme.captionFont)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                 }
             }
         }

@@ -57,12 +57,14 @@ final class ProfileViewModel: ObservableObject {
         let cached = defaults.integer(forKey: CacheKey.totalReports)
         let member = defaults.string(forKey: CacheKey.memberSince)
         let name = defaults.string(forKey: CacheKey.displayName)
+        let imageUrl = defaults.string(forKey: CacheKey.profileImageUrl)
 
         // Only apply if we have cached data (memberSince is set on first load)
         if let member, !member.isEmpty {
             totalReports = cached
             memberSince = member
             displayName = name
+            profileImageUrl = imageUrl
             hasLoadedFromCache = true
         }
 
@@ -107,11 +109,17 @@ final class ProfileViewModel: ObservableObject {
     }
 
     private static func saveCachedImage(_ data: Data) {
-        try? data.write(to: imageCacheURL)
+        let url = imageCacheURL
+        Task.detached {
+            try? data.write(to: url)
+        }
     }
 
     private static func deleteCachedImage() {
-        try? FileManager.default.removeItem(at: imageCacheURL)
+        let url = imageCacheURL
+        Task.detached {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     /// Downloads and caches the profile image from the presigned URL.
@@ -132,7 +140,9 @@ final class ProfileViewModel: ObservableObject {
 
     /// Fetches the user profile from the API. Shows cached data instantly,
     /// then refreshes from network in the background.
-    func loadProfile() async {
+    /// Safe to call multiple times — skips if already loaded from API.
+    func loadProfile(force: Bool = false) async {
+        guard !hasLoadedFromAPI || force else { return }
         // Only show loading spinner if we have no cached data
         if !hasLoadedFromCache {
             isLoading = true
@@ -181,6 +191,7 @@ final class ProfileViewModel: ObservableObject {
             )
             displayName = trimmed
             showFirstTimeNamePrompt = false
+            saveToCache()
             return true
         } catch {
             print("[Profile] Update failed: \(error.localizedDescription)")
@@ -207,7 +218,7 @@ final class ProfileViewModel: ObservableObject {
             cachedImageData = imageData
 
             // Reload profile to get the new presigned GET URL
-            await loadProfile()
+            await loadProfile(force: true)
             return true
         } catch {
             print("[Profile] Image upload failed: \(error.localizedDescription)")
@@ -238,6 +249,7 @@ final class ProfileViewModel: ObservableObject {
         do {
             let profile: UserProfile = try await APIClient.shared.get(path: "/user/profile")
             totalReports = profile.totalReports
+            cacheValue(totalReports, forKey: CacheKey.totalReports)
         } catch {
             // Optimistic increment already applied — keep it
         }

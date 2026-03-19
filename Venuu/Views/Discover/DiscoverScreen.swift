@@ -62,7 +62,7 @@ struct DiscoverScreen: View {
 
                 Text(viewModel.greetingSubtitle)
                     .font(VenuuTheme.subheadLightFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
             }
 
             Spacer()
@@ -217,7 +217,7 @@ struct DiscoverScreen: View {
             VenuuMascot(size: 48, expression: .looking, animated: false)
             Text("Scanning your area...")
                 .font(VenuuTheme.footnoteLightFont)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(VenuuTheme.secondaryText)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
@@ -255,7 +255,7 @@ struct DiscoverScreen: View {
 
                     Image(systemName: "chevron.right")
                         .font(VenuuTheme.footnoteFont)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                         .rotationEffect(.degrees(isSavedExpanded ? 90 : 0))
                 }
                 .contentShape(Rectangle())
@@ -357,7 +357,7 @@ struct DiscoverScreen: View {
 
                 Text("\(viewModel.sweetSpotVenues.count) venues")
                     .font(VenuuTheme.badgeFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                     .background(Color(.systemGray6))
@@ -383,12 +383,13 @@ struct DiscoverScreen: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    PinShape()
                         .fill(venue.category.color.opacity(0.15))
-                        .frame(width: 36, height: 36)
+                        .frame(width: 36, height: 42)
                     Image(systemName: venue.category.icon)
                         .font(VenuuTheme.cardTitleFont)
                         .foregroundStyle(venue.category.color)
+                        .offset(y: -2)
                 }
 
                 Spacer()
@@ -412,19 +413,31 @@ struct DiscoverScreen: View {
             if let busyness = venue.busyness {
                 Text(busyness.description)
                     .font(VenuuTheme.badgeFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                     .lineLimit(1)
             }
         }
         .padding(14)
         .frame(width: 170, height: 120, alignment: .topLeading)
-        .background(VenuuTheme.cardBackground)
+        .background(
+            ZStack {
+                VenuuTheme.cardBackground
+                LinearGradient(
+                    colors: [
+                        (venue.busyness?.color ?? .clear).opacity(0.07),
+                        Color.clear
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 3)
+        .busynessGlow(venue.busyness?.color)
     }
 
     // MARK: - Buzzing (On Fire)
@@ -441,7 +454,7 @@ struct DiscoverScreen: View {
 
                 Text("\(viewModel.popularVenues.count) venues")
                     .font(VenuuTheme.badgeFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                     .background(Color(.systemGray6))
@@ -501,7 +514,7 @@ struct DiscoverScreen: View {
             if !viewModel.filteredVenues.isEmpty {
                 Text("\(viewModel.filteredVenues.count) spots found")
                     .font(VenuuTheme.captionLightFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                     .padding(.horizontal, 20)
             }
 
@@ -565,7 +578,7 @@ struct DiscoverScreen: View {
 
             Text("Try a different filter or explore a new area")
                 .font(VenuuTheme.footnoteLightFont)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(VenuuTheme.secondaryText)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)

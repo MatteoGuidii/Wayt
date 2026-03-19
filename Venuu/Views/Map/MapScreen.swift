@@ -130,7 +130,7 @@ struct MapScreen: View {
     private var searchBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(VenuuTheme.secondaryText)
 
             TextField("Search restaurants, bars...", text: $viewModel.searchText)
                 .textFieldStyle(.plain)
@@ -147,7 +147,7 @@ struct MapScreen: View {
                     viewModel.clearSearch(in: visibleRegion)
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                 }
             }
         }
