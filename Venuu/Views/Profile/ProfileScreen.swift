@@ -8,6 +8,9 @@ struct ProfileScreen: View {
 
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var viewModel: ProfileViewModel
+    @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
+    @EnvironmentObject private var tabSelection: TabSelection
+    @EnvironmentObject private var mapViewModel: MapViewModel
     @State private var showEditSheet = false
     @State private var showPhotoPicker = false
     @State private var showImagePreview = false
@@ -27,6 +30,7 @@ struct ProfileScreen: View {
         .task(id: authState.username ?? "") {
             if authState.isSignedIn {
                 await viewModel.loadProfile()
+                await savedVenuesVM.loadSavedVenues()
                 if viewModel.showFirstTimeNamePrompt {
                     showFirstTimeNameSheet = true
                 }
@@ -197,6 +201,11 @@ struct ProfileScreen: View {
                     // Rank progress
                     rankCard(rank: rank)
 
+                    // Saved venues
+                    if !savedVenuesVM.savedVenues.isEmpty {
+                        savedVenuesCard
+                    }
+
                     // Quick actions
                     actionsCard
 
@@ -228,12 +237,11 @@ struct ProfileScreen: View {
                     endPoint: .bottomTrailing
                 )
 
-                // Orbital contour lines + signal pulse
+                // Orbital contour lines (static)
                 GeometryReader { geo in
                     let cx = geo.size.width * 0.5
                     let cy = geo.size.height + 20
 
-                    // Orbital arcs
                     ForEach(0..<3, id: \.self) { i in
                         let radius = CGFloat(i) * 44 + 40
                         Ellipse()
@@ -248,54 +256,35 @@ struct ProfileScreen: View {
                             .position(x: cx, y: cy)
                     }
 
-                    // Tilted orbit crossing the others
                     Ellipse()
                         .stroke(rank.color.opacity(0.18), lineWidth: 1.0)
                         .frame(width: geo.size.width * 0.85, height: 90)
                         .rotationEffect(.degrees(-25))
                         .position(x: cx, y: cy - 35)
 
-                    // Pulsing signal rings
-                    ForEach(0..<3, id: \.self) { i in
-                        let ringPhase = (pulsePhase + CGFloat(i) * 0.33)
+                    // Pulsing signal rings — driven by repeating animation
+                    ForEach(0..<2, id: \.self) { i in
+                        let ringPhase = (pulsePhase + CGFloat(i) * 0.5)
                             .truncatingRemainder(dividingBy: 1.0)
                         let ringSize = 40 + ringPhase * max(geo.size.width, geo.size.height) * 0.8
 
                         Circle()
                             .stroke(
-                                rank.color.opacity(0.5 * (1 - ringPhase)),
-                                lineWidth: 2.0 - ringPhase * 1.5
+                                rank.color.opacity(0.4 * (1 - ringPhase)),
+                                lineWidth: 1.5 - ringPhase
                             )
                             .frame(width: ringSize, height: ringSize)
                             .position(x: cx, y: cy)
                     }
-
-                    // Coordinate grid dots
-                    let cols = Int(geo.size.width / 28)
-                    let rows = Int(geo.size.height / 28)
-                    ForEach(0..<rows, id: \.self) { row in
-                        ForEach(0..<cols, id: \.self) { col in
-                            Circle()
-                                .fill(.white.opacity(0.05))
-                                .frame(width: 1.5, height: 1.5)
-                                .position(
-                                    x: CGFloat(col) * 28 + 14,
-                                    y: CGFloat(row) * 28 + 14
-                                )
-                        }
-                    }
                 }
             }
             .frame(height: 140)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .onAppear {
-                withAnimation(
-                    .linear(duration: 3)
-                    .repeatForever(autoreverses: false)
-                ) {
+                withAnimation(.linear(duration: 5).repeatForever(autoreverses: false)) {
                     pulsePhase = 1.0
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(alignment: .bottom) {
                 // Avatar floats half over the banner
                 ZStack(alignment: .bottomTrailing) {
@@ -458,7 +447,7 @@ struct ProfileScreen: View {
     private func rankCard(rank: UserRank) -> some View {
         HStack(spacing: 14) {
             // Mascot on the left
-            VenuuMascot(size: 48, expression: mascotExpression, animated: true)
+            VenuuMascot(size: 48, expression: mascotExpression, animated: false)
 
             // Progress content
             VStack(alignment: .leading, spacing: 10) {
@@ -530,6 +519,72 @@ struct ProfileScreen: View {
         .padding(.horizontal, 16)
     }
 
+    // MARK: - Saved Venues
+
+    @State private var showAllSavedVenues = false
+
+    private var savedVenuesCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.orange)
+                Text("Saved Venues")
+                    .font(VenuuTheme.bodyBoldFont)
+
+                Spacer()
+
+                Text("\(savedVenuesVM.savedVenues.count)")
+                    .font(VenuuTheme.badgeFont)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            ForEach(savedVenuesVM.savedVenues.prefix(5)) { venue in
+                SavedVenueRow(venue: venue, onTap: {
+                    navigateToSavedVenue(venue)
+                }, onUnsave: {
+                    Task { await savedVenuesVM.toggleSaveById(venue.venueId) }
+                })
+            }
+
+            if savedVenuesVM.savedVenues.count > 5 {
+                Button { showAllSavedVenues = true } label: {
+                    HStack(spacing: 6) {
+                        Text("See all \(savedVenuesVM.savedVenues.count) saved venues")
+                            .font(VenuuTheme.subheadFont)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(VenuuTheme.mapsBlue)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(VenuuTheme.mapsBlue.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+        }
+        .padding(16)
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .padding(.horizontal, 16)
+        .sheet(isPresented: $showAllSavedVenues) {
+            SavedVenuesListView(onNavigate: { venue in
+                navigateToSavedVenue(venue)
+            })
+                .environmentObject(savedVenuesVM)
+        }
+    }
+
+    private func navigateToSavedVenue(_ venue: SavedVenue) {
+        mapViewModel.navigateToCoordinate(venue.coordinate)
+        tabSelection.selectedTab = .map
+    }
+
     // MARK: - Quick Actions
 
     private var actionsCard: some View {
@@ -582,6 +637,7 @@ struct ProfileScreen: View {
                         print("Sign-out failed")
                     } else {
                         viewModel.reset()
+                        savedVenuesVM.reset()
                         authState.didSignOut()
                     }
                 }
@@ -636,7 +692,7 @@ struct ProfileScreen: View {
     private func cycleMascotExpression() async {
         var index = 0
         while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(12))
             guard !Task.isCancelled else { break }
             index = (index + 1) % Self.expressionCycle.count
             withAnimation(.easeInOut(duration: 0.5)) {
@@ -724,23 +780,31 @@ struct ProfileScreen: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
+    // Cached formatters to avoid re-creating on every render
+    private static let isoFormatterFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+    private static let displayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM yyyy"
+        return f
+    }()
+
     private var memberSinceShort: String {
         let raw = viewModel.memberSince
         guard !raw.isEmpty else { return "--" }
-        // Try parsing ISO date, fall back to raw string
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: raw) {
-            let display = DateFormatter()
-            display.dateFormat = "MMM yyyy"
-            return display.string(from: date)
+        if let date = Self.isoFormatterFractional.date(from: raw) {
+            return Self.displayFormatter.string(from: date)
         }
-        // Try without fractional seconds
-        formatter.formatOptions = [.withInternetDateTime]
-        if let date = formatter.date(from: raw) {
-            let display = DateFormatter()
-            display.dateFormat = "MMM yyyy"
-            return display.string(from: date)
+        if let date = Self.isoFormatter.date(from: raw) {
+            return Self.displayFormatter.string(from: date)
         }
         return String(raw.prefix(7))
     }
@@ -854,6 +918,9 @@ enum UserRank: Int, CaseIterable {
     ProfileScreen()
         .environmentObject(AuthState())
         .environmentObject(ProfileViewModel())
+        .environmentObject(SavedVenuesViewModel())
+        .environmentObject(TabSelection())
+        .environmentObject(MapViewModel())
 }
 
 #Preview("Profile - Signed In") {
@@ -862,4 +929,7 @@ enum UserRank: Int, CaseIterable {
     return ProfileScreen()
         .environmentObject(auth)
         .environmentObject(ProfileViewModel())
+        .environmentObject(SavedVenuesViewModel())
+        .environmentObject(TabSelection())
+        .environmentObject(MapViewModel())
 }

@@ -6,6 +6,7 @@ struct VenueMarkerView: View {
 
     let venue: Venue
     let isSelected: Bool
+    var isSaved: Bool = false
 
     private let markerSize: CGFloat = 40
 
@@ -35,6 +36,17 @@ struct VenueMarkerView: View {
                         .offset(y: -1)
                 }
 
+                // Saved bookmark badge (top-left of circle)
+                if isSaved {
+                    Image(systemName: "bookmark.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(3)
+                        .background(.orange, in: Circle())
+                        .overlay(Circle().strokeBorder(.white, lineWidth: 1))
+                        .offset(x: -6, y: -4)
+                }
+
                 // Wait-time badge (top-right of circle)
                 if let wait = venue.estimatedWaitMinutes, wait > 0 {
                     waitBadge(minutes: wait)
@@ -50,14 +62,14 @@ struct VenueMarkerView: View {
                 .frame(maxWidth: 72)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 2)
-                .background(.ultraThinMaterial.opacity(0.8))
+                .background(Color(.systemBackground).opacity(0.85))
                 .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .padding(.top, 2)
         }
         .shadow(
-            color: isSelected ? markerBackground.opacity(0.45) : .black.opacity(0.18),
-            radius: isSelected ? 8 : 4,
-            y: isSelected ? 3 : 2
+            color: .black.opacity(isSelected ? 0.25 : 0.15),
+            radius: isSelected ? 6 : 3,
+            y: 2
         )
         .scaleEffect(isSelected ? 1.12 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)

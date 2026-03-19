@@ -12,6 +12,7 @@ Globals:
         REPORTS_TABLE: !Ref VenueReportsTable
         USERS_TABLE: !Ref UserProfilesTable
         PROFILE_IMAGES_BUCKET: !Ref ProfileImagesBucket
+        SAVED_VENUES_TABLE: !Ref SavedVenuesTable
 
 Parameters:
   CognitoUserPoolArn:
@@ -166,6 +167,63 @@ Resources:
       BuildMethod: makefile
 
   # -----------------------------------------------
+  # Saved Venues Lambda Functions
+  # -----------------------------------------------
+  SaveVenueFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/saveVenue.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SavedVenuesTable
+      Events:
+        SaveVenue:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /user/saved-venues
+            Method: POST
+    Metadata:
+      BuildMethod: makefile
+
+  UnsaveVenueFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/unsaveVenue.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SavedVenuesTable
+      Events:
+        UnsaveVenue:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /user/saved-venues/remove
+            Method: POST
+    Metadata:
+      BuildMethod: makefile
+
+  ListSavedVenuesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/listSavedVenues.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref SavedVenuesTable
+      Events:
+        ListSavedVenues:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /user/saved-venues
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  # -----------------------------------------------
   # DynamoDB Tables
   # -----------------------------------------------
   VenueReportsTable:
@@ -199,11 +257,28 @@ Resources:
         - AttributeName: userId
           KeyType: HASH
 
+  SavedVenuesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "SavedVenues-${Stage}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: venueId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: venueId
+          KeyType: RANGE
+
   # -----------------------------------------------
   # S3 Buckets
   # -----------------------------------------------
   ProfileImagesBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub "venuu-profile-images-${AWS::AccountId}-${Stage}"
       CorsConfiguration:
@@ -228,5 +303,7 @@ Outputs:
     Value: !Ref UserProfilesTable
   ProfileImagesBucketName:
     Value: !Ref ProfileImagesBucket
+  SavedVenuesTableName:
+    Value: !Ref SavedVenuesTable
   Stage:
     Value: !Ref Stage

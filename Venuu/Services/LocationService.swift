@@ -21,8 +21,9 @@ final class LocationService: NSObject, ObservableObject {
     override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
         manager.distanceFilter = AppConstants.locationDistanceFilter
+        manager.activityType = .fitness          // walking / general movement
 
         // Start updating immediately if already authorized (avoids waiting for scenePhase)
         let status = manager.authorizationStatus
@@ -55,7 +56,20 @@ extension LocationService: CLLocationManagerDelegate {
         didUpdateLocations locations: [CLLocation]
     ) {
         guard let location = locations.last else { return }
+
+        // Reject stale or wildly inaccurate readings
+        let age = -location.timestamp.timeIntervalSinceNow
+        guard age < 15,
+              location.horizontalAccuracy >= 0,
+              location.horizontalAccuracy <= 200 else { return }
+
         Task { @MainActor in
+            // Only accept if more accurate than current, or current is stale (>30s)
+            if let current = self.userLocation,
+               -current.timestamp.timeIntervalSinceNow < 30,
+               location.horizontalAccuracy > current.horizontalAccuracy {
+                return
+            }
             self.userLocation = location
             self.region = MKCoordinateRegion(
                 center: location.coordinate,
