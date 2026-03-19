@@ -1,14 +1,16 @@
+import Combine
 import SwiftUI
 
 struct MainTabView: View {
 
-    @State private var selectedTab: Tab = .map
+    @StateObject private var tabSelection = TabSelection()
     @StateObject private var filterState = VenueFilterState()
     @StateObject private var mapViewModel = MapViewModel()
     @StateObject private var profileViewModel = ProfileViewModel()
+    @StateObject private var savedVenuesVM = SavedVenuesViewModel()
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: $tabSelection.selectedTab) {
             MapScreen()
                 .tabItem {
                     Label("Map", systemImage: "map.fill")
@@ -28,9 +30,11 @@ struct MainTabView: View {
                 .tag(Tab.profile)
         }
         .tint(VenuuTheme.mapsBlue)
+        .environmentObject(tabSelection)
         .environmentObject(filterState)
         .environmentObject(mapViewModel)
         .environmentObject(profileViewModel)
+        .environmentObject(savedVenuesVM)
         .task {
             mapViewModel.filterState = filterState
             mapViewModel.startLiveRefresh()
@@ -40,8 +44,14 @@ struct MainTabView: View {
 
 // MARK: - Tab
 
-private enum Tab: Hashable {
+enum Tab: Hashable {
     case map
     case discover
     case profile
+}
+
+/// Observable wrapper so child views can switch tabs.
+@MainActor
+final class TabSelection: ObservableObject {
+    @Published var selectedTab: Tab = .map
 }

@@ -8,6 +8,9 @@ build-GetVenueReportsFunction: build-common
 build-GetUserProfileFunction: build-common
 build-UpdateUserProfileFunction: build-common
 build-GetProfileUploadUrlFunction: build-common
+build-SaveVenueFunction: build-common
+build-UnsaveVenueFunction: build-common
+build-ListSavedVenuesFunction: build-common
 
 build-common:
 	cp -r dist $(ARTIFACTS_DIR)/dist
