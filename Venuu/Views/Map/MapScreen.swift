@@ -26,7 +26,7 @@ struct MapScreen: View {
                     case .single(let venue):
                         let selected = viewModel.selectedVenue?.id == venue.id
                         Annotation(
-                            venue.name,
+                            "",
                             coordinate: venue.coordinate,
                             anchor: .bottom
                         ) {
@@ -43,7 +43,7 @@ struct MapScreen: View {
 
                     case .cluster(let cluster):
                         Annotation(
-                            "\(cluster.count) venues",
+                            "",
                             coordinate: cluster.coordinate,
                             anchor: .bottom
                         ) {
