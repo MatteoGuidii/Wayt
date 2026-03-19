@@ -14,6 +14,7 @@ final class SavedVenuesViewModel: ObservableObject {
     // MARK: - Private
 
     private let service = SavedVenuesService()
+    private var hasLoadedFromAPI = false
 
     // MARK: - Init
 
@@ -24,7 +25,8 @@ final class SavedVenuesViewModel: ObservableObject {
 
     // MARK: - Load from API
 
-    func loadSavedVenues() async {
+    func loadSavedVenues(force: Bool = false) async {
+        guard !hasLoadedFromAPI || force else { return }
         isLoading = true
         defer { isLoading = false }
 
@@ -32,6 +34,7 @@ final class SavedVenuesViewModel: ObservableObject {
             let venues = try await service.loadSavedVenues()
             savedVenues = venues
             savedVenueIDs = Set(venues.map(\.venueId))
+            hasLoadedFromAPI = true
         } catch {
             print("[SavedVenues] Load failed: \(error.localizedDescription)")
         }

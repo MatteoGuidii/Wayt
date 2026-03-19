@@ -21,7 +21,7 @@ enum VenueCategory: String, CaseIterable, Codable, Hashable, Sendable {
         }
     }
 
-    /// Short label for compact filter chips.
+    /// Label for filter chips.
     var shortName: String {
         switch self {
         case .food:      return "Restaurants"

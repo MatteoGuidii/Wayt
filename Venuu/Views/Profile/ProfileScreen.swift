@@ -86,7 +86,7 @@ struct ProfileScreen: View {
 
                         Text("Be part of the community that\nknows where to go.")
                             .font(VenuuTheme.bodyFont)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.secondaryText)
                             .multilineTextAlignment(.center)
                             .lineSpacing(3)
                     }
@@ -172,7 +172,7 @@ struct ProfileScreen: View {
                     .font(VenuuTheme.subheadFont)
                 Text(subtitle)
                     .font(VenuuTheme.captionLightFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
             }
 
             Spacer()
@@ -382,7 +382,7 @@ struct ProfileScreen: View {
                     Button { showEditSheet = true } label: {
                         Image(systemName: "pencil.circle.fill")
                             .font(.system(size: 20))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.secondaryText)
                     }
                 }
 
@@ -616,7 +616,7 @@ struct ProfileScreen: View {
             HStack {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                 Text("Settings")
                     .font(VenuuTheme.subheadFont)
                 Spacer()

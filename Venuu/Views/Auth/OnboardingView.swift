@@ -126,7 +126,7 @@ struct OnboardingView: View {
 
                 Text(page.subtitle)
                     .font(VenuuTheme.bodyFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
                     .padding(.horizontal, 24)

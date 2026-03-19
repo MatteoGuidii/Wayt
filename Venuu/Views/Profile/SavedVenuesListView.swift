@@ -77,7 +77,7 @@ struct SavedVenuesListView: View {
                     .font(VenuuTheme.headlineFont)
                 Text("\(savedVenuesVM.savedVenues.count) spots saved")
                     .font(VenuuTheme.captionLightFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
             }
 
             Spacer()
@@ -92,7 +92,7 @@ struct SavedVenuesListView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(VenuuTheme.secondaryText)
 
             TextField("Search saved venues", text: $searchText)
                 .font(VenuuTheme.subheadLightFont)
@@ -153,7 +153,7 @@ struct SavedVenuesListView: View {
                 if let address = venue.address {
                     Text(address)
                         .font(VenuuTheme.captionLightFont)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                         .lineLimit(1)
                 }
 
@@ -222,7 +222,7 @@ struct SavedVenuesListView: View {
 
                 Text("Tap the bookmark on any venue\nto save it for later")
                     .font(VenuuTheme.footnoteLightFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                     .multilineTextAlignment(.center)
                     .lineSpacing(2)
             }
@@ -237,7 +237,7 @@ struct SavedVenuesListView: View {
 
             Text("No matches for \"\(searchText)\"")
                 .font(VenuuTheme.footnoteLightFont)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(VenuuTheme.secondaryText)
         }
     }
 }

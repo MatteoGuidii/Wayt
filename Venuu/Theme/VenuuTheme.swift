@@ -22,6 +22,12 @@ enum VenuuTheme {
     /// Saved/bookmark accent — matches busyness "Busy" orange
     static let savedOrange = Color(red: 0.95, green: 0.50, blue: 0.15) // #F28026
 
+    // MARK: - Text Colors
+
+    /// Accessible secondary text — darker than .secondary for better readability
+    /// Uses primary label at 72% opacity (~4.5:1 contrast on white, WCAG AA compliant)
+    static let secondaryText = Color.primary.opacity(0.72)
+
     // MARK: - Backgrounds
 
     /// Cool ice-blue gradient for auth/onboarding screens
@@ -102,17 +108,17 @@ enum VenuuTheme {
     /// 13pt bold — counts, emphasized meta
     static let footnoteFont    = Font.system(size: 13, weight: .bold, design: .rounded)
 
-    /// 13pt semibold — descriptions, lighter meta
-    static let footnoteLightFont = Font.system(size: 13, weight: .semibold, design: .rounded)
+    /// 14pt semibold — descriptions, lighter meta
+    static let footnoteLightFont = Font.system(size: 14, weight: .semibold, design: .rounded)
 
-    /// 12pt bold — chips, filter labels
-    static let captionFont     = Font.system(size: 12, weight: .bold, design: .rounded)
+    /// 13pt bold — chips, filter labels
+    static let captionFont     = Font.system(size: 13, weight: .bold, design: .rounded)
 
-    /// 12pt semibold — lighter captions, distances
-    static let captionLightFont = Font.system(size: 12, weight: .semibold, design: .rounded)
+    /// 13pt semibold — lighter captions, distances
+    static let captionLightFont = Font.system(size: 13, weight: .semibold, design: .rounded)
 
-    /// 11pt bold — badges, tiny counts
-    static let badgeFont       = Font.system(size: 11, weight: .bold, design: .rounded)
+    /// 12pt bold — badges, tiny counts
+    static let badgeFont       = Font.system(size: 12, weight: .bold, design: .rounded)
 
     /// 10pt bold — micro labels
     static let microFont       = Font.system(size: 10, weight: .bold, design: .rounded)
@@ -142,5 +148,61 @@ struct VenuuCardModifier: ViewModifier {
 extension View {
     func venuuCard() -> some View {
         modifier(VenuuCardModifier())
+    }
+
+    /// Replaces generic black shadow with a busyness-colored glow.
+    func busynessGlow(_ color: Color?, radius: CGFloat = 10, y: CGFloat = 5) -> some View {
+        self.shadow(
+            color: (color ?? .gray).opacity(0.18),
+            radius: radius,
+            x: 0,
+            y: y
+        )
+    }
+}
+
+// MARK: - Pin Shape (Venuu brand icon container)
+
+/// Teardrop / map-pin silhouette — rounded top half tapering to a point.
+/// Shared brand shape echoing the Venuu mascot.
+struct PinShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let headRadius = rect.width / 2
+        let headCenter = CGPoint(x: rect.midX, y: rect.minY + headRadius)
+        let tailAngle: CGFloat = .pi / 5
+
+        let leftTangent = CGPoint(
+            x: headCenter.x - headRadius * sin(tailAngle),
+            y: headCenter.y + headRadius * cos(tailAngle)
+        )
+        let rightTangent = CGPoint(
+            x: headCenter.x + headRadius * sin(tailAngle),
+            y: headCenter.y + headRadius * cos(tailAngle)
+        )
+
+        let tip = CGPoint(x: rect.midX, y: rect.maxY)
+        let curveStrength: CGFloat = 0.12
+        let leftControl = CGPoint(
+            x: leftTangent.x - rect.width * curveStrength,
+            y: (leftTangent.y + rect.maxY) / 2
+        )
+        let rightControl = CGPoint(
+            x: rightTangent.x + rect.width * curveStrength,
+            y: (rightTangent.y + rect.maxY) / 2
+        )
+
+        var path = Path()
+        path.move(to: leftTangent)
+        path.addArc(
+            center: headCenter,
+            radius: headRadius,
+            startAngle: Angle(radians: .pi / 2 + tailAngle),
+            endAngle: Angle(radians: .pi / 2 - tailAngle),
+            clockwise: true
+        )
+        path.addQuadCurve(to: tip, control: rightControl)
+        path.addQuadCurve(to: leftTangent, control: leftControl)
+        path.closeSubpath()
+        return path
     }
 }
