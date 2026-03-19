@@ -8,6 +8,9 @@ struct ProfileScreen: View {
 
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var viewModel: ProfileViewModel
+    @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
+    @EnvironmentObject private var tabSelection: TabSelection
+    @EnvironmentObject private var mapViewModel: MapViewModel
     @State private var showEditSheet = false
     @State private var showPhotoPicker = false
     @State private var showImagePreview = false
@@ -27,6 +30,7 @@ struct ProfileScreen: View {
         .task(id: authState.username ?? "") {
             if authState.isSignedIn {
                 await viewModel.loadProfile()
+                await savedVenuesVM.loadSavedVenues()
                 if viewModel.showFirstTimeNamePrompt {
                     showFirstTimeNameSheet = true
                 }
@@ -196,6 +200,11 @@ struct ProfileScreen: View {
 
                     // Rank progress
                     rankCard(rank: rank)
+
+                    // Saved venues
+                    if !savedVenuesVM.savedVenues.isEmpty {
+                        savedVenuesCard
+                    }
 
                     // Quick actions
                     actionsCard
@@ -530,6 +539,66 @@ struct ProfileScreen: View {
         .padding(.horizontal, 16)
     }
 
+    // MARK: - Saved Venues
+
+    @State private var showAllSavedVenues = false
+
+    private var savedVenuesCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.orange)
+                Text("Saved Venues")
+                    .font(VenuuTheme.bodyBoldFont)
+
+                Spacer()
+
+                Text("\(savedVenuesVM.savedVenues.count)")
+                    .font(VenuuTheme.badgeFont)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            ForEach(savedVenuesVM.savedVenues.prefix(5)) { venue in
+                SavedVenueRow(venue: venue, onTap: {
+                    navigateToSavedVenue(venue)
+                }, onUnsave: {
+                    Task { await savedVenuesVM.toggleSaveById(venue.venueId) }
+                })
+            }
+
+            if savedVenuesVM.savedVenues.count > 5 {
+                Button { showAllSavedVenues = true } label: {
+                    Text("See all \(savedVenuesVM.savedVenues.count) saved venues")
+                        .font(VenuuTheme.subheadFont)
+                        .foregroundStyle(VenuuTheme.mapsBlue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+            }
+        }
+        .padding(16)
+        .background(VenuuTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .padding(.horizontal, 16)
+        .sheet(isPresented: $showAllSavedVenues) {
+            SavedVenuesListView(onNavigate: { venue in
+                navigateToSavedVenue(venue)
+            })
+                .environmentObject(savedVenuesVM)
+        }
+    }
+
+    private func navigateToSavedVenue(_ venue: SavedVenue) {
+        mapViewModel.navigateToCoordinate(venue.coordinate)
+        tabSelection.selectedTab = .map
+    }
+
     // MARK: - Quick Actions
 
     private var actionsCard: some View {
@@ -582,6 +651,7 @@ struct ProfileScreen: View {
                         print("Sign-out failed")
                     } else {
                         viewModel.reset()
+                        savedVenuesVM.reset()
                         authState.didSignOut()
                     }
                 }
@@ -854,6 +924,9 @@ enum UserRank: Int, CaseIterable {
     ProfileScreen()
         .environmentObject(AuthState())
         .environmentObject(ProfileViewModel())
+        .environmentObject(SavedVenuesViewModel())
+        .environmentObject(TabSelection())
+        .environmentObject(MapViewModel())
 }
 
 #Preview("Profile - Signed In") {
@@ -862,4 +935,7 @@ enum UserRank: Int, CaseIterable {
     return ProfileScreen()
         .environmentObject(auth)
         .environmentObject(ProfileViewModel())
+        .environmentObject(SavedVenuesViewModel())
+        .environmentObject(TabSelection())
+        .environmentObject(MapViewModel())
 }

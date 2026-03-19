@@ -6,6 +6,7 @@ struct VenueMarkerView: View {
 
     let venue: Venue
     let isSelected: Bool
+    var isSaved: Bool = false
 
     private let markerSize: CGFloat = 40
 
@@ -33,6 +34,17 @@ struct VenueMarkerView: View {
                         .fill(markerBackground)
                         .frame(width: 10, height: 6)
                         .offset(y: -1)
+                }
+
+                // Saved bookmark badge (top-left of circle)
+                if isSaved {
+                    Image(systemName: "bookmark.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(3)
+                        .background(.orange, in: Circle())
+                        .overlay(Circle().strokeBorder(.white, lineWidth: 1))
+                        .offset(x: -6, y: -4)
                 }
 
                 // Wait-time badge (top-right of circle)

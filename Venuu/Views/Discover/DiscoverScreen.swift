@@ -6,7 +6,10 @@ struct DiscoverScreen: View {
     @EnvironmentObject private var locationService: LocationService
     @EnvironmentObject private var filterState: VenueFilterState
     @EnvironmentObject private var mapViewModel: MapViewModel
+    @EnvironmentObject private var authState: AuthState
+    @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
     @State private var selectedVenue: Venue?
+    @State private var isSavedExpanded: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -15,6 +18,9 @@ struct DiscoverScreen: View {
                     greetingHeader
                     vibePulseSection
                     categoryStrip
+                    if authState.isSignedIn && !nearbySavedVenues.isEmpty {
+                        savedVenuesSection
+                    }
                     if !viewModel.sweetSpotVenues.isEmpty && showGoNow {
                         goNowSection
                     }
@@ -215,6 +221,62 @@ struct DiscoverScreen: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
+    }
+
+    // MARK: - Saved Venues
+
+    private var nearbySavedVenues: [Venue] {
+        viewModel.filteredVenues.filter { savedVenuesVM.isSaved($0.id) }
+    }
+
+    private var savedVenuesSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    isSavedExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "bookmark.fill")
+                        .font(VenuuTheme.footnoteFont)
+                        .foregroundStyle(.orange)
+                    Text("Saved Places")
+                        .font(VenuuTheme.sectionFont)
+
+                    Text("\(nearbySavedVenues.count)")
+                        .font(VenuuTheme.badgeFont)
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.orange.opacity(0.12))
+                        .clipShape(Capsule())
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(VenuuTheme.footnoteFont)
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isSavedExpanded ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+
+            if isSavedExpanded {
+                VStack(spacing: 8) {
+                    ForEach(nearbySavedVenues) { venue in
+                        Button { selectedVenue = venue } label: {
+                            VenueRow(venue: venue, userLocation: locationService.userLocation)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
     }
 
     // MARK: - Category Strip (Horizontal Pills)

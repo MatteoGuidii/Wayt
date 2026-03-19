@@ -7,11 +7,12 @@ struct MapScreen: View {
     @EnvironmentObject private var locationService: LocationService
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var filterState: VenueFilterState
+    @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
     @State private var visibleRegion: MKCoordinateRegion = .defaultRegion
     @State private var mapHeading: Double = 0
     @State private var mapPitch: Double = 0
     @State private var is3D: Bool = false
-    @State private var selectedDetent: PresentationDetent = .large
+
 
     @Namespace private var mapScope
 
@@ -34,7 +35,8 @@ struct MapScreen: View {
                         ) {
                             VenueMarkerView(
                                 venue: venue,
-                                isSelected: selected
+                                isSelected: selected,
+                                isSaved: savedVenuesVM.isSaved(venue.id)
                             )
                             .zIndex(selected ? 100 : 0)
                             .onTapGesture {
@@ -100,8 +102,7 @@ struct MapScreen: View {
             viewModel.refreshAfterReport()
         }) { venue in
             VenueDetailSheet(venue: venue)
-                .presentationDetents([.large, .medium], selection: $selectedDetent)
-                .presentationDragIndicator(.visible)
+                .presentationDetents([.large])
         }
         .task {
             locationService.requestPermission()

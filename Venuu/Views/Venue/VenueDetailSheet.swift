@@ -9,6 +9,7 @@ struct VenueDetailSheet: View {
     @StateObject private var viewModel: VenueDetailViewModel
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var locationService: LocationService
+    @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showAuthGate = false
     @State private var lookAroundScene: MKLookAroundScene?
@@ -36,6 +37,19 @@ struct VenueDetailSheet: View {
             .background(VenuuTheme.backgroundGradient)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        if authState.isSignedIn {
+                            Task { await savedVenuesVM.toggleSave(for: venue) }
+                        } else {
+                            showAuthGate = true
+                        }
+                    } label: {
+                        Image(systemName: savedVenuesVM.isSaved(venue.id) ? "bookmark.fill" : "bookmark")
+                            .foregroundStyle(savedVenuesVM.isSaved(venue.id) ? .orange : VenuuTheme.mapsBlue)
+                            .font(.title3)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
@@ -195,12 +209,25 @@ struct VenueDetailSheet: View {
                     UIApplication.shared.open(url)
                 }
             }
+
+            actionButton(
+                icon: savedVenuesVM.isSaved(venue.id) ? "bookmark.fill" : "bookmark",
+                label: savedVenuesVM.isSaved(venue.id) ? "Saved" : "Save",
+                tint: savedVenuesVM.isSaved(venue.id) ? .orange : nil
+            ) {
+                if authState.isSignedIn {
+                    Task { await savedVenuesVM.toggleSave(for: venue) }
+                } else {
+                    showAuthGate = true
+                }
+            }
         }
     }
 
     private func actionButton(
         icon: String,
         label: String,
+        tint: Color? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -215,7 +242,7 @@ struct VenueDetailSheet: View {
             .background(Color(.tertiarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .tint(VenuuTheme.mapsBlue)
+        .tint(tint ?? VenuuTheme.mapsBlue)
     }
 
     // MARK: - Report Button
