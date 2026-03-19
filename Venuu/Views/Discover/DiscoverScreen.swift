@@ -226,7 +226,7 @@ struct DiscoverScreen: View {
     // MARK: - Saved Venues
 
     private var nearbySavedVenues: [Venue] {
-        viewModel.filteredVenues.filter { savedVenuesVM.isSaved($0.id) }
+        viewModel.venues.filter { savedVenuesVM.isSaved($0.id) }
     }
 
     private var savedVenuesSection: some View {
