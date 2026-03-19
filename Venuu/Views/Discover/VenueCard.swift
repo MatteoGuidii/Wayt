@@ -56,7 +56,7 @@ struct VenueCard: View {
                         Text("~\(wait) min wait")
                             .font(VenuuTheme.badgeFont)
                     }
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 12)
@@ -67,7 +67,7 @@ struct VenueCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.orange.opacity(0.2), lineWidth: 2)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
     }

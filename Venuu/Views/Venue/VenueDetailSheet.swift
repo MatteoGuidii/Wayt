@@ -1,6 +1,48 @@
 import SwiftUI
 import MapKit
 
+// MARK: - LookAround Cache
+
+/// Caches MKLookAroundScene objects to avoid refetching on every sheet open.
+/// Keyed by rounded coordinate string (5-decimal precision ≈ 1m).
+@MainActor
+final class LookAroundCache {
+
+    static let shared = LookAroundCache()
+
+    private var cache: [String: MKLookAroundScene] = [:]
+    /// Coordinates that have no LookAround coverage — avoid re-requesting.
+    private var misses = Set<String>()
+    private let maxEntries = 80
+
+    private init() {}
+
+    func scene(for coordinate: CLLocationCoordinate2D) -> MKLookAroundScene? {
+        cache[key(for: coordinate)]
+    }
+
+    func isKnownMiss(for coordinate: CLLocationCoordinate2D) -> Bool {
+        misses.contains(key(for: coordinate))
+    }
+
+    func store(_ scene: MKLookAroundScene, for coordinate: CLLocationCoordinate2D) {
+        if cache.count >= maxEntries {
+            // Evict ~25% of entries
+            let keysToRemove = Array(cache.keys.prefix(maxEntries / 4))
+            keysToRemove.forEach { cache.removeValue(forKey: $0) }
+        }
+        cache[key(for: coordinate)] = scene
+    }
+
+    func storeMiss(for coordinate: CLLocationCoordinate2D) {
+        misses.insert(key(for: coordinate))
+    }
+
+    private func key(for coordinate: CLLocationCoordinate2D) -> String {
+        String(format: "%.5f,%.5f", coordinate.latitude, coordinate.longitude)
+    }
+}
+
 // MARK: - Venue Detail Sheet
 
 struct VenueDetailSheet: View {
@@ -13,11 +55,19 @@ struct VenueDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showAuthGate = false
     @State private var lookAroundScene: MKLookAroundScene?
+    @State private var isLoadingLookAround = true
     @State private var showFullLookAround = false
 
     init(venue: Venue) {
         self.venue = venue
         _viewModel = StateObject(wrappedValue: VenueDetailViewModel(venue: venue))
+        // Instantly populate from cache if available (before body is rendered)
+        if let cached = LookAroundCache.shared.scene(for: venue.coordinate) {
+            _lookAroundScene = State(initialValue: cached)
+            _isLoadingLookAround = State(initialValue: false)
+        } else if LookAroundCache.shared.isKnownMiss(for: venue.coordinate) {
+            _isLoadingLookAround = State(initialValue: false)
+        }
     }
 
     var body: some View {
@@ -46,7 +96,7 @@ struct VenueDetailSheet: View {
                         }
                     } label: {
                         Image(systemName: savedVenuesVM.isSaved(venue.id) ? "bookmark.fill" : "bookmark")
-                            .foregroundStyle(savedVenuesVM.isSaved(venue.id) ? .orange : VenuuTheme.mapsBlue)
+                            .foregroundStyle(savedVenuesVM.isSaved(venue.id) ? VenuuTheme.savedOrange : VenuuTheme.mapsBlue)
                             .font(.title3)
                     }
                 }
@@ -60,9 +110,13 @@ struct VenueDetailSheet: View {
             }
         }
         .task {
-            await viewModel.loadReports()
-            await fetchLookAroundScene()
+            // Proximity is synchronous — run immediately
             viewModel.updateProximity(userLocation: locationService.userLocation)
+
+            // Fire reports + LookAround in parallel
+            async let reportsTask: () = viewModel.loadReports()
+            async let lookAroundTask: () = fetchLookAroundScene()
+            _ = await (reportsTask, lookAroundTask)
         }
         .onChange(of: locationService.userLocation) { _, newLocation in
             viewModel.updateProximity(userLocation: newLocation)
@@ -136,12 +190,35 @@ struct VenueDetailSheet: View {
                     .contentShape(Rectangle())
                     .onTapGesture { showFullLookAround = true }
             }
+        } else if isLoadingLookAround {
+            RoundedRectangle(cornerRadius: VenuuTheme.cornerRadius, style: .continuous)
+                .fill(Color(.tertiarySystemBackground))
+                .frame(height: 160)
+                .overlay {
+                    ProgressView()
+                        .tint(.secondary)
+                }
         }
     }
 
     private func fetchLookAroundScene() async {
-        let request = MKLookAroundSceneRequest(coordinate: venue.coordinate)
-        lookAroundScene = try? await request.scene
+        let cache = LookAroundCache.shared
+        let coordinate = venue.coordinate
+
+        // Already populated from cache in init
+        if lookAroundScene != nil || cache.isKnownMiss(for: coordinate) {
+            isLoadingLookAround = false
+            return
+        }
+
+        let request = MKLookAroundSceneRequest(coordinate: coordinate)
+        if let scene = try? await request.scene {
+            lookAroundScene = scene
+            cache.store(scene, for: coordinate)
+        } else {
+            cache.storeMiss(for: coordinate)
+        }
+        isLoadingLookAround = false
     }
 
     // MARK: - Busyness
@@ -176,7 +253,7 @@ struct VenueDetailSheet: View {
                     if let wait = viewModel.estimate.waitMinutes {
                         Label("~\(wait) min wait", systemImage: "clock")
                             .font(VenuuTheme.captionFont)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -213,7 +290,7 @@ struct VenueDetailSheet: View {
             actionButton(
                 icon: savedVenuesVM.isSaved(venue.id) ? "bookmark.fill" : "bookmark",
                 label: savedVenuesVM.isSaved(venue.id) ? "Saved" : "Save",
-                tint: savedVenuesVM.isSaved(venue.id) ? .orange : nil
+                tint: savedVenuesVM.isSaved(venue.id) ? VenuuTheme.savedOrange : nil
             ) {
                 if authState.isSignedIn {
                     Task { await savedVenuesVM.toggleSave(for: venue) }
