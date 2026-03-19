@@ -21,13 +21,15 @@ struct VenuuMascot: View {
     var expression: Expression = .looking
     var animated: Bool = true
 
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var pulseScale: CGFloat = 1.0
     @State private var floatOffset: CGFloat = 0
     @State private var antennaWobble: Double = 0
     @State private var headTilt: Double = 0
 
-    private var pinColor: Color { VenuuTheme.skyPunch }
-    private var accentColor: Color { VenuuTheme.ultraBlue }
+    private var pinColor: Color { VenuuTheme.mascotBodyTop }
+    private var accentColor: Color { VenuuTheme.mascotBodyBottom }
 
     var body: some View {
         ZStack {
@@ -82,7 +84,7 @@ struct VenuuMascot: View {
                 )
                 .overlay(
                     PinShape()
-                        .stroke(Color.black, lineWidth: 2.5)
+                        .stroke(VenuuTheme.mascotOutline, lineWidth: colorScheme == .dark ? 3.5 : 2.5)
                 )
                 .frame(width: size * 0.72, height: size * 1.05)
                 .shadow(color: .black.opacity(0.15), radius: 6, y: 4)
@@ -93,10 +95,10 @@ struct VenuuMascot: View {
 
             // Inner oval face area (slightly squished)
             Ellipse()
-                .fill(Color.white.opacity(0.95))
+                .fill(VenuuTheme.mascotFace)
                 .overlay(
                     Ellipse()
-                        .stroke(Color.black, lineWidth: 2.0)
+                        .stroke(VenuuTheme.mascotOutline, lineWidth: colorScheme == .dark ? 3.5 : 2.0)
                 )
                 .frame(width: size * 0.52, height: size * 0.46)
                 .offset(y: -size * 0.12)
@@ -119,13 +121,13 @@ struct VenuuMascot: View {
                 .fill(pinColor)
                 .overlay(
                     Circle()
-                        .stroke(Color.black, lineWidth: 2.0)
+                        .stroke(VenuuTheme.mascotOutline, lineWidth: 2.0)
                 )
                 .frame(width: size * 0.09, height: size * 0.09)
 
             // Antenna stick
             RoundedRectangle(cornerRadius: 1.5)
-                .fill(Color.black)
+                .fill(VenuuTheme.mascotOutline)
                 .frame(width: size * 0.025, height: size * 0.10)
         }
         .rotationEffect(.degrees(antennaWobble), anchor: .bottom)
@@ -208,7 +210,7 @@ struct VenuuMascot: View {
                 )
                 .offset(x: expression == .looking ? size * 0.015 : 0)
             Circle()
-                .fill(Color.white.opacity(0.9))
+                .fill(VenuuTheme.mascotFace)
                 .frame(width: size * 0.018, height: size * 0.018)
                 .offset(x: -size * 0.008, y: -size * 0.01)
         }
@@ -221,7 +223,7 @@ struct VenuuMascot: View {
                 .fill(VenuuTheme.ink)
                 .frame(width: size * 0.058, height: size * 0.058)
             Circle()
-                .fill(Color.white.opacity(0.9))
+                .fill(VenuuTheme.mascotFace)
                 .frame(width: size * 0.022, height: size * 0.022)
                 .offset(x: -size * 0.008, y: -size * 0.012)
         }

@@ -27,6 +27,7 @@ struct ProfileScreen: View {
                 guestContent
             }
         }
+        .foregroundStyle(VenuuTheme.primaryText)
         .task(id: authState.username ?? "") {
             if authState.isSignedIn {
                 async let profileLoad: () = viewModel.loadProfile()
@@ -117,7 +118,7 @@ struct ProfileScreen: View {
                     .padding(.vertical, 4)
                     .background(VenuuTheme.cardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
+                    .shadow(color: VenuuTheme.cardShadow, radius: 10, x: 0, y: 4)
                     .padding(.horizontal, 20)
 
                     // CTA
@@ -230,9 +231,9 @@ struct ProfileScreen: View {
                 // Dark base with rank-tinted gradient
                 LinearGradient(
                     colors: [
-                        Color(red: 0.06, green: 0.06, blue: 0.12),
+                        VenuuTheme.signalPulseBase,
                         rank.color.opacity(0.35),
-                        Color(red: 0.06, green: 0.06, blue: 0.12)
+                        VenuuTheme.signalPulseBase
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -298,13 +299,13 @@ struct ProfileScreen: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(Color(red: 0.93, green: 0.97, blue: 0.99))
+                                .fill(VenuuTheme.avatarRing)
                                 .frame(width: 100, height: 100)
 
                             Circle()
-                                .fill(Color.white)
+                                .fill(VenuuTheme.avatarBackground)
                                 .frame(width: 92, height: 92)
-                                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+                                .shadow(color: VenuuTheme.cardShadow, radius: 10, y: 4)
 
                             if let cachedData = viewModel.cachedImageData,
                                let uiImage = UIImage(data: cachedData) {
@@ -351,7 +352,7 @@ struct ProfileScreen: View {
                     Button { showPhotoPicker = true } label: {
                         ZStack {
                             Circle()
-                                .fill(Color.white)
+                                .fill(VenuuTheme.avatarBackground)
                                 .frame(width: 34, height: 34)
                             Circle()
                                 .fill(VenuuTheme.skyPunch)
@@ -446,7 +447,7 @@ struct ProfileScreen: View {
         .padding(.vertical, 16)
         .background(VenuuTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .shadow(color: VenuuTheme.cardShadow, radius: 6, x: 0, y: 3)
         .padding(.horizontal, 16)
     }
 
@@ -523,7 +524,7 @@ struct ProfileScreen: View {
         .padding(16)
         .background(VenuuTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .shadow(color: VenuuTheme.cardShadow, radius: 6, x: 0, y: 3)
         .padding(.horizontal, 16)
     }
 
@@ -578,7 +579,7 @@ struct ProfileScreen: View {
         .padding(16)
         .background(VenuuTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .shadow(color: VenuuTheme.cardShadow, radius: 6, x: 0, y: 3)
         .padding(.horizontal, 16)
         .sheet(isPresented: $showAllSavedVenues) {
             SavedVenuesListView(onNavigate: { venue in
@@ -629,7 +630,7 @@ struct ProfileScreen: View {
         }
         .background(VenuuTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .shadow(color: VenuuTheme.cardShadow, radius: 6, x: 0, y: 3)
         .padding(.horizontal, 16)
     }
 
@@ -661,7 +662,7 @@ struct ProfileScreen: View {
                 .padding(.vertical, 12)
                 .background(VenuuTheme.cardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+                .shadow(color: VenuuTheme.cardShadow, radius: 6, x: 0, y: 3)
             }
             .padding(.horizontal, 16)
 
@@ -866,21 +867,21 @@ enum UserRank: Int, CaseIterable {
 
     var color: Color {
         switch self {
-        case .newbie:     return .green
+        case .newbie:     return VenuuTheme.rankGreen
         case .explorer:   return VenuuTheme.skyPunch
-        case .scout:      return .orange
-        case .localGuide: return .purple
-        case .legend:     return Color(red: 0.85, green: 0.55, blue: 0.0)
+        case .scout:      return VenuuTheme.rankOrange
+        case .localGuide: return VenuuTheme.rankPurple
+        case .legend:     return VenuuTheme.rankGold
         }
     }
 
     var progressBarColors: [Color] {
         switch self {
-        case .newbie:     return [Color.green.opacity(0.6), .green, .mint]
-        case .explorer:   return [.cyan, VenuuTheme.skyPunch, .blue]
-        case .scout:      return [.yellow, .orange, .red]
-        case .localGuide: return [.pink, .purple, .indigo]
-        case .legend:     return [Color(red: 0.85, green: 0.55, blue: 0.0), .orange, .red]
+        case .newbie:     return [color.opacity(0.4), color.opacity(0.6), color.opacity(0.5)]
+        case .explorer:   return [VenuuTheme.skyPunch.opacity(0.5), VenuuTheme.skyPunch.opacity(0.7), VenuuTheme.mapsBlue.opacity(0.6)]
+        case .scout:      return [color.opacity(0.4), color.opacity(0.6), Color.red.opacity(0.45)]
+        case .localGuide: return [color.opacity(0.4), color.opacity(0.55), Color.indigo.opacity(0.45)]
+        case .legend:     return [color.opacity(0.5), Color.orange.opacity(0.5), Color.red.opacity(0.45)]
         }
     }
 

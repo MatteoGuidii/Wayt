@@ -116,7 +116,7 @@ struct SavedVenuesListView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(Color.gray.opacity(0.15), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+        .shadow(color: VenuuTheme.cardShadow, radius: 4, x: 0, y: 2)
         .padding(.horizontal, 16)
     }
 
@@ -207,7 +207,7 @@ struct SavedVenuesListView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.gray.opacity(0.15), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+        .shadow(color: VenuuTheme.cardShadow, radius: 6, x: 0, y: 3)
     }
 
     // MARK: - Empty States
