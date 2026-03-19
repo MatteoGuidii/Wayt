@@ -14,20 +14,20 @@ enum VenueCategory: String, CaseIterable, Codable, Hashable, Sendable {
 
     var displayName: String {
         switch self {
-        case .food:      return "Food"
-        case .drinks:    return "Drinks"
-        case .nightlife: return "Nightlife"
-        case .coffee:    return "Coffee & Tea"
+        case .food:      return "Restaurants"
+        case .drinks:    return "Bars"
+        case .nightlife: return "Clubs"
+        case .coffee:    return "Cafés"
         }
     }
 
-    /// Short label for compact filter chips.
+    /// Label for filter chips.
     var shortName: String {
         switch self {
-        case .food:      return "Food"
-        case .drinks:    return "Drinks"
-        case .nightlife: return "Nightlife"
-        case .coffee:    return "Coffee"
+        case .food:      return "Restaurants"
+        case .drinks:    return "Bars"
+        case .nightlife: return "Clubs"
+        case .coffee:    return "Cafés"
         }
     }
 
@@ -35,18 +35,13 @@ enum VenueCategory: String, CaseIterable, Codable, Hashable, Sendable {
         switch self {
         case .food:      return "fork.knife"
         case .drinks:    return "wineglass.fill"
-        case .nightlife: return "figure.dance"
-        case .coffee:    return "cup.and.saucer.fill"
+        case .nightlife: return "music.note"
+        case .coffee:    return "mug.fill"
         }
     }
 
     var color: Color {
-        switch self {
-        case .food:      return .orange
-        case .drinks:    return .purple
-        case .nightlife: return .red
-        case .coffee:    return .brown
-        }
+        .secondary
     }
 
     // MARK: - MapKit Category Mapping
@@ -69,20 +64,20 @@ enum VenueCategory: String, CaseIterable, Codable, Hashable, Sendable {
     static func from(name: String) -> VenueCategory {
         let lower = name.lowercased()
 
-        // Nightlife
+        // Clubs
         if lower.contains("club") || lower.contains("disco") || lower.contains("lounge")
             || lower.contains("karaoke") || lower.contains("hookah") {
             return .nightlife
         }
 
-        // Drinks
+        // Bars
         if lower.contains("wine bar") || lower.contains("beer garden")
             || lower.contains("bar") || lower.contains("pub") || lower.contains("brew")
             || lower.contains("cocktail") || lower.contains("tapas") {
             return .drinks
         }
 
-        // Coffee & Tea
+        // Cafés
         if lower.contains("cafe") || lower.contains("café") || lower.contains("coffee")
             || lower.contains("bakery") || lower.contains("tea")
             || lower.contains("dessert") || lower.contains("juice")

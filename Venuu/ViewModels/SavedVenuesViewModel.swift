@@ -14,6 +14,7 @@ final class SavedVenuesViewModel: ObservableObject {
     // MARK: - Private
 
     private let service = SavedVenuesService()
+    private var hasLoadedFromAPI = false
 
     // MARK: - Init
 
@@ -24,7 +25,8 @@ final class SavedVenuesViewModel: ObservableObject {
 
     // MARK: - Load from API
 
-    func loadSavedVenues() async {
+    func loadSavedVenues(force: Bool = false) async {
+        guard !hasLoadedFromAPI || force else { return }
         isLoading = true
         defer { isLoading = false }
 
@@ -32,6 +34,7 @@ final class SavedVenuesViewModel: ObservableObject {
             let venues = try await service.loadSavedVenues()
             savedVenues = venues
             savedVenueIDs = Set(venues.map(\.venueId))
+            hasLoadedFromAPI = true
         } catch {
             print("[SavedVenues] Load failed: \(error.localizedDescription)")
         }
@@ -53,7 +56,7 @@ final class SavedVenuesViewModel: ObservableObject {
             } catch {
                 // Revert on failure
                 savedVenueIDs.insert(venueId)
-                await loadSavedVenues()
+                await loadSavedVenues(force: true)
                 print("[SavedVenues] Unsave failed: \(error.localizedDescription)")
             }
         } else {
@@ -71,7 +74,7 @@ final class SavedVenuesViewModel: ObservableObject {
                     address: venue.address
                 )
                 // Refresh full list to get the server-created SavedVenue
-                await loadSavedVenues()
+                await loadSavedVenues(force: true)
             } catch {
                 // Revert on failure
                 savedVenueIDs.remove(venueId)
@@ -92,7 +95,7 @@ final class SavedVenuesViewModel: ObservableObject {
             try await service.unsaveVenue(venueId: venueId)
         } catch {
             // Refresh from server on failure
-            await loadSavedVenues()
+            await loadSavedVenues(force: true)
             print("[SavedVenues] Unsave failed: \(error.localizedDescription)")
         }
     }
@@ -108,6 +111,7 @@ final class SavedVenuesViewModel: ObservableObject {
     func reset() {
         savedVenueIDs = []
         savedVenues = []
+        hasLoadedFromAPI = false
         service.clearCache()
     }
 

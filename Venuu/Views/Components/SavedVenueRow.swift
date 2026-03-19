@@ -29,8 +29,8 @@ struct SavedVenueRow: View {
 
                 if let address = venue.address {
                     Text(address)
-                        .font(VenuuTheme.captionFont)
-                        .foregroundStyle(.secondary)
+                        .font(VenuuTheme.badgeFont)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                         .lineLimit(1)
                 }
             }
@@ -44,7 +44,7 @@ struct SavedVenueRow: View {
                 } label: {
                     Image(systemName: "bookmark.slash.fill")
                         .font(.system(size: 14))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(VenuuTheme.savedOrange)
                 }
             }
 

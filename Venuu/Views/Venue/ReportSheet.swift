@@ -18,14 +18,14 @@ struct ReportSheet: View {
                 VStack(spacing: 6) {
                     Text("How busy is")
                         .font(VenuuTheme.title3Font)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                     Text(venue.name)
                         .font(VenuuTheme.headlineFont)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                     Text("right now?")
                         .font(VenuuTheme.title3Font)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                 }
                 .padding(.top, 8)
 
@@ -55,11 +55,11 @@ struct ReportSheet: View {
                             HStack {
                                 Text("No wait")
                                     .font(VenuuTheme.badgeFont)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(VenuuTheme.secondaryText)
                                 Spacer()
                                 Text("90+ min")
                                     .font(VenuuTheme.badgeFont)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(VenuuTheme.secondaryText)
                             }
                         }
                         .transition(.opacity.combined(with: .move(edge: .top)))
@@ -108,7 +108,7 @@ struct ReportSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.secondaryText)
                     }
                 }
             }

@@ -29,8 +29,9 @@ struct ProfileScreen: View {
         }
         .task(id: authState.username ?? "") {
             if authState.isSignedIn {
-                await viewModel.loadProfile()
-                await savedVenuesVM.loadSavedVenues()
+                async let profileLoad: () = viewModel.loadProfile()
+                async let venuesLoad: () = savedVenuesVM.loadSavedVenues()
+                _ = await (profileLoad, venuesLoad)
                 if viewModel.showFirstTimeNamePrompt {
                     showFirstTimeNameSheet = true
                 }
@@ -85,7 +86,7 @@ struct ProfileScreen: View {
 
                         Text("Be part of the community that\nknows where to go.")
                             .font(VenuuTheme.bodyFont)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.secondaryText)
                             .multilineTextAlignment(.center)
                             .lineSpacing(3)
                     }
@@ -171,7 +172,7 @@ struct ProfileScreen: View {
                     .font(VenuuTheme.subheadFont)
                 Text(subtitle)
                     .font(VenuuTheme.captionLightFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
             }
 
             Spacer()
@@ -305,7 +306,14 @@ struct ProfileScreen: View {
                                 .frame(width: 92, height: 92)
                                 .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
 
-                            if let imageUrl = viewModel.profileImageUrl,
+                            if let cachedData = viewModel.cachedImageData,
+                               let uiImage = UIImage(data: cachedData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 86, height: 86)
+                                    .clipShape(Circle())
+                            } else if let imageUrl = viewModel.profileImageUrl,
                                let url = URL(string: imageUrl) {
                                 AsyncImage(url: url) { phase in
                                     switch phase {
@@ -374,7 +382,7 @@ struct ProfileScreen: View {
                     Button { showEditSheet = true } label: {
                         Image(systemName: "pencil.circle.fill")
                             .font(.system(size: 20))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.secondaryText)
                     }
                 }
 
@@ -528,7 +536,7 @@ struct ProfileScreen: View {
             HStack(spacing: 6) {
                 Image(systemName: "bookmark.fill")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(VenuuTheme.savedOrange)
                 Text("Saved Venues")
                     .font(VenuuTheme.bodyBoldFont)
 
@@ -536,10 +544,10 @@ struct ProfileScreen: View {
 
                 Text("\(savedVenuesVM.savedVenues.count)")
                     .font(VenuuTheme.badgeFont)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(VenuuTheme.savedOrange)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Color.orange.opacity(0.12))
+                    .background(VenuuTheme.savedOrange.opacity(0.12))
                     .clipShape(Capsule())
             }
 
@@ -608,7 +616,7 @@ struct ProfileScreen: View {
             HStack {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                 Text("Settings")
                     .font(VenuuTheme.subheadFont)
                 Spacer()
@@ -708,7 +716,14 @@ struct ProfileScreen: View {
             Color.black.ignoresSafeArea()
                 .onTapGesture { showImagePreview = false }
 
-            if let imageUrl = viewModel.profileImageUrl,
+            if let cachedData = viewModel.cachedImageData,
+               let uiImage = UIImage(data: cachedData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .clipShape(Circle())
+                    .padding(40)
+            } else if let imageUrl = viewModel.profileImageUrl,
                let url = URL(string: imageUrl) {
                 AsyncImage(url: url) { phase in
                     switch phase {

@@ -269,56 +269,6 @@ struct VenuuMascot: View {
     }
 }
 
-// MARK: - Pin Silhouette Shape
-
-/// A single continuous teardrop / map-pin path:
-/// rounded top half (circular arc) tapering smoothly into a pointed bottom.
-private struct PinShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let headRadius = rect.width / 2
-        let headCenter = CGPoint(x: rect.midX, y: rect.minY + headRadius)
-        let tailAngle: CGFloat = .pi / 5
-
-        let leftTangent = CGPoint(
-            x: headCenter.x - headRadius * sin(tailAngle),
-            y: headCenter.y + headRadius * cos(tailAngle)
-        )
-        let rightTangent = CGPoint(
-            x: headCenter.x + headRadius * sin(tailAngle),
-            y: headCenter.y + headRadius * cos(tailAngle)
-        )
-
-        let tipY = rect.maxY
-        let tip = CGPoint(x: rect.midX, y: tipY)
-
-        let curveStrength: CGFloat = 0.12
-        let leftControl = CGPoint(
-            x: leftTangent.x - rect.width * curveStrength,
-            y: (leftTangent.y + tipY) / 2
-        )
-        let rightControl = CGPoint(
-            x: rightTangent.x + rect.width * curveStrength,
-            y: (rightTangent.y + tipY) / 2
-        )
-
-        var path = Path()
-        path.move(to: leftTangent)
-        let startAngle = Angle(radians: .pi / 2 + tailAngle)
-        let endAngle = Angle(radians: .pi / 2 - tailAngle)
-        path.addArc(
-            center: headCenter,
-            radius: headRadius,
-            startAngle: startAngle,
-            endAngle: endAngle,
-            clockwise: true
-        )
-        path.addQuadCurve(to: tip, control: rightControl)
-        path.addQuadCurve(to: leftTangent, control: leftControl)
-        path.closeSubpath()
-        return path
-    }
-}
-
 // MARK: - Face Shapes
 
 /// Happy closed eye — upward arc like ^ ^
@@ -394,7 +344,7 @@ private struct DShapeMouth: Shape {
 #Preview("Mascot") {
     ScrollView {
         VStack(spacing: 20) {
-            Text("Existing").font(.caption).foregroundStyle(.secondary)
+            Text("Existing").font(.caption).foregroundStyle(VenuuTheme.secondaryText)
             HStack(spacing: 40) {
                 VStack {
                     VenuuMascot(size: 90, expression: .looking)
@@ -418,7 +368,7 @@ private struct DShapeMouth: Shape {
 
             Divider().padding(.horizontal, 40)
 
-            Text("New — pick for \"Help your community\"").font(.caption).foregroundStyle(.secondary)
+            Text("New — pick for \"Help your community\"").font(.caption).foregroundStyle(VenuuTheme.secondaryText)
             HStack(spacing: 30) {
                 VStack {
                     VenuuMascot(size: 90, expression: .proud)

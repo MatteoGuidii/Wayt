@@ -20,16 +20,13 @@ struct MapScreen: View {
         ZStack(alignment: .top) {
             // MARK: - Map
             Map(position: $viewModel.cameraPosition, scope: mapScope) {
-                // User location
-                UserAnnotation()
-
                 // Venue markers (clustered)
                 ForEach(viewModel.mapItems) { item in
                     switch item {
                     case .single(let venue):
                         let selected = viewModel.selectedVenue?.id == venue.id
                         Annotation(
-                            venue.name,
+                            "",
                             coordinate: venue.coordinate,
                             anchor: .bottom
                         ) {
@@ -46,7 +43,7 @@ struct MapScreen: View {
 
                     case .cluster(let cluster):
                         Annotation(
-                            "\(cluster.count) venues",
+                            "",
                             coordinate: cluster.coordinate,
                             anchor: .bottom
                         ) {
@@ -67,6 +64,9 @@ struct MapScreen: View {
                         }
                     }
                 }
+
+                // User location — rendered last so it draws on top of venue markers
+                UserAnnotation()
             }
             .mapScope(mapScope)
             .mapControls { } // Disable default controls — we use custom ones
@@ -130,7 +130,7 @@ struct MapScreen: View {
     private var searchBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(VenuuTheme.secondaryText)
 
             TextField("Search restaurants, bars...", text: $viewModel.searchText)
                 .textFieldStyle(.plain)
@@ -147,7 +147,7 @@ struct MapScreen: View {
                     viewModel.clearSearch(in: visibleRegion)
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                 }
             }
         }

@@ -9,20 +9,16 @@ struct VenueRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Busyness accent bar
-            RoundedRectangle(cornerRadius: 3)
-                .fill(venue.busyness?.color ?? Color.gray.opacity(0.3))
-                .frame(width: 5, height: 52)
-
-            // Category icon
+            // Category icon (pin-shaped)
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                PinShape()
                     .fill(venue.category.color.opacity(0.12))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 44, height: 50)
 
                 Image(systemName: venue.category.icon)
                     .font(VenuuTheme.calloutBoldFont)
                     .foregroundStyle(venue.category.color)
+                    .offset(y: -2)
             }
 
             // Venue info
@@ -34,7 +30,7 @@ struct VenueRow: View {
                 HStack(spacing: 6) {
                     Text(venue.category.shortName)
                         .font(VenuuTheme.captionLightFont)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(VenuuTheme.secondaryText)
 
                     if let distance = formattedDistance {
                         Circle()
@@ -42,7 +38,7 @@ struct VenueRow: View {
                             .frame(width: 3, height: 3)
                         Text(distance)
                             .font(VenuuTheme.captionLightFont)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VenuuTheme.secondaryText)
                     }
 
                     if let wait = venue.estimatedWaitMinutes, wait > 0 {
@@ -55,7 +51,7 @@ struct VenueRow: View {
                             Text("~\(wait)m")
                                 .font(VenuuTheme.captionFont)
                         }
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(VenuuTheme.secondaryText)
                     }
                 }
             }
@@ -75,7 +71,7 @@ struct VenueRow: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.05), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .busynessGlow(venue.busyness?.color, radius: 6, y: 3)
     }
 
     // MARK: - Distance

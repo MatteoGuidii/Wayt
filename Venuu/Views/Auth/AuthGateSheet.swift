@@ -19,7 +19,7 @@ struct AuthGateSheet: View {
 
                 Text("Create an account to share wait times\nwith the community")
                     .font(VenuuTheme.bodyFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VenuuTheme.secondaryText)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
             }
@@ -52,7 +52,7 @@ struct AuthGateSheet: View {
                     dismiss()
                 }
                 .font(VenuuTheme.calloutBoldFont)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(VenuuTheme.secondaryText)
             }
             .padding(.horizontal, 32)
             .padding(.bottom, 32)

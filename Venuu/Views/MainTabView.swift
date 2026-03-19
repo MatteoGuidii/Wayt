@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MainTabView: View {
 
+    @EnvironmentObject private var authState: AuthState
     @StateObject private var tabSelection = TabSelection()
     @StateObject private var filterState = VenueFilterState()
     @StateObject private var mapViewModel = MapViewModel()
@@ -38,6 +39,13 @@ struct MainTabView: View {
         .task {
             mapViewModel.filterState = filterState
             mapViewModel.startLiveRefresh()
+
+            // Preload profile data as soon as tabs appear (don't wait for profile tab visit)
+            if authState.isSignedIn {
+                async let profileLoad: () = profileViewModel.loadProfile()
+                async let venuesLoad: () = savedVenuesVM.loadSavedVenues()
+                _ = await (profileLoad, venuesLoad)
+            }
         }
     }
 }
