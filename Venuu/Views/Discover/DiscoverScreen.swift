@@ -33,6 +33,7 @@ struct DiscoverScreen: View {
             }
             .scrollIndicators(.hidden)
             .background(VenuuTheme.backgroundGradient)
+            .foregroundStyle(VenuuTheme.primaryText)
         }
         .task {
             viewModel.filterState = filterState
@@ -208,7 +209,7 @@ struct DiscoverScreen: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+        .shadow(color: VenuuTheme.cardShadow, radius: 8, x: 0, y: 4)
         .padding(.horizontal, 16)
     }
 
@@ -360,7 +361,7 @@ struct DiscoverScreen: View {
                     .foregroundStyle(VenuuTheme.secondaryText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Color(.systemGray6))
+                    .background(VenuuTheme.cardBackground)
                     .clipShape(Capsule())
             }
             .padding(.horizontal, 20)
@@ -424,7 +425,7 @@ struct DiscoverScreen: View {
                 VenuuTheme.cardBackground
                 LinearGradient(
                     colors: [
-                        (venue.busyness?.color ?? .clear).opacity(0.07),
+                        (venue.busyness?.color ?? .clear).opacity(0.04),
                         Color.clear
                     ],
                     startPoint: .topLeading,
@@ -457,7 +458,7 @@ struct DiscoverScreen: View {
                     .foregroundStyle(VenuuTheme.secondaryText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Color(.systemGray6))
+                    .background(VenuuTheme.cardBackground)
                     .clipShape(Capsule())
             }
             .padding(.horizontal, 20)
