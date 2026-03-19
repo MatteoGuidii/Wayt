@@ -182,7 +182,7 @@ struct ProfileScreen: View {
         let rank = UserRank.from(reports: viewModel.totalReports)
 
         return ZStack {
-            Color(.systemGroupedBackground)
+            VenuuTheme.backgroundGradient
                 .ignoresSafeArea()
 
             ScrollView {
@@ -307,7 +307,7 @@ struct ProfileScreen: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(Color(.systemGroupedBackground))
+                                .fill(Color(red: 0.93, green: 0.97, blue: 0.99))
                                 .frame(width: 100, height: 100)
 
                             Circle()
@@ -373,7 +373,11 @@ struct ProfileScreen: View {
             VStack(spacing: 4) {
                 Spacer().frame(height: 50)
 
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: rank.icon)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(rank.color)
+
                     Text(displayName)
                         .font(VenuuTheme.headlineFont)
 
@@ -385,8 +389,7 @@ struct ProfileScreen: View {
                 }
 
                 Text(rank.subtitle)
-                    .font(VenuuTheme.captionLightFont)
-                    .foregroundStyle(.secondary)
+                    .font(VenuuTheme.subheadLightFont)
             }
         }
         .padding(.horizontal, 16)
@@ -407,8 +410,7 @@ struct ProfileScreen: View {
                         .font(VenuuTheme.headlineFont)
                 }
                 Text("reports")
-                    .font(VenuuTheme.captionLightFont)
-                    .foregroundStyle(.secondary)
+                    .font(VenuuTheme.subheadLightFont)
             }
             .frame(maxWidth: .infinity)
 
@@ -426,8 +428,7 @@ struct ProfileScreen: View {
                         .font(VenuuTheme.headlineFont)
                 }
                 Text("rank")
-                    .font(VenuuTheme.captionLightFont)
-                    .foregroundStyle(.secondary)
+                    .font(VenuuTheme.subheadLightFont)
             }
             .frame(maxWidth: .infinity)
 
@@ -440,8 +441,7 @@ struct ProfileScreen: View {
                 Text(memberSinceShort)
                     .font(VenuuTheme.headlineFont)
                 Text("joined")
-                    .font(VenuuTheme.captionLightFont)
-                    .foregroundStyle(.secondary)
+                    .font(VenuuTheme.subheadLightFont)
             }
             .frame(maxWidth: .infinity)
         }
@@ -471,8 +471,7 @@ struct ProfileScreen: View {
 
                     if let next = rank.nextRank {
                         Text("\(viewModel.totalReports) of \(next.minReports)")
-                            .font(VenuuTheme.captionFont)
-                            .foregroundStyle(.secondary)
+                            .font(VenuuTheme.subheadFont)
                     }
                 }
 
@@ -511,8 +510,7 @@ struct ProfileScreen: View {
                     }
 
                     Text("\(next.minReports - viewModel.totalReports) more reports to \(next.title)")
-                        .font(VenuuTheme.captionLightFont)
-                        .foregroundStyle(.tertiary)
+                        .font(VenuuTheme.subheadLightFont)
                 } else {
                     HStack(spacing: 5) {
                         Image(systemName: "trophy.fill")
@@ -770,7 +768,7 @@ enum UserRank: Int, CaseIterable {
         case .newbie:     return "Just getting started"
         case .explorer:   return "Curious and on the move"
         case .scout:      return "The community counts on you"
-        case .localGuide: return "A true venue expert"
+        case .localGuide: return "A true Venuu expert"
         case .legend:     return "Hall of fame material"
         }
     }
