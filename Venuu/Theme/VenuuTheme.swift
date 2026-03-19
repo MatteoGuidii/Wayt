@@ -5,42 +5,120 @@ import UIKit
 
 enum VenuuTheme {
 
+    // MARK: - Dark Mode Helper
+
+    /// Returns an adaptive Color that resolves to `light` or `dark` based on the current appearance.
+    private static func adaptive(light: UIColor, dark: UIColor) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    }
+
     // MARK: - Brand Colors
 
     /// Sky Punch — primary accent for buttons, CTAs, icons, highlights
-    static let skyPunch = Color(red: 0.00, green: 0.70, blue: 0.95)   // #00B3F2
+    static let skyPunch = adaptive(
+        light: UIColor(red: 0.00, green: 0.70, blue: 0.95, alpha: 1),  // #00B3F2
+        dark:  UIColor(red: 0.22, green: 0.48, blue: 0.65, alpha: 1)   // muted sky blue, easier on eyes
+    )
 
     /// Ultra Blue — gradient accent for mascot pin body
-    static let ultraBlue = Color(red: 0.20, green: 0.20, blue: 1.00)   // #3333FF
+    static let ultraBlue = adaptive(
+        light: UIColor(red: 0.20, green: 0.20, blue: 1.00, alpha: 1),  // #3333FF
+        dark:  UIColor(red: 0.18, green: 0.18, blue: 0.45, alpha: 1)   // muted indigo
+    )
 
     /// Maps blue — used for map controls (Apple Maps style)
-    static let mapsBlue = Color(red: 0.00, green: 0.48, blue: 1.00) // #007AFF
+    static let mapsBlue = adaptive(
+        light: UIColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1),  // #007AFF
+        dark:  UIColor(red: 0.25, green: 0.48, blue: 0.72, alpha: 1)   // softer maps blue
+    )
 
-    /// Dark ink — mascot face features (eyes, mouth)
-    static let ink = Color(red: 0.25, green: 0.20, blue: 0.35)   // #403357
+    /// Dark ink — mascot face features (eyes, mouth); same in both modes so face is always visible
+    static let ink = adaptive(
+        light: UIColor(red: 0.25, green: 0.20, blue: 0.35, alpha: 1),  // #403357
+        dark:  UIColor(red: 0.25, green: 0.20, blue: 0.35, alpha: 1)   // same — stays dark on white face
+    )
+
+    /// Mascot outline strokes — black in both modes to preserve mascot identity
+    static let mascotOutline = adaptive(
+        light: .black,
+        dark:  .black
+    )
+
+    /// Mascot face oval fill — white in both modes (mascot identity)
+    static let mascotFace = adaptive(
+        light: UIColor(white: 1.0, alpha: 0.95),
+        dark:  UIColor(white: 1.0, alpha: 0.95)
+    )
 
     /// Saved/bookmark accent — matches busyness "Busy" orange
     static let savedOrange = Color(red: 0.95, green: 0.50, blue: 0.15) // #F28026
 
     // MARK: - Text Colors
 
+    /// Primary text — pure black in light, softened white in dark to reduce glare
+    static let primaryText = adaptive(
+        light: UIColor.label,
+        dark:  UIColor(white: 0.80, alpha: 1)
+    )
+
     /// Accessible secondary text — darker than .secondary for better readability
-    /// Uses primary label at 72% opacity (~4.5:1 contrast on white, WCAG AA compliant)
-    static let secondaryText = Color.primary.opacity(0.72)
+    static let secondaryText = adaptive(
+        light: UIColor(white: 0, alpha: 0.72),
+        dark:  UIColor(white: 0.88, alpha: 0.60)
+    )
 
     // MARK: - Backgrounds
 
-    /// Cool ice-blue gradient for auth/onboarding screens
+    /// Cool ice-blue gradient for auth/onboarding screens; deep navy with subtle blue in dark mode
     static let backgroundGradient = LinearGradient(
         colors: [
-            Color(red: 0.93, green: 0.97, blue: 0.99),  // icy white #EEF7FC
-            Color(red: 0.88, green: 0.94, blue: 0.98),  // faint sky #E0F0FA
+            adaptive(
+                light: UIColor(red: 0.93, green: 0.97, blue: 0.99, alpha: 1),  // icy white #EEF7FC
+                dark:  UIColor(red: 0.075, green: 0.082, blue: 0.12, alpha: 1) // deep navy with blue tint
+            ),
+            adaptive(
+                light: UIColor(red: 0.88, green: 0.94, blue: 0.98, alpha: 1),  // faint sky #E0F0FA
+                dark:  UIColor(red: 0.055, green: 0.058, blue: 0.082, alpha: 1) // deep dark blue-black
+            ),
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let cardBackground = Color(UIColor.systemBackground)
+    static let cardBackground = adaptive(
+        light: .systemBackground,
+        dark:  UIColor(red: 0.10, green: 0.105, blue: 0.14, alpha: 1)  // subtle navy, blends with background
+    )
+
+    /// Adaptive shadow for cards — subtle in light, stronger in dark
+    static let cardShadow = adaptive(
+        light: UIColor(red: 0, green: 0, blue: 0, alpha: 0.08),
+        dark:  UIColor(red: 0, green: 0, blue: 0, alpha: 0.35)
+    )
+
+    /// Signal pulse banner base color
+    static let signalPulseBase = adaptive(
+        light: UIColor(red: 0.06, green: 0.06, blue: 0.12, alpha: 1),
+        dark:  UIColor(red: 0.10, green: 0.10, blue: 0.16, alpha: 1)
+    )
+
+    /// Avatar outer ring
+    static let avatarRing = adaptive(
+        light: UIColor(red: 0.93, green: 0.97, blue: 0.99, alpha: 1),
+        dark:  UIColor(red: 0.18, green: 0.19, blue: 0.24, alpha: 1)
+    )
+
+    /// Avatar inner circle / camera badge background
+    static let avatarBackground = adaptive(
+        light: .white,
+        dark:  UIColor(red: 0.15, green: 0.16, blue: 0.20, alpha: 1)
+    )
+
+    /// Auth field background
+    static let fieldBackground = adaptive(
+        light: UIColor(red: 1, green: 1, blue: 1, alpha: 0.92),
+        dark:  UIColor(red: 0.18, green: 0.18, blue: 0.22, alpha: 0.92)
+    )
 
     // MARK: - Busyness Colors (green → red spectrum)
 
@@ -141,7 +219,7 @@ struct VenuuCardModifier: ViewModifier {
         content
             .background(VenuuTheme.cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: VenuuTheme.cornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            .shadow(color: VenuuTheme.cardShadow, radius: 8, x: 0, y: 4)
     }
 }
 
@@ -151,9 +229,10 @@ extension View {
     }
 
     /// Replaces generic black shadow with a busyness-colored glow.
+    /// Reduced intensity so colored cards blend with dark backgrounds.
     func busynessGlow(_ color: Color?, radius: CGFloat = 10, y: CGFloat = 5) -> some View {
         self.shadow(
-            color: (color ?? .gray).opacity(0.18),
+            color: (color ?? .gray).opacity(0.10),
             radius: radius,
             x: 0,
             y: y

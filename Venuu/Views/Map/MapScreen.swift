@@ -154,7 +154,7 @@ struct MapScreen: View {
         .padding(12)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.10), radius: 8, y: 4)
+        .shadow(color: VenuuTheme.cardShadow, radius: 8, y: 4)
         .padding(.horizontal, 16)
         .padding(.top, 60)
     }
@@ -178,14 +178,14 @@ struct MapScreen: View {
                     }
                     .frame(height: VenuuTheme.chipHeight)
                     .padding(.horizontal, 12)
-                    .background(isActive ? VenuuTheme.mapsBlue.opacity(0.15) : Color.black.opacity(0.03))
+                    .background(isActive ? VenuuTheme.mapsBlue.opacity(0.15) : Color.primary.opacity(0.05))
                     .background(.ultraThinMaterial)
                     .foregroundStyle(isActive ? VenuuTheme.mapsBlue : .primary.opacity(0.55))
                     .clipShape(Capsule())
                     .overlay(
                         Capsule()
                             .strokeBorder(
-                                isActive ? VenuuTheme.mapsBlue.opacity(0.5) : Color.black.opacity(0.1),
+                                isActive ? VenuuTheme.mapsBlue.opacity(0.5) : Color.primary.opacity(0.12),
                                 lineWidth: isActive ? 1.5 : 0.5
                             )
                     )
@@ -262,7 +262,7 @@ struct MapScreen: View {
                 .frame(width: 56)
                 .background(.regularMaterial)
                 .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.10), radius: 6, y: 3)
+                .shadow(color: VenuuTheme.cardShadow, radius: 6, y: 3)
                 .padding(.trailing, 16)
             }
             .padding(.bottom, 8)

@@ -170,7 +170,7 @@ private struct AuthenticatorContainer: View {
         t.components.authenticator.backgroundColor = .clear
 
         // Fields
-        t.components.field.backgroundColor = Color.white.opacity(0.92)
+        t.components.field.backgroundColor = VenuuTheme.fieldBackground
         t.components.field.cornerRadius = 12
 
         // Accent color
@@ -248,7 +248,7 @@ private struct AuthenticatorContainer: View {
                     TextField("Enter your email", text: .constant(""))
                         .textFieldStyle(.plain)
                         .padding(14)
-                        .background(Color.white.opacity(0.92))
+                        .background(VenuuTheme.fieldBackground)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
@@ -257,7 +257,7 @@ private struct AuthenticatorContainer: View {
                     SecureField("Enter your password", text: .constant(""))
                         .textFieldStyle(.plain)
                         .padding(14)
-                        .background(Color.white.opacity(0.92))
+                        .background(VenuuTheme.fieldBackground)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 

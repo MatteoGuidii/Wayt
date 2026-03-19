@@ -59,7 +59,7 @@ struct VenueCard: View {
                 VenuuTheme.cardBackground
                 LinearGradient(
                     colors: [
-                        (venue.busyness?.color ?? .clear).opacity(0.07),
+                        (venue.busyness?.color ?? .clear).opacity(0.04),
                         Color.clear
                     ],
                     startPoint: .topLeading,
