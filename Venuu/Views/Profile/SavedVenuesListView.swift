@@ -44,7 +44,8 @@ struct SavedVenuesListView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(VenuuTheme.mapsBlue)
                             .font(.title3)
                     }
                 }
@@ -194,7 +195,7 @@ struct SavedVenuesListView: View {
                     } label: {
                         Image(systemName: "bookmark.slash.fill")
                             .font(.system(size: 14))
-                            .foregroundStyle(.orange.opacity(0.6))
+                            .foregroundStyle(.orange)
                     }
                 }
             }

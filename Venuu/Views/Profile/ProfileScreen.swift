@@ -573,11 +573,17 @@ struct ProfileScreen: View {
 
             if savedVenuesVM.savedVenues.count > 5 {
                 Button { showAllSavedVenues = true } label: {
-                    Text("See all \(savedVenuesVM.savedVenues.count) saved venues")
-                        .font(VenuuTheme.subheadFont)
-                        .foregroundStyle(VenuuTheme.mapsBlue)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                    HStack(spacing: 6) {
+                        Text("See all \(savedVenuesVM.savedVenues.count) saved venues")
+                            .font(VenuuTheme.subheadFont)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(VenuuTheme.mapsBlue)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(VenuuTheme.mapsBlue.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
         }
