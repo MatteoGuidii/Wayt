@@ -218,11 +218,16 @@ struct VenueDetailSheet: View {
         }
 
         let request = MKLookAroundSceneRequest(coordinate: coordinate)
-        if let scene = try? await request.scene {
-            lookAroundScene = scene
-            cache.store(scene, for: coordinate)
-        } else {
-            cache.storeMiss(for: coordinate)
+        do {
+            if let scene = try await request.scene {
+                lookAroundScene = scene
+                cache.store(scene, for: coordinate)
+            } else {
+                // Successful request but no coverage — safe to cache as permanent miss
+                cache.storeMiss(for: coordinate)
+            }
+        } catch {
+            // Transient error (network/server) — don't cache so we can retry later
         }
         isLoadingLookAround = false
     }

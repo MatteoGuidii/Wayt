@@ -111,7 +111,7 @@ final class ProfileViewModel: ObservableObject {
     private static func saveCachedImage(_ data: Data) {
         let url = imageCacheURL
         Task.detached {
-            try? data.write(to: url)
+            try? data.write(to: url, options: .atomic)
         }
     }
 
