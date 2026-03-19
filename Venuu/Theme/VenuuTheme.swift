@@ -32,6 +32,18 @@ enum VenuuTheme {
         dark:  UIColor(red: 0.25, green: 0.48, blue: 0.72, alpha: 1)   // softer maps blue
     )
 
+    /// Mascot body top — vibrant sky blue, stays bright so Vee looks the same in both modes
+    static let mascotBodyTop = adaptive(
+        light: UIColor(red: 0.00, green: 0.70, blue: 0.95, alpha: 1),  // same as light skyPunch
+        dark:  UIColor(red: 0.00, green: 0.62, blue: 0.88, alpha: 1)   // slightly toned but still vivid blue
+    )
+
+    /// Mascot body bottom — vivid indigo, keeps the mascot pop in dark mode
+    static let mascotBodyBottom = adaptive(
+        light: UIColor(red: 0.20, green: 0.20, blue: 1.00, alpha: 1),  // same as light ultraBlue
+        dark:  UIColor(red: 0.20, green: 0.20, blue: 0.85, alpha: 1)   // slightly toned indigo
+    )
+
     /// Dark ink — mascot face features (eyes, mouth); same in both modes so face is always visible
     static let ink = adaptive(
         light: UIColor(red: 0.25, green: 0.20, blue: 0.35, alpha: 1),  // #403357

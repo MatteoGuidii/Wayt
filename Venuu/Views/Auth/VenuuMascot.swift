@@ -21,13 +21,15 @@ struct VenuuMascot: View {
     var expression: Expression = .looking
     var animated: Bool = true
 
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var pulseScale: CGFloat = 1.0
     @State private var floatOffset: CGFloat = 0
     @State private var antennaWobble: Double = 0
     @State private var headTilt: Double = 0
 
-    private var pinColor: Color { VenuuTheme.skyPunch }
-    private var accentColor: Color { VenuuTheme.ultraBlue }
+    private var pinColor: Color { VenuuTheme.mascotBodyTop }
+    private var accentColor: Color { VenuuTheme.mascotBodyBottom }
 
     var body: some View {
         ZStack {
@@ -82,7 +84,7 @@ struct VenuuMascot: View {
                 )
                 .overlay(
                     PinShape()
-                        .stroke(VenuuTheme.mascotOutline, lineWidth: 2.5)
+                        .stroke(VenuuTheme.mascotOutline, lineWidth: colorScheme == .dark ? 3.5 : 2.5)
                 )
                 .frame(width: size * 0.72, height: size * 1.05)
                 .shadow(color: .black.opacity(0.15), radius: 6, y: 4)
@@ -96,7 +98,7 @@ struct VenuuMascot: View {
                 .fill(VenuuTheme.mascotFace)
                 .overlay(
                     Ellipse()
-                        .stroke(VenuuTheme.mascotOutline, lineWidth: 2.0)
+                        .stroke(VenuuTheme.mascotOutline, lineWidth: colorScheme == .dark ? 3.5 : 2.0)
                 )
                 .frame(width: size * 0.52, height: size * 0.46)
                 .offset(y: -size * 0.12)
