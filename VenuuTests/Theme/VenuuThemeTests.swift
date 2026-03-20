@@ -207,46 +207,16 @@ struct VenuuThemeTests {
         #expect(VenuuTheme.savedOrange != Color.clear)
     }
 
-    // MARK: - Additional Typography
+    // MARK: - Typography Token Smoke Tests
 
-    @Test("displayFont exists")
-    func displayFontExists() {
-        let _ = VenuuTheme.displayFont
-    }
-
-    @Test("heroFont exists")
-    func heroFontExists() {
-        let _ = VenuuTheme.heroFont
-    }
-
-    @Test("largeTitleFont exists")
-    func largeTitleFontExists() {
-        let _ = VenuuTheme.largeTitleFont
-    }
-
-    @Test("sectionFont exists")
-    func sectionFontExists() {
-        let _ = VenuuTheme.sectionFont
-    }
-
-    @Test("cardTitleFont exists")
-    func cardTitleFontExists() {
-        let _ = VenuuTheme.cardTitleFont
-    }
-
-    @Test("subtitleFont exists")
-    func subtitleFontExists() {
-        let _ = VenuuTheme.subtitleFont
-    }
-
-    @Test("microFont exists")
-    func microFontExists() {
-        let _ = VenuuTheme.microFont
-    }
-
-    @Test("nanoFont exists")
-    func nanoFontExists() {
-        let _ = VenuuTheme.nanoFont
+    @Test("Key font tokens are distinct sizes")
+    func keyFontTokensDistinctSizes() {
+        // Verify key font size tokens differ — catches accidental copy/paste
+        #expect(VenuuTheme.displayFont != VenuuTheme.bodyFont)
+        #expect(VenuuTheme.bodyFont != VenuuTheme.captionFont)
+        #expect(VenuuTheme.captionFont != VenuuTheme.badgeFont)
+        #expect(VenuuTheme.badgeFont != VenuuTheme.nanoFont)
+        #expect(VenuuTheme.heroFont != VenuuTheme.headlineFont)
     }
 
     // MARK: - Dimension Values

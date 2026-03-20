@@ -155,17 +155,23 @@ struct VenueDetailViewModelTests {
         #expect(vm.isWithinReportRange == false)
     }
 
-    @Test("updateProximity boundary: exactly at report radius edge")
+    @Test("updateProximity boundary: user approximately at report radius edge")
     func proximityAtBoundary() {
         let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
         let venue = TestFactories.makeVenue(name: "Edge Bar", coordinate: coord)
         let vm = VenueDetailViewModel(venue: venue)
 
-        // Move exactly ~200m north (approx 0.0018 degrees latitude)
+        // ~200m north (approx 0.0018 degrees latitude)
         let userLocation = CLLocation(latitude: 43.65107 + 0.0018, longitude: -79.34723)
+        let venueLocation = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+        let distance = venueLocation.distance(from: userLocation)
+
         vm.updateProximity(userLocation: userLocation)
-        // At ~200m, this should be at the boundary — result depends on exact distance
-        // We just verify it doesn't crash
+
+        // Verify the distance is near the boundary (within 10m tolerance)
+        #expect(abs(distance - AppConstants.reportProximityRadius) <= 10)
+        // Result should match distance comparison
+        #expect(vm.isWithinReportRange == (distance <= AppConstants.reportProximityRadius))
     }
 
     // MARK: - Distance Calculation
