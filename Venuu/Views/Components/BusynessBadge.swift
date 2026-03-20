@@ -34,9 +34,14 @@ struct BusynessBadge: View {
                     .foregroundStyle(level.color)
 
                 if style == .standard, confidence != .none {
+                    if confidence == .veryHigh {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(VenuuTheme.busynessColor(for: 2))
+                    }
                     Text("• \(confidence.label)")
                         .font(VenuuTheme.badgeFont)
-                        .foregroundStyle(VenuuTheme.secondaryText)
+                        .foregroundStyle(confidenceColor)
                 }
             }
             .padding(.horizontal, style == .compact ? 6 : 8)
@@ -56,6 +61,15 @@ struct BusynessBadge: View {
 
     private var dotSize: CGFloat {
         style == .compact ? 6 : 8
+    }
+
+    private var confidenceColor: Color {
+        switch confidence {
+        case .veryHigh, .high: return VenuuTheme.busynessColor(for: 2)  // green
+        case .medium:          return VenuuTheme.busynessColor(for: 3)  // yellow
+        case .low, .estimated: return VenuuTheme.secondaryText
+        case .none:            return VenuuTheme.secondaryText
+        }
     }
 
     enum BadgeStyle {

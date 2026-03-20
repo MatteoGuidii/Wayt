@@ -41,19 +41,52 @@ final class VenueDetailViewModel: ObservableObject {
 
     func loadReports() async {
         isLoadingReports = true
-        do {
-            let reports = try await ReportService.shared.fetchVenueReports(venueId: venue.id)
-            recentReports = reports
-            // Only re-estimate if we actually got reports — otherwise keep the
-            // initial estimate (which already includes map overlay data)
-            if !reports.isEmpty {
-                estimate = busynessEngine.estimateOffline(reports: reports)
-            }
-        } catch {
-            // Initial estimate is already set — this is fine
-            print("[VenueDetail] Reports unavailable: \(error.localizedDescription)")
+
+        // Try fused estimate from v1 endpoint first (in parallel with report fetch)
+        async let fusedFuture = loadFusedEstimate()
+        async let reportsFuture = loadRecentReports()
+
+        let fusedResult = await fusedFuture
+        let reports = await reportsFuture
+
+        recentReports = reports
+
+        if let fused = fusedResult {
+            // Use server-computed fused estimate (most accurate)
+            estimate = fused
+        } else if !reports.isEmpty {
+            // Fallback: re-estimate from reports only
+            estimate = busynessEngine.estimateOffline(reports: reports)
         }
+        // else: keep the initial estimate from map overlay
+
         isLoadingReports = false
+    }
+
+    /// Try to fetch a fused estimate from the v1 Signal Fusion Engine.
+    private func loadFusedEstimate() async -> BusynessEstimate? {
+        do {
+            let response = try await FusionService.shared.fetchVenueBusyness(
+                venueId: venue.id,
+                venueName: venue.name,
+                lat: venue.coordinate.latitude,
+                lng: venue.coordinate.longitude
+            )
+            return busynessEngine.estimate(from: response.toFusedEstimate())
+        } catch {
+            print("[VenueDetail] Fusion unavailable: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Fetch individual user reports for the "Recent Reports" section.
+    private func loadRecentReports() async -> [BusynessReport] {
+        do {
+            return try await ReportService.shared.fetchVenueReports(venueId: venue.id)
+        } catch {
+            print("[VenueDetail] Reports unavailable: \(error.localizedDescription)")
+            return []
+        }
     }
 
     // MARK: - Proximity Check

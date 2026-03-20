@@ -66,6 +66,7 @@ struct VenueMarkerView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .padding(.top, 2)
         }
+        .opacity(confidenceOpacity)
         .shadow(
             color: .black.opacity(isSelected ? 0.25 : 0.15),
             radius: isSelected ? 6 : 3,
@@ -91,6 +92,20 @@ struct VenueMarkerView: View {
             return .white.opacity(0.7)
         }
         return .white.opacity(isSelected ? 0.95 : 0.7)
+    }
+
+    // MARK: - Confidence opacity
+
+    /// Subtle opacity adjustment based on data confidence.
+    /// Higher confidence = more prominent marker.
+    private var confidenceOpacity: Double {
+        switch venue.busynessConfidence {
+        case .veryHigh, .high: return 1.0
+        case .medium:          return 0.90
+        case .low:             return 0.75
+        case .estimated:       return 0.60
+        case .none:            return 0.45
+        }
     }
 
     // MARK: - Wait Badge

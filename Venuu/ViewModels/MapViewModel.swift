@@ -94,6 +94,7 @@ final class MapViewModel: ObservableObject {
 
     private let searchService = VenueSearchService()
     private let busynessEngine = BusynessEngine.shared
+    private let fusionService = FusionService.shared
     /// The region used for the most recent search (internal for testability).
     internal var lastSearchedRegion: MKCoordinateRegion?
     private var searchTask: Task<Void, Never>?
@@ -128,9 +129,6 @@ final class MapViewModel: ObservableObject {
             print("[MapViewModel] Searching region: \(region.center.latitude), \(region.center.longitude) span: \(region.span.latitudeDelta)")
 
             do {
-                // Start report fetch in parallel with venue search
-                async let reportsFuture = fetchReportSummaries(region: region)
-
                 var results: [Venue]
                 if searchText.isEmpty {
                     // Progressive loading: show venues as each query type completes
@@ -151,11 +149,10 @@ final class MapViewModel: ObservableObject {
 
                 print("[MapViewModel] Found \(results.count) venues")
 
-                // Overlay real reports (fetched in parallel)
-                let summaries = await reportsFuture
-                applyReports(summaries, to: &results)
+                // Overlay busyness data: try fusion engine first, fall back to reports
+                await overlayBusynessData(on: &results, region: region)
 
-                // Apply offline fallback for venues without reports
+                // Apply offline fallback for venues without any data
                 results = applyOfflineBusyness(to: results)
 
                 // Only update if we got results — keep stale venues visible if rate-limited
@@ -305,13 +302,14 @@ final class MapViewModel: ObservableObject {
     }
 
     /// Refresh busyness data after a report was submitted.
-    /// Invalidates the report cache and re-applies reports to existing venues.
+    /// Invalidates caches and re-applies busyness data to existing venues.
     func refreshAfterReport() {
         ReportService.shared.invalidateCache()
+        fusionService.invalidateCache()
         guard let region = lastSearchedRegion else { return }
         Task {
             var updated = venues
-            await overlayReports(on: &updated, region: region)
+            await overlayBusynessData(on: &updated, region: region)
             venues = updated
             recomputeClusters()
         }
@@ -335,7 +333,7 @@ final class MapViewModel: ObservableObject {
 
                 // Let cache TTL handle staleness — no manual invalidation needed
                 var updated = venues
-                await overlayReports(on: &updated, region: region)
+                await overlayBusynessData(on: &updated, region: region)
                 venues = updated
                 recomputeClusters()
                 print("[MapViewModel] Live refresh complete")
@@ -349,9 +347,54 @@ final class MapViewModel: ObservableObject {
         refreshTimer = nil
     }
 
-    // MARK: - Report Overlay
+    // MARK: - Busyness Data Overlay
 
-    /// Fetch report summaries from API. Returns empty dict on failure.
+    /// Overlay busyness data onto venues: tries the v1 fusion endpoint first,
+    /// then falls back to the legacy reports endpoint.
+    private func overlayBusynessData(
+        on venues: inout [Venue],
+        region: MKCoordinateRegion
+    ) async {
+        let radius = region.span.latitudeDelta * 111_000
+
+        // Try fusion service first
+        do {
+            let venueInfos = venues.map { VenueInfo(venue: $0) }
+            let fused = try await fusionService.fetchNearbyEstimates(
+                lat: region.center.latitude,
+                lng: region.center.longitude,
+                radius: radius,
+                venues: venueInfos
+            )
+            applyFusedEstimates(fused, to: &venues)
+            return
+        } catch {
+            print("[MapViewModel] Fusion unavailable, falling back to reports: \(error.localizedDescription)")
+        }
+
+        // Fallback: use legacy reports endpoint
+        let summaries = await fetchReportSummaries(region: region)
+        applyReports(summaries, to: &venues)
+    }
+
+    /// Apply fused estimates from the v1 fusion engine.
+    private func applyFusedEstimates(
+        _ estimates: [String: FusedEstimateResponse],
+        to venues: inout [Venue]
+    ) {
+        guard !estimates.isEmpty else { return }
+        for i in venues.indices {
+            if let response = estimates[venues[i].id] {
+                let estimate = busynessEngine.estimate(from: response)
+                venues[i].busyness = estimate.level
+                venues[i].busynessConfidence = estimate.confidence
+                venues[i].reportCount = estimate.reportCount
+                venues[i].estimatedWaitMinutes = estimate.waitMinutes
+            }
+        }
+    }
+
+    /// Fetch report summaries from legacy API. Returns empty dict on failure.
     private func fetchReportSummaries(
         region: MKCoordinateRegion
     ) async -> [String: VenueReportSummary] {
@@ -368,19 +411,19 @@ final class MapViewModel: ObservableObject {
     }
 
     /// Apply offline busyness estimates to venues that have no report data.
+    /// Uses the BusynessEngine offline fallback (neutral moderate / no confidence).
     private func applyOfflineBusyness(to venues: [Venue]) -> [Venue] {
-        // ⚠️ TEST ONLY — REMOVE BEFORE PRODUCTION
-        // Assigns random busyness levels for UI testing.
-        // Revert to: busynessEngine.estimateOffline() fallback for venues with nil busyness.
         venues.map { venue in
+            guard venue.busyness == nil else { return venue }
             var v = venue
-            v.busyness = BusynessLevel.allCases.randomElement() ?? .moderate
-            v.busynessConfidence = .estimated
+            let estimate = busynessEngine.estimateOffline()
+            v.busyness = estimate.level
+            v.busynessConfidence = estimate.confidence
             return v
         }
     }
 
-    /// Apply fetched report summaries onto venue array.
+    /// Apply fetched report summaries onto venue array (legacy fallback).
     private func applyReports(
         _ summaries: [String: VenueReportSummary],
         to venues: inout [Venue]
@@ -397,14 +440,5 @@ final class MapViewModel: ObservableObject {
                     ? .high : .low
             }
         }
-    }
-
-    /// Fetch real reports from API and overlay on venues.
-    private func overlayReports(
-        on venues: inout [Venue],
-        region: MKCoordinateRegion
-    ) async {
-        let summaries = await fetchReportSummaries(region: region)
-        applyReports(summaries, to: &venues)
     }
 }

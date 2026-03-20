@@ -10,9 +10,11 @@ struct BusynessEngine: Sendable {
 
     /// Consume a pre-computed fused estimate from the server.
     func estimate(from response: FusedEstimateResponse) -> BusynessEstimate {
-        BusynessEstimate(
-            level: BusynessLevel(closestTo: response.busynessScore * 5.0),
-            confidence: BusynessConfidence(rawValue: response.confidence) ?? .estimated,
+        // Convert 0.0-1.0 normalized score to 1.0-5.0 level scale
+        let levelValue = response.busynessScore * 4.0 + 1.0
+        return BusynessEstimate(
+            level: BusynessLevel(closestTo: levelValue),
+            confidence: BusynessConfidence(fromServer: response.confidence),
             reportCount: response.reportCount,
             waitMinutes: response.waitMinutes
         )
@@ -102,9 +104,39 @@ struct BusynessEstimate: Sendable {
 /// Response from the Signal Fusion Engine (`GET /v1/venues/{id}/busyness` or embedded in nearby response).
 struct FusedEstimateResponse: Codable, Sendable {
     let busynessScore: Double      // 0.0–1.0 normalized
-    let confidence: String         // "none", "estimated", "low", "high"
+    let confidence: String         // "VERY_HIGH", "HIGH", "MEDIUM", "LOW", "ESTIMATED" (or legacy lowercase)
     let reportCount: Int
     let waitMinutes: Int?
+
+    // Phase 6 additions (optional for backward compat with old endpoints)
+    let venueId: String?
+    let sourceCount: Int?
+    let sources: [String]?
+    let conflictDetected: Bool?
+    let computedAt: String?
+
+    // Minimal init for backward compat (used by tests and legacy code)
+    init(
+        busynessScore: Double,
+        confidence: String,
+        reportCount: Int,
+        waitMinutes: Int?,
+        venueId: String? = nil,
+        sourceCount: Int? = nil,
+        sources: [String]? = nil,
+        conflictDetected: Bool? = nil,
+        computedAt: String? = nil
+    ) {
+        self.busynessScore = busynessScore
+        self.confidence = confidence
+        self.reportCount = reportCount
+        self.waitMinutes = waitMinutes
+        self.venueId = venueId
+        self.sourceCount = sourceCount
+        self.sources = sources
+        self.conflictDetected = conflictDetected
+        self.computedAt = computedAt
+    }
 }
 
 // MARK: - BusynessLevel Helpers

@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(gh pr:*)",
-      "Bash(find /Users/matteo/Desktop/Venuu/amplify -type f \\\\\\(-name *.json -o -name *.yaml -o -name *.yml \\\\\\) ! -path */node_modules/*)"
+      "Bash(find /Users/matteo/Desktop/Venuu/amplify -type f \\\\\\(-name *.json -o -name *.yaml -o -name *.yml \\\\\\) ! -path */node_modules/*)",
+      "Read(//Users/matteo/.claude/projects/**)",
+      "Bash(find /Users/matteo/Desktop/Venuu -maxdepth 2 \\\\\\(-name README.md -o -name ROADMAP.md -o -name .env* -o -name cloudformation* -o -name serverless.yml \\\\\\))",
+      "Bash(npm install:*)"
     ]
   }
 }

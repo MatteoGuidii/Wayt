@@ -13,6 +13,7 @@ Globals:
         USERS_TABLE: !Ref UserProfilesTable
         PROFILE_IMAGES_BUCKET: !Ref ProfileImagesBucket
         SAVED_VENUES_TABLE: !Ref SavedVenuesTable
+        SIGNALS_TABLE: !Ref VenuuSignalsTable
 
 Parameters:
   CognitoUserPoolArn:
@@ -26,6 +27,12 @@ Parameters:
       - dev
       - prod
     Description: Deployment stage (dev or prod)
+
+  FoursquareApiKey:
+    Type: String
+    Default: ""
+    Description: Foursquare Places API key (leave empty to disable Foursquare signals)
+    NoEcho: true
 
 Resources:
   # -----------------------------------------------
@@ -58,6 +65,8 @@ Resources:
             TableName: !Ref VenueReportsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref UserProfilesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VenuuSignalsTable
       Events:
         PostReport:
           Type: Api
@@ -224,6 +233,57 @@ Resources:
       BuildMethod: makefile
 
   # -----------------------------------------------
+  # Signal Fusion Engine — Lambda Functions
+  # -----------------------------------------------
+  GetNearbyVenuesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getNearbyVenues.handler
+      Timeout: 15
+      Environment:
+        Variables:
+          FOURSQUARE_API_KEY: !Ref FoursquareApiKey
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VenuuSignalsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref VenueReportsTable
+      Events:
+        GetNearbyVenues:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /v1/venues/nearby
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  GetVenueBusynessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getVenueBusyness.handler
+      Timeout: 15
+      Environment:
+        Variables:
+          FOURSQUARE_API_KEY: !Ref FoursquareApiKey
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VenuuSignalsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref VenueReportsTable
+      Events:
+        GetVenueBusyness:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /v1/venues/{venueId}/busyness
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  # -----------------------------------------------
   # DynamoDB Tables
   # -----------------------------------------------
   VenueReportsTable:
@@ -274,6 +334,41 @@ Resources:
           KeyType: RANGE
 
   # -----------------------------------------------
+  # Signal Fusion Engine — DynamoDB Table
+  # -----------------------------------------------
+  VenuuSignalsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "VenuuSignals-${Stage}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: geohash
+          AttributeType: S
+        - AttributeName: geoSK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GeohashIndex
+          KeySchema:
+            - AttributeName: geohash
+              KeyType: HASH
+            - AttributeName: geoSK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # -----------------------------------------------
   # S3 Buckets
   # -----------------------------------------------
   ProfileImagesBucket:
@@ -305,5 +400,7 @@ Outputs:
     Value: !Ref ProfileImagesBucket
   SavedVenuesTableName:
     Value: !Ref SavedVenuesTable
+  VenuuSignalsTableName:
+    Value: !Ref VenuuSignalsTable
   Stage:
     Value: !Ref Stage

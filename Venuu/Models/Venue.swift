@@ -77,18 +77,37 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
 
 // MARK: - Busyness Confidence
 
-enum BusynessConfidence: String, Sendable {
+enum BusynessConfidence: String, Sendable, CaseIterable {
     case none      // No data at all
     case estimated // Heuristic / baseline only
     case low       // 1-2 user reports
-    case high      // 3+ user reports
+    case medium    // 1 strong source or 2 conflicting sources
+    case high      // 2+ agreeing sources or 3+ reports
+    case veryHigh  // 3+ sources agreeing (future-ready)
 
     var label: String {
         switch self {
         case .none:      return ""
         case .estimated: return "Estimated"
         case .low:       return "Few reports"
-        case .high:      return "Reported"
+        case .medium:    return "Some data"
+        case .high:      return "Reliable"
+        case .veryHigh:  return "Very reliable"
+        }
+    }
+
+    /// Initialize from server response string (handles both uppercase API format
+    /// like "HIGH", "VERY_HIGH" and lowercase internal format like "high").
+    init(fromServer value: String) {
+        let normalized = value.lowercased().replacingOccurrences(of: "_", with: "")
+        switch normalized {
+        case "none":     self = .none
+        case "estimated": self = .estimated
+        case "low":      self = .low
+        case "medium":   self = .medium
+        case "high":     self = .high
+        case "veryhigh": self = .veryHigh
+        default:         self = .estimated
         }
     }
 }

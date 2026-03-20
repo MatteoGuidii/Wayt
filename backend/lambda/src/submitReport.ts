@@ -11,6 +11,7 @@ import {
   serverError,
   getUserId,
 } from "./shared";
+import { venueKey, fusedSK, deleteItem } from "./db";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -77,6 +78,13 @@ export async function handler(
         },
       })
     );
+
+    // Invalidate cached fused estimate so next query recomputes with fresh data
+    try {
+      await deleteItem(venueKey(venueId), fusedSK());
+    } catch {
+      // Non-critical — cache will expire naturally via TTL
+    }
 
     return created({ reportId, message: "Report submitted" });
   } catch (err) {
