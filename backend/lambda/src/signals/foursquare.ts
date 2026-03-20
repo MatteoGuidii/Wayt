@@ -5,23 +5,26 @@ import {
   getItem,
   putItem,
 } from "../db";
-import { VenueSignal, SOURCE_CONFIG, normalizeLevel } from "./types";
+import { VenueSignal, SOURCE_CONFIG } from "./types";
 
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY ?? "";
-const FSQ_BASE = "https://api.foursquare.com/v3";
+const FSQ_BASE = "https://places-api.foursquare.com";
+const FSQ_API_VERSION = "2025-06-17";
 const MAPPING_TTL_DAYS = 30;
 
-interface FsqMatchResponse {
-  place?: {
-    fsq_id: string;
+interface FsqSearchResponse {
+  results?: Array<{
+    fsq_place_id: string;
     name: string;
     popularity?: number;
+    rating?: number;
+    distance?: number;
     stats?: { total_photos?: number; total_tips?: number; total_ratings?: number };
-  };
+  }>;
 }
 
 interface FsqPlaceDetails {
-  fsq_id: string;
+  fsq_place_id: string;
   name: string;
   popularity?: number;
   rating?: number;
@@ -96,7 +99,7 @@ async function getCachedMapping(venueId: string): Promise<string | null> {
   return (item.fsqId as string) ?? null;
 }
 
-/** Match a venue name + coordinates to a Foursquare place ID. */
+/** Search for a venue by name + coordinates and return the best Foursquare place ID. */
 async function matchVenue(
   venueId: string,
   venueName: string,
@@ -104,25 +107,29 @@ async function matchVenue(
   lng: number
 ): Promise<string | null> {
   const params = new URLSearchParams({
-    name: venueName,
+    query: venueName,
     ll: `${lat},${lng}`,
+    limit: "1",
   });
 
-  const response = await fetch(`${FSQ_BASE}/places/match?${params}`, {
+  const response = await fetch(`${FSQ_BASE}/places/search?${params}`, {
     headers: {
-      Authorization: FOURSQUARE_API_KEY,
+      Authorization: `Bearer ${FOURSQUARE_API_KEY}`,
       Accept: "application/json",
+      "X-Places-Api-Version": FSQ_API_VERSION,
     },
   });
 
   if (!response.ok) {
-    console.warn(`[foursquare] Match API returned ${response.status} for "${venueName}"`);
+    console.warn(`[foursquare] Search API returned ${response.status} for "${venueName}"`);
     return null;
   }
 
-  const data = (await response.json()) as FsqMatchResponse;
-  const fsqId = data.place?.fsq_id;
-  if (!fsqId) return null;
+  const data = (await response.json()) as FsqSearchResponse;
+  const topResult = data.results?.[0];
+  if (!topResult) return null;
+
+  const fsqId = topResult.fsq_place_id;
 
   // Cache the mapping for 30 days
   const now = Math.floor(Date.now() / 1000);
@@ -130,7 +137,7 @@ async function matchVenue(
     PK: venueKey(venueId),
     SK: mappingSK("foursquare"),
     fsqId,
-    fsqName: data.place?.name,
+    fsqName: topResult.name,
     cachedAt: new Date().toISOString(),
     ttl: now + MAPPING_TTL_DAYS * 86_400,
   });
@@ -140,11 +147,12 @@ async function matchVenue(
 
 /** Fetch Foursquare place details including popularity. */
 async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null> {
-  const fields = "fsq_id,name,popularity,rating,stats,hours_popular";
+  const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular";
   const response = await fetch(`${FSQ_BASE}/places/${fsqId}?fields=${fields}`, {
     headers: {
-      Authorization: FOURSQUARE_API_KEY,
+      Authorization: `Bearer ${FOURSQUARE_API_KEY}`,
       Accept: "application/json",
+      "X-Places-Api-Version": FSQ_API_VERSION,
     },
   });
 
