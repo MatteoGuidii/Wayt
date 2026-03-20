@@ -7,7 +7,8 @@
       "Bash(find /Users/matteo/Desktop/Venuu -maxdepth 2 \\\\\\(-name README.md -o -name ROADMAP.md -o -name .env* -o -name cloudformation* -o -name serverless.yml \\\\\\))",
       "Bash(npm install:*)",
       "WebFetch(domain:docs.foursquare.com)",
-      "Bash(aws logs:*)"
+      "Bash(aws logs:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

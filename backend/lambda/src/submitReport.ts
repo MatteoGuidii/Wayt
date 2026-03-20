@@ -12,6 +12,7 @@ import {
   getUserId,
 } from "./shared";
 import { venueKey, fusedSK, deleteItem } from "./db";
+import { encode } from "./geohash";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -43,7 +44,8 @@ export async function handler(
     const reportId = `${venueId}_${now}_${userId.slice(0, 8)}`;
     const ttl = Math.floor(now / 1000) + REPORT_TTL_SECONDS;
 
-    // Write report
+    // Write report (geohash enables efficient spatial queries via GSI)
+    const geohash = encode(lat, lng);
     await ddb.send(
       new PutCommand({
         TableName: REPORTS_TABLE,
@@ -58,6 +60,7 @@ export async function handler(
           venueType,
           lat,
           lng,
+          geohash,
           ttl,
         },
       })

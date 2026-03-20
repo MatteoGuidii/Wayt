@@ -94,6 +94,16 @@ final class FusionService {
         )
     }
 
+    // MARK: - Cache Lookup
+
+    /// Return a cached fused estimate for a venue if available (avoids a redundant API call).
+    func cachedEstimate(for venueId: String) -> FusedEstimateResponse? {
+        guard Date().timeIntervalSince(cacheTimestamp) < AppConstants.reportCacheTTL else {
+            return nil
+        }
+        return nearbyCache[venueId]
+    }
+
     // MARK: - Cache Control
 
     func invalidateCache() {

@@ -1,5 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { queryNearbyFused, putItem, activeAreaPK } from "./db";
+import { queryNearbyFused, putItem, getItem, activeAreaPK } from "./db";
 import { encode } from "./geohash";
 import { haversineDistance, success, badRequest, serverError } from "./shared";
 import { FusedEstimate } from "./signals/types";
@@ -94,16 +94,21 @@ export async function handler(
       }
     }
 
-    // Step 3: Track active area for future background refresh
+    // Step 3: Track active area — only write if geohash changed or entry expired
     const geohash = encode(lat, lng);
-    await putItem({
-      PK: activeAreaPK(geohash),
-      SK: "META",
-      lastQueried: new Date().toISOString(),
-      lat,
-      lng,
-      ttl: nowSeconds + ACTIVE_AREA_TTL_SECONDS,
-    });
+    const areaPK = activeAreaPK(geohash);
+    const existing = await getItem(areaPK, "META");
+    const isExpiredOrMissing = !existing || ((existing.ttl as number) ?? 0) < nowSeconds;
+    if (isExpiredOrMissing) {
+      await putItem({
+        PK: areaPK,
+        SK: "META",
+        lastQueried: new Date().toISOString(),
+        lat,
+        lng,
+        ttl: nowSeconds + ACTIVE_AREA_TTL_SECONDS,
+      });
+    }
 
     // Step 4: Return results
     const venues = Array.from(nearbyFused.values());

@@ -63,8 +63,15 @@ final class VenueDetailViewModel: ObservableObject {
         isLoadingReports = false
     }
 
-    /// Try to fetch a fused estimate from the v1 Signal Fusion Engine.
+    /// Try to get a fused estimate — uses the nearby cache first to avoid a redundant API call,
+    /// only hitting the single-venue endpoint if the cache doesn't have this venue.
     private func loadFusedEstimate() async -> BusynessEstimate? {
+        // Check if the map's nearby fetch already cached this venue
+        if let cached = FusionService.shared.cachedEstimate(for: venue.id) {
+            return busynessEngine.estimate(from: cached)
+        }
+
+        // Cache miss — fetch from the single-venue endpoint
         do {
             let response = try await FusionService.shared.fetchVenueBusyness(
                 venueId: venue.id,

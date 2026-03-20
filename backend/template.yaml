@@ -296,11 +296,22 @@ Resources:
           AttributeType: S
         - AttributeName: timestamp
           AttributeType: N
+        - AttributeName: geohash
+          AttributeType: S
       KeySchema:
         - AttributeName: venueId
           KeyType: HASH
         - AttributeName: timestamp
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GeohashIndex
+          KeySchema:
+            - AttributeName: geohash
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
