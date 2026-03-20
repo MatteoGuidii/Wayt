@@ -8,7 +8,10 @@
       "Bash(npm install:*)",
       "WebFetch(domain:docs.foursquare.com)",
       "Bash(aws logs:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(aws cloudformation:*)",
+      "Bash(aws lambda:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -H \"Authorization: Bearer REDACTED\" -H \"Accept: application/json\" -H \"X-Places-Api-Version: 2025-06-17\" \"https://places-api.foursquare.com/places/search?query=Starbucks&ll=43.65,-79.38&limit=1\")"
     ]
   }
 }

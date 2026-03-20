@@ -66,10 +66,13 @@ final class FusionService {
             }
         }
 
-        nearbyCache = indexed
-        cacheTimestamp = Date()
-        cachedLat = lat
-        cachedLng = lng
+        // Only cache non-empty results — avoids blocking retries for 60s on transient failures
+        if !indexed.isEmpty {
+            nearbyCache = indexed
+            cacheTimestamp = Date()
+            cachedLat = lat
+            cachedLng = lng
+        }
         return indexed
     }
 

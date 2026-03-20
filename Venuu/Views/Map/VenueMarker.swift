@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Map annotation marker: category icon on a busyness-colored circle
 /// with venue name label and optional wait-time badge.
+/// Confidence is shown via ring treatment (dashed = estimated, thickness = data quality).
 struct VenueMarkerView: View {
 
     let venue: Venue
@@ -21,13 +22,7 @@ struct VenueMarkerView: View {
                         .frame(width: markerSize, height: markerSize)
                         .background(markerBackground)
                         .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .strokeBorder(
-                                    borderColor,
-                                    lineWidth: isSelected ? 2.5 : 1.5
-                                )
-                        )
+                        .overlay(confidenceRing)
 
                     // Anchor triangle
                     Triangle()
@@ -66,7 +61,6 @@ struct VenueMarkerView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .padding(.top, 2)
         }
-        .opacity(confidenceOpacity)
         .shadow(
             color: .black.opacity(isSelected ? 0.25 : 0.15),
             radius: isSelected ? 6 : 3,
@@ -79,32 +73,45 @@ struct VenueMarkerView: View {
     // MARK: - Marker background color
 
     private var markerBackground: Color {
-        if venue.busyness == nil && venue.busynessConfidence == .none {
+        if venue.busynessConfidence == .none {
             return Color(.systemGray4)
         }
         return venue.busyness?.color ?? Color(.systemGray4)
     }
 
-    // MARK: - Border color
+    // MARK: - Confidence Ring
 
-    private var borderColor: Color {
-        if venue.busyness == nil && venue.busynessConfidence == .none {
-            return .white.opacity(0.7)
-        }
-        return .white.opacity(isSelected ? 0.95 : 0.7)
-    }
-
-    // MARK: - Confidence opacity
-
-    /// Subtle opacity adjustment based on data confidence.
-    /// Higher confidence = more prominent marker.
-    private var confidenceOpacity: Double {
+    /// Ring overlay that communicates data confidence:
+    /// - Dashed ring for `.none` / `.estimated` (approximate/unknown data)
+    /// - Solid ring with increasing thickness for higher confidence
+    @ViewBuilder
+    private var confidenceRing: some View {
         switch venue.busynessConfidence {
-        case .veryHigh, .high: return 1.0
-        case .medium:          return 0.90
-        case .low:             return 0.75
-        case .estimated:       return 0.60
-        case .none:            return 0.45
+        case .none:
+            Circle()
+                .strokeBorder(
+                    .white.opacity(0.7),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
+                )
+        case .estimated:
+            Circle()
+                .strokeBorder(
+                    .white.opacity(0.8),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
+                )
+        case .low:
+            Circle()
+                .strokeBorder(.white.opacity(0.8), lineWidth: 1)
+        case .medium:
+            Circle()
+                .strokeBorder(.white.opacity(0.85), lineWidth: 1.5)
+        case .high:
+            Circle()
+                .strokeBorder(.white.opacity(0.95), lineWidth: 2)
+        case .veryHigh:
+            Circle()
+                .strokeBorder(.white, lineWidth: 2.5)
+                .shadow(color: markerBackground.opacity(0.4), radius: 4)
         }
     }
 

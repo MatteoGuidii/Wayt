@@ -75,7 +75,7 @@ export async function handler(
     let clientVenues: ComputeInput[] = [];
     if (params.venues) {
       try {
-        clientVenues = JSON.parse(decodeURIComponent(params.venues)) as ComputeInput[];
+        clientVenues = JSON.parse(params.venues) as ComputeInput[];
       } catch {
         // Invalid JSON — skip client venues
       }

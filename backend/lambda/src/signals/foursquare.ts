@@ -12,6 +12,12 @@ const FSQ_BASE = "https://places-api.foursquare.com";
 const FSQ_API_VERSION = "2025-06-17";
 const MAPPING_TTL_DAYS = 30;
 
+const FSQ_HEADERS = {
+  Authorization: `Bearer ${FOURSQUARE_API_KEY}`,
+  Accept: "application/json",
+  "X-Places-Api-Version": FSQ_API_VERSION,
+};
+
 interface FsqSearchResponse {
   results?: Array<{
     fsq_place_id: string;
@@ -113,11 +119,7 @@ async function matchVenue(
   });
 
   const response = await fetch(`${FSQ_BASE}/places/search?${params}`, {
-    headers: {
-      Authorization: `Bearer ${FOURSQUARE_API_KEY}`,
-      Accept: "application/json",
-      "X-Places-Api-Version": FSQ_API_VERSION,
-    },
+    headers: FSQ_HEADERS,
   });
 
   if (!response.ok) {
@@ -149,11 +151,7 @@ async function matchVenue(
 async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null> {
   const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular";
   const response = await fetch(`${FSQ_BASE}/places/${fsqId}?fields=${fields}`, {
-    headers: {
-      Authorization: `Bearer ${FOURSQUARE_API_KEY}`,
-      Accept: "application/json",
-      "X-Places-Api-Version": FSQ_API_VERSION,
-    },
+    headers: FSQ_HEADERS,
   });
 
   if (!response.ok) {
