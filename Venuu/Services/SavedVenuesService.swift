@@ -4,6 +4,7 @@ import Foundation
 struct SavedVenuesService {
 
     private let cacheKey = "savedVenueIDs"
+    private let venuesCacheKey = "savedVenuesCache"
 
     // MARK: - Load from API
 
@@ -13,6 +14,7 @@ struct SavedVenuesService {
         )
         let ids = response.venues.map(\.venueId)
         persistIDs(Set(ids))
+        persistVenues(response.venues)
         return response.venues
     }
 
@@ -60,8 +62,25 @@ struct SavedVenuesService {
         }
     }
 
+    // MARK: - Full Venues Cache (UserDefaults)
+
+    func loadCachedVenues() -> [SavedVenue] {
+        guard let data = UserDefaults.standard.data(forKey: venuesCacheKey),
+              let venues = try? JSONDecoder().decode([SavedVenue].self, from: data) else {
+            return []
+        }
+        return venues
+    }
+
+    func persistVenues(_ venues: [SavedVenue]) {
+        if let data = try? JSONEncoder().encode(venues) {
+            UserDefaults.standard.set(data, forKey: venuesCacheKey)
+        }
+    }
+
     func clearCache() {
         UserDefaults.standard.removeObject(forKey: cacheKey)
+        UserDefaults.standard.removeObject(forKey: venuesCacheKey)
     }
 }
 

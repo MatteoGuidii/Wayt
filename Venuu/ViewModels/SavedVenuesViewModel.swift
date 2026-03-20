@@ -19,16 +19,19 @@ final class SavedVenuesViewModel: ObservableObject {
     // MARK: - Init
 
     init() {
-        // Load cached IDs synchronously for instant UI
+        // Load cached data synchronously for instant UI — no grey/empty flash
         savedVenueIDs = service.loadCachedIDs()
+        savedVenues = service.loadCachedVenues()
     }
 
     // MARK: - Load from API
 
     func loadSavedVenues(force: Bool = false) async {
         guard !hasLoadedFromAPI || force else { return }
-        isLoading = true
-        defer { isLoading = false }
+        // Only show loading indicator when there's nothing cached to display
+        let showSpinner = savedVenues.isEmpty
+        if showSpinner { isLoading = true }
+        defer { if showSpinner { isLoading = false } }
 
         do {
             let venues = try await service.loadSavedVenues()
@@ -119,5 +122,6 @@ final class SavedVenuesViewModel: ObservableObject {
 
     private func persistIDs() {
         service.persistIDs(savedVenueIDs)
+        service.persistVenues(savedVenues)
     }
 }
