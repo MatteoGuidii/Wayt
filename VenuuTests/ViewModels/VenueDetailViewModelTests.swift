@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import CoreLocation
 @testable import Venuu
 
 @Suite("VenueDetailViewModel")
@@ -118,5 +119,161 @@ struct VenueDetailViewModelTests {
         vm.showReportSheet = true
         vm.showReportSheet = false
         #expect(vm.showReportSheet == false)
+    }
+
+    // MARK: - Proximity Check
+
+    @Test("updateProximity sets true when within report radius")
+    func proximityWithinRange() {
+        let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
+        let venue = TestFactories.makeVenue(name: "Nearby Bar", coordinate: coord)
+        let vm = VenueDetailViewModel(venue: venue)
+
+        // User 50m away (well within 200m radius)
+        let userLocation = CLLocation(latitude: 43.6515, longitude: -79.3472)
+        vm.updateProximity(userLocation: userLocation)
+        #expect(vm.isWithinReportRange == true)
+    }
+
+    @Test("updateProximity sets false when outside report radius")
+    func proximityOutOfRange() {
+        let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
+        let venue = TestFactories.makeVenue(name: "Far Bar", coordinate: coord)
+        let vm = VenueDetailViewModel(venue: venue)
+
+        // User ~5km away
+        let userLocation = CLLocation(latitude: 43.70, longitude: -79.40)
+        vm.updateProximity(userLocation: userLocation)
+        #expect(vm.isWithinReportRange == false)
+    }
+
+    @Test("updateProximity sets false when location is nil")
+    func proximityNilLocation() {
+        let vm = VenueDetailViewModel(venue: TestFactories.makeVenue())
+        vm.isWithinReportRange = true
+        vm.updateProximity(userLocation: nil)
+        #expect(vm.isWithinReportRange == false)
+    }
+
+    @Test("updateProximity boundary: exactly at report radius edge")
+    func proximityAtBoundary() {
+        let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
+        let venue = TestFactories.makeVenue(name: "Edge Bar", coordinate: coord)
+        let vm = VenueDetailViewModel(venue: venue)
+
+        // Move exactly ~200m north (approx 0.0018 degrees latitude)
+        let userLocation = CLLocation(latitude: 43.65107 + 0.0018, longitude: -79.34723)
+        vm.updateProximity(userLocation: userLocation)
+        // At ~200m, this should be at the boundary — result depends on exact distance
+        // We just verify it doesn't crash
+    }
+
+    // MARK: - Distance Calculation
+
+    @Test("distanceToVenue returns nil when location is nil")
+    func distanceToVenueNil() {
+        let vm = VenueDetailViewModel(venue: TestFactories.makeVenue())
+        let distance = vm.distanceToVenue(from: nil)
+        #expect(distance == nil)
+    }
+
+    @Test("distanceToVenue returns positive value for valid location")
+    func distanceToVenuePositive() {
+        let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
+        let venue = TestFactories.makeVenue(name: "Bar", coordinate: coord)
+        let vm = VenueDetailViewModel(venue: venue)
+
+        let userLocation = CLLocation(latitude: 43.66, longitude: -79.35)
+        let distance = vm.distanceToVenue(from: userLocation)
+        #expect(distance != nil)
+        #expect(distance! > 0)
+    }
+
+    @Test("distanceToVenue returns zero when at same location")
+    func distanceToVenueZero() {
+        let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
+        let venue = TestFactories.makeVenue(name: "Bar", coordinate: coord)
+        let vm = VenueDetailViewModel(venue: venue)
+
+        let userLocation = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+        let distance = vm.distanceToVenue(from: userLocation)
+        #expect(distance != nil)
+        #expect(distance! < 1) // should be essentially zero
+    }
+
+    // MARK: - submitReport Edge Cases
+
+    @Test("submitReport preserves existing wait when new waitMinutes is nil")
+    func submitReportPreservesExistingWait() async {
+        var venue = TestFactories.makeVenue(busyness: .moderate)
+        venue.estimatedWaitMinutes = 25
+        let vm = VenueDetailViewModel(venue: venue)
+        await vm.submitReport(level: .busy, waitMinutes: nil)
+        #expect(vm.estimate.waitMinutes == 25)
+    }
+
+    @Test("submitReport replaces wait when new waitMinutes provided")
+    func submitReportReplacesWait() async {
+        var venue = TestFactories.makeVenue(busyness: .moderate)
+        venue.estimatedWaitMinutes = 25
+        let vm = VenueDetailViewModel(venue: venue)
+        await vm.submitReport(level: .busy, waitMinutes: 10)
+        #expect(vm.estimate.waitMinutes == 10)
+    }
+
+    @Test("submitReport with zero wait minutes")
+    func submitReportZeroWait() async {
+        let vm = VenueDetailViewModel(venue: TestFactories.makeVenue())
+        await vm.submitReport(level: .empty, waitMinutes: 0)
+        #expect(vm.estimate.waitMinutes == 0)
+        #expect(vm.estimate.level == .empty)
+    }
+
+    @Test("Multiple reports increment count correctly")
+    func multipleReportsIncrementCount() async {
+        let vm = VenueDetailViewModel(venue: TestFactories.makeVenue())
+        let initial = vm.estimate.reportCount
+        await vm.submitReport(level: .busy, waitMinutes: nil)
+        await vm.submitReport(level: .packed, waitMinutes: nil)
+        #expect(vm.estimate.reportCount == initial + 2)
+    }
+
+    @Test("submitReport stays low confidence below threshold")
+    func submitReportLowConfidenceBelowThreshold() async {
+        var venue = TestFactories.makeVenue(busyness: .quiet)
+        venue.reportCount = 0
+        venue.busynessConfidence = .none
+        let vm = VenueDetailViewModel(venue: venue)
+        await vm.submitReport(level: .busy, waitMinutes: nil)
+        #expect(vm.estimate.confidence == .low)
+    }
+
+    // MARK: - isWithinReportRange Initial State
+
+    @Test("isWithinReportRange starts false")
+    func isWithinReportRangeStartsFalse() {
+        let vm = VenueDetailViewModel(venue: TestFactories.makeVenue())
+        #expect(vm.isWithinReportRange == false)
+    }
+
+    // MARK: - Venue Reference
+
+    @Test("venue property matches initialization venue")
+    func venuePropertyMatches() {
+        let venue = TestFactories.makeVenue(name: "My Bar")
+        let vm = VenueDetailViewModel(venue: venue)
+        #expect(vm.venue.id == venue.id)
+        #expect(vm.venue.name == "My Bar")
+    }
+
+    // MARK: - All Busyness Levels
+
+    @Test("Estimate correctly initializes for each busyness level")
+    func estimateForEachLevel() {
+        for level in BusynessLevel.allCases {
+            let venue = TestFactories.makeVenue(busyness: level)
+            let vm = VenueDetailViewModel(venue: venue)
+            #expect(vm.estimate.level == level)
+        }
     }
 }
