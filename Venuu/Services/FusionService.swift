@@ -28,7 +28,7 @@ final class FusionService {
     // MARK: - Nearby Fused Estimates
 
     /// Fetch fused busyness estimates for venues near the given coordinates.
-    /// Optionally sends a list of venue metadata for on-demand computation.
+    /// Sends venue metadata in batches of 20 (URL length limit) and merges results.
     func fetchNearbyEstimates(
         lat: Double,
         lng: Double,
@@ -37,32 +37,47 @@ final class FusionService {
     ) async throws -> [String: FusedEstimateResponse] {
         if isCacheValid(lat: lat, lng: lng) { return nearbyCache }
 
-        var queryItems = [
-            URLQueryItem(name: "lat", value: String(lat)),
-            URLQueryItem(name: "lng", value: String(lng)),
-            URLQueryItem(name: "radius", value: String(Int(radius))),
-        ]
+        if venues.isEmpty { return [:] }
 
-        // Send venue metadata so the backend can compute on-demand for uncached venues.
-        // Cap at 20 to stay within URL length limits (~2KB query string).
-        if !venues.isEmpty {
-            let capped = Array(venues.prefix(20))
-            let encoder = JSONEncoder()
-            if let data = try? encoder.encode(capped),
-               let json = String(data: data, encoding: .utf8) {
-                queryItems.append(URLQueryItem(name: "venues", value: json))
-            }
+        let batchSize = 20
+        let batches = stride(from: 0, to: venues.count, by: batchSize).map {
+            Array(venues[($0)..<min($0 + batchSize, venues.count)])
         }
 
-        let response: NearbyVenuesFusedResponse = try await APIClient.shared.get(
-            path: "/v1/venues/nearby",
-            queryItems: queryItems
-        )
-
         var indexed: [String: FusedEstimateResponse] = [:]
-        for estimate in response.venues {
-            if let venueId = estimate.venueId {
-                indexed[venueId] = estimate
+
+        // Fetch all batches concurrently
+        try await withThrowingTaskGroup(of: [FusedEstimateResponse].self) { group in
+            for batch in batches {
+                group.addTask {
+                    var queryItems = [
+                        URLQueryItem(name: "lat", value: String(lat)),
+                        URLQueryItem(name: "lng", value: String(lng)),
+                        URLQueryItem(name: "radius", value: String(Int(radius))),
+                    ]
+
+                    if !batch.isEmpty {
+                        let encoder = JSONEncoder()
+                        if let data = try? encoder.encode(batch),
+                           let json = String(data: data, encoding: .utf8) {
+                            queryItems.append(URLQueryItem(name: "venues", value: json))
+                        }
+                    }
+
+                    let response: NearbyVenuesFusedResponse = try await APIClient.shared.get(
+                        path: "/v1/venues/nearby",
+                        queryItems: queryItems
+                    )
+                    return response.venues
+                }
+            }
+
+            for try await venues in group {
+                for estimate in venues {
+                    if let venueId = estimate.venueId {
+                        indexed[venueId] = estimate
+                    }
+                }
             }
         }
 

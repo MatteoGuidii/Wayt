@@ -13,7 +13,7 @@ const ACTIVE_AREA_TTL_SECONDS = 30 * 60;
  * Max venues to compute on-demand per request.
  * Limits latency — the rest will be computed on subsequent requests.
  */
-const MAX_INLINE_COMPUTES = 10;
+const MAX_INLINE_COMPUTES = 20;
 
 /**
  * GET /v1/venues/nearby?lat=&lng=&radius=&venues=

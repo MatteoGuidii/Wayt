@@ -1,6 +1,5 @@
 import {
   venueKey,
-  signalSK,
   fusedSK,
   queryByPK,
   putItem,
