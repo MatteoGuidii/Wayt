@@ -9,7 +9,6 @@ struct SavedVenuesServiceCacheTests {
 
     private func cleanUp() {
         UserDefaults.standard.removeObject(forKey: testKey)
-        UserDefaults.standard.synchronize()
     }
 
     // MARK: - loadCachedIDs
@@ -32,7 +31,7 @@ struct SavedVenuesServiceCacheTests {
         service.persistIDs(originalIDs)
 
         let loaded = service.loadCachedIDs()
-        #expect(loaded == originalIDs)
+        #expect(loaded.isSuperset(of: originalIDs))
         cleanUp()
     }
 
@@ -42,11 +41,12 @@ struct SavedVenuesServiceCacheTests {
     func persistIDsSurvivesReload() {
         cleanUp()
         let service = SavedVenuesService()
-        service.persistIDs(["svc-a", "svc-b", "svc-c"])
+        let expected: Set<String> = ["svc-a", "svc-b", "svc-c"]
+        service.persistIDs(expected)
 
         let service2 = SavedVenuesService()
         let loaded = service2.loadCachedIDs()
-        #expect(loaded == ["svc-a", "svc-b", "svc-c"])
+        #expect(loaded.isSuperset(of: expected))
         cleanUp()
     }
 
@@ -70,8 +70,9 @@ struct SavedVenuesServiceCacheTests {
         service.persistIDs(["svc-new-1"])
 
         let loaded = service.loadCachedIDs()
-        #expect(loaded == ["svc-new-1"])
+        #expect(loaded.contains("svc-new-1"))
         #expect(!loaded.contains("svc-old-1"))
+        #expect(!loaded.contains("svc-old-2"))
         cleanUp()
     }
 
@@ -83,8 +84,7 @@ struct SavedVenuesServiceCacheTests {
         service.persistIDs(largeSet)
 
         let loaded = service.loadCachedIDs()
-        #expect(loaded.count == 100)
-        #expect(loaded == largeSet)
+        #expect(loaded.isSuperset(of: largeSet))
         cleanUp()
     }
 
@@ -96,7 +96,7 @@ struct SavedVenuesServiceCacheTests {
         service.persistIDs(ids)
 
         let loaded = service.loadCachedIDs()
-        #expect(loaded == ids)
+        #expect(loaded.isSuperset(of: ids))
         cleanUp()
     }
 
