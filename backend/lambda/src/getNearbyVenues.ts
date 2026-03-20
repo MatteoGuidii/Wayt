@@ -1,14 +1,11 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { queryNearbyFused, putItem, getItem, activeAreaPK } from "./db";
-import { encode } from "./geohash";
+import { queryNearbyFused } from "./db";
 import { haversineDistance, success, badRequest, serverError } from "./shared";
 import { FusedEstimate } from "./signals/types";
 import { computeVenueBusyness, ComputeInput } from "./computeVenueBusyness";
 
 /** Max allowed search radius (10 km). */
 const MAX_RADIUS = 10_000;
-/** TTL for active area tracking (30 minutes). */
-const ACTIVE_AREA_TTL_SECONDS = 30 * 60;
 /**
  * Max venues to compute on-demand per request.
  * Limits latency — the rest will be computed on subsequent requests.
@@ -33,6 +30,7 @@ export async function handler(
     const lng = parseFloat(params.lng ?? "");
     const parsedRadius = parseInt(params.radius ?? "2000", 10);
     const radius = Math.min(isNaN(parsedRadius) ? 2000 : parsedRadius, MAX_RADIUS);
+    const timezone = params.timezone ?? "UTC";
 
     if (isNaN(lat) || isNaN(lng)) {
       return badRequest("Missing or invalid lat/lng parameters");
@@ -87,30 +85,14 @@ export async function handler(
 
     if (toCompute.length > 0) {
       const computeResults = await Promise.all(
-        toCompute.map((v) => computeVenueBusyness(v))
+        toCompute.map((v) => computeVenueBusyness({ ...v, timezone }))
       );
       for (const result of computeResults) {
         nearbyFused.set(result.venueId, result);
       }
     }
 
-    // Step 3: Track active area — only write if geohash changed or entry expired
-    const geohash = encode(lat, lng);
-    const areaPK = activeAreaPK(geohash);
-    const existing = await getItem(areaPK, "META");
-    const isExpiredOrMissing = !existing || ((existing.ttl as number) ?? 0) < nowSeconds;
-    if (isExpiredOrMissing) {
-      await putItem({
-        PK: areaPK,
-        SK: "META",
-        lastQueried: new Date().toISOString(),
-        lat,
-        lng,
-        ttl: nowSeconds + ACTIVE_AREA_TTL_SECONDS,
-      });
-    }
-
-    // Step 4: Return results
+    // Step 3: Return results
     const venues = Array.from(nearbyFused.values());
 
     return success({ venues });

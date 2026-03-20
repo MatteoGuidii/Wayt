@@ -24,6 +24,8 @@ export async function handler(
     const lat = parseFloat(params.lat ?? "");
     const lng = parseFloat(params.lng ?? "");
 
+    const timezone = params.timezone ?? "UTC";
+
     if (!venueName || isNaN(lat) || isNaN(lng)) {
       return badRequest("Missing required query parameters: venueName, lat, lng");
     }
@@ -52,7 +54,7 @@ export async function handler(
 
     // Step 2: If no valid cache, compute fresh
     if (!fused) {
-      fused = await computeVenueBusyness({ venueId, venueName, lat, lng });
+      fused = await computeVenueBusyness({ venueId, venueName, lat, lng, timezone });
     }
 
     // Step 3: Build signal breakdown from cache

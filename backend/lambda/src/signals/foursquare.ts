@@ -57,7 +57,8 @@ export async function fetchFoursquareSignal(
   venueId: string,
   venueName: string,
   lat: number,
-  lng: number
+  lng: number,
+  timezone: string = "UTC"
 ): Promise<VenueSignal | null> {
   if (!FOURSQUARE_API_KEY) return null;
 
@@ -68,7 +69,7 @@ export async function fetchFoursquareSignal(
 
     // Step 2: Compute time-aware score from cached data + current time
     const now = Date.now();
-    const { score: busynessScore, confidence } = computeTimeAwareBusyness(data, now);
+    const { score: busynessScore, confidence } = computeTimeAwareBusyness(data, now, timezone);
     const config = SOURCE_CONFIG.foursquare;
 
     const signal: VenueSignal = {
@@ -165,6 +166,30 @@ async function getCachedMapping(venueId: string): Promise<string | null> {
   return (item.fsqId as string) ?? null;
 }
 
+/** Fetch with retry and exponential backoff for 429/5xx responses. */
+async function fetchWithRetry(
+  url: string,
+  label: string,
+  maxRetries = 3
+): Promise<Response | null> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, { headers: FSQ_HEADERS });
+
+    if (response.ok) return response;
+
+    const retryable = response.status === 429 || response.status >= 500;
+    if (!retryable || attempt === maxRetries) {
+      console.warn(`[foursquare] ${label} returned ${response.status} (attempt ${attempt + 1})`);
+      return null;
+    }
+
+    // Exponential backoff: 200ms, 400ms, 800ms
+    const delayMs = 200 * Math.pow(2, attempt);
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return null;
+}
+
 /** Search for a venue by name + coordinates and return the best Foursquare place ID. */
 async function matchVenue(
   venueId: string,
@@ -178,14 +203,11 @@ async function matchVenue(
     limit: "1",
   });
 
-  const response = await fetch(`${FSQ_BASE}/places/search?${params}`, {
-    headers: FSQ_HEADERS,
-  });
-
-  if (!response.ok) {
-    console.warn(`[foursquare] Search API returned ${response.status} for "${venueName}"`);
-    return null;
-  }
+  const response = await fetchWithRetry(
+    `${FSQ_BASE}/places/search?${params}`,
+    `Search for "${venueName}"`
+  );
+  if (!response) return null;
 
   const data = (await response.json()) as FsqSearchResponse;
   const topResult = data.results?.[0];
@@ -210,14 +232,11 @@ async function matchVenue(
 /** Fetch Foursquare place details including popularity. */
 async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null> {
   const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular";
-  const response = await fetch(`${FSQ_BASE}/places/${fsqId}?fields=${fields}`, {
-    headers: FSQ_HEADERS,
-  });
-
-  if (!response.ok) {
-    console.warn(`[foursquare] Details API returned ${response.status} for fsq_id=${fsqId}`);
-    return null;
-  }
+  const response = await fetchWithRetry(
+    `${FSQ_BASE}/places/${fsqId}?fields=${fields}`,
+    `Details for fsq_id=${fsqId}`
+  );
+  if (!response) return null;
 
   return (await response.json()) as FsqPlaceDetails;
 }
@@ -227,19 +246,19 @@ async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null>
 // -----------------------------------------------
 
 /**
- * Day-of-week amplitude multipliers.
+ * Day-of-week amplitude multipliers using Foursquare convention (1=Mon..7=Sun).
  * Reflects that a Friday dinner peak is more intense than a Tuesday one,
  * even if both have popular windows. Derived from industry foot traffic data.
  * Saturday = 1.0 reference for restaurants; Friday for bars.
  */
 const DAY_MULTIPLIERS: Record<number, number> = {
-  0: 0.70,  // Sunday
   1: 0.55,  // Monday
   2: 0.60,  // Tuesday
   3: 0.65,  // Wednesday
   4: 0.75,  // Thursday
   5: 0.95,  // Friday
   6: 1.00,  // Saturday (reference)
+  7: 0.70,  // Sunday
 };
 
 /**
@@ -254,9 +273,35 @@ const DAY_MULTIPLIERS: Record<number, number> = {
  * Based on the approach described in "Predicting Temporal Activity Patterns
  * of New Venues" (EPJ Data Science, 2018) and how Google Popular Times works.
  */
+/** Convert a UTC timestamp to local day-of-week and minutes-since-midnight using Intl. */
+function getLocalTime(nowMs: number, timezone: string): { localDay: number; localMinutes: number } {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "numeric",
+      minute: "numeric",
+      weekday: "short",
+      hourCycle: "h23", // 0-23 range; hour12:false can give h24 where midnight=24
+    });
+    const parts = fmt.formatToParts(new Date(nowMs));
+    const hour = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+    const minute = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0", 10);
+    const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+    const dayMap: Record<string, number> = {
+      Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+    };
+    return { localDay: dayMap[weekday] ?? 0, localMinutes: hour * 60 + minute };
+  } catch {
+    // Invalid timezone — fall back to UTC
+    const d = new Date(nowMs);
+    return { localDay: d.getUTCDay(), localMinutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
+  }
+}
+
 function computeTimeAwareBusyness(
   data: CachedFsqData,
-  nowMs: number
+  nowMs: number,
+  timezone: string = "UTC"
 ): { score: number; confidence: number } {
   const basePopularity = data.popularity ?? (data.rating != null ? data.rating / 10 : null);
 
@@ -265,9 +310,12 @@ function computeTimeAwareBusyness(
   }
 
   const popularity = Math.max(0, Math.min(1, basePopularity));
-  const now = new Date(nowMs);
-  const currentDay = now.getUTCDay(); // 0 = Sunday
-  const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+  // Convert UTC time to the venue's local time using Intl API
+  const { localDay, localMinutes } = getLocalTime(nowMs, timezone);
+  // Convert JS day (0=Sun,1=Mon..6=Sat) to Foursquare convention (1=Mon..7=Sun)
+  const currentDay = localDay === 0 ? 7 : localDay;
+  const currentMinutes = localMinutes;
 
   // Without hours_popular we have no temporal shape — weak baseline only
   if (data.hoursPopular.length === 0) {
@@ -286,11 +334,14 @@ function computeTimeAwareBusyness(
     }));
 
   if (todayWindows.length === 0) {
-    // No popular hours today — venue is likely quiet
-    return {
-      score: popularity * 0.05,
-      confidence: 0.4,
-    };
+    // Check if Foursquare has popular hours for OTHER days but not today
+    const hasOtherDays = data.hoursPopular.some((h) => h.day !== currentDay);
+    if (hasOtherDays) {
+      // Data exists for other days but not today — likely closed or very quiet
+      return { score: popularity * 0.05, confidence: 0.6 };
+    }
+    // No popular hours for any day — Foursquare lacks data
+    return { score: popularity * 0.05, confidence: 0.25 };
   }
 
   // Sum of Gaussians: each window contributes a bell curve
@@ -345,7 +396,7 @@ function computeTemporalConfidence(
   // More popular windows = more historical data = slightly more confident
   const dataBonus = Math.min(0.1, windowCount * 0.03);
 
-  return Math.min(0.7, base + dataBonus);
+  return Math.min(0.85, base + dataBonus);
 }
 
 /** Parse "HH:mm" or "HHmm" time string to minutes since midnight. */

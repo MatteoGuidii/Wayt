@@ -18,6 +18,7 @@ export interface ComputeInput {
   venueName: string;
   lat: number;
   lng: number;
+  timezone?: string;
 }
 
 /**
@@ -30,7 +31,7 @@ export interface ComputeInput {
  * 5. Cache and return the fused result
  */
 export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEstimate> {
-  const { venueId, venueName, lat, lng } = input;
+  const { venueId, venueName, lat, lng, timezone } = input;
   const now = Date.now();
   const nowSeconds = Math.floor(now / 1000);
 
@@ -54,7 +55,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 
     if (staleSourceIds.length > 0) {
       const fetches = staleSourceIds.map((sourceId) =>
-        fetchSignalBySource(sourceId, venueId, venueName, lat, lng)
+        fetchSignalBySource(sourceId, venueId, venueName, lat, lng, timezone)
       );
       const results = await Promise.all(fetches);
 
@@ -140,11 +141,12 @@ async function fetchSignalBySource(
   venueId: string,
   venueName: string,
   lat: number,
-  lng: number
+  lng: number,
+  timezone?: string
 ): Promise<VenueSignal | null> {
   switch (sourceId) {
     case "foursquare":
-      return fetchFoursquareSignal(venueId, venueName, lat, lng);
+      return fetchFoursquareSignal(venueId, venueName, lat, lng, timezone);
     case "user_reports":
       return aggregateUserReports(venueId);
     default:

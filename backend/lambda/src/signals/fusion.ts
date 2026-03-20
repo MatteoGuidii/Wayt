@@ -117,7 +117,7 @@ function computeConfidence(
   if (sourceCount === 0) return "ESTIMATED";
 
   // VERY_HIGH: 3+ sources agreeing (no conflict), strong total weight
-  if (sourceCount >= 3 && !conflictDetected && totalEffectiveWeight > 1.0) {
+  if (sourceCount >= 3 && !conflictDetected && totalEffectiveWeight > 0.7) {
     return "VERY_HIGH";
   }
 

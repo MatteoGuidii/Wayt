@@ -82,7 +82,9 @@ export async function handler(
       })
     );
 
-    // Invalidate cached fused estimate so next query recomputes with fresh data
+    // Invalidate cached fused estimate so next query recomputes with fresh data.
+    // user_reports signals are never cached in SIGNALS_TABLE (always re-aggregated
+    // from REPORTS_TABLE), so deleting FUSED#CURRENT is sufficient.
     try {
       await deleteItem(venueKey(venueId), fusedSK());
     } catch {

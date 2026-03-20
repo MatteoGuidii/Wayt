@@ -54,6 +54,7 @@ final class FusionService {
                         URLQueryItem(name: "lat", value: String(lat)),
                         URLQueryItem(name: "lng", value: String(lng)),
                         URLQueryItem(name: "radius", value: String(Int(radius))),
+                        URLQueryItem(name: "timezone", value: TimeZone.current.identifier),
                     ]
 
                     if !batch.isEmpty {
@@ -105,6 +106,7 @@ final class FusionService {
             URLQueryItem(name: "venueName", value: venueName),
             URLQueryItem(name: "lat", value: String(lat)),
             URLQueryItem(name: "lng", value: String(lng)),
+            URLQueryItem(name: "timezone", value: TimeZone.current.identifier),
         ]
         return try await APIClient.shared.get(
             path: "/v1/venues/\(encoded)/busyness",
