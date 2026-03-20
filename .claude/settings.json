@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(find /Users/matteo/Desktop/Venuu/amplify -type f \\\\\\(-name *.json -o -name *.yaml -o -name *.yml \\\\\\) ! -path */node_modules/*)"
     ]
   }
 }
