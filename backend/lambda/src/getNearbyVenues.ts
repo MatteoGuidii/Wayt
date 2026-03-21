@@ -11,15 +11,27 @@ const MAX_RADIUS = 10_000;
  * Max venues to compute on-demand per request.
  * Limits latency — the rest will be computed on subsequent requests.
  */
-const MAX_INLINE_COMPUTES = 20;
+const MAX_INLINE_COMPUTES = 50;
+
+/** POST request body shape. */
+interface NearbyVenuesBody {
+  lat: number;
+  lng: number;
+  radius?: number;
+  timezone?: string;
+  venues?: ComputeInput[];
+}
 
 /**
- * GET /v1/venues/nearby?lat=&lng=&radius=&venues=
+ * GET or POST /v1/venues/nearby
  *
  * Returns fused busyness estimates for venues near the given coordinates.
  *
- * The `venues` query param is an optional JSON array of venue objects
- * ({ id, name, lat, lng }) that the iOS app discovered via MapKit.
+ * GET: params via query string (venues JSON-encoded, batched to 20 for URL limit).
+ * POST: params via JSON body (no batching needed — send all venues at once).
+ *
+ * The `venues` field is an optional array of venue objects
+ * ({ venueId, venueName, lat, lng }) that the iOS app discovered via MapKit.
  * For any venue not in the fused cache, we compute on-demand.
  */
 export async function handler(
@@ -29,18 +41,14 @@ export async function handler(
   const log = createLogger("getNearbyVenues", event, context);
   const done = log.startTimer("Handler complete");
   try {
-    const params = event.queryStringParameters ?? {};
-    const lat = parseFloat(params.lat ?? "");
-    const lng = parseFloat(params.lng ?? "");
-    const parsedRadius = parseInt(params.radius ?? "2000", 10);
-    const radius = Math.min(isNaN(parsedRadius) ? 2000 : parsedRadius, MAX_RADIUS);
-    const timezone = params.timezone ?? "UTC";
+    // Parse params from query string (GET) or body (POST)
+    const { lat, lng, radius, timezone, clientVenues } = parseParams(event);
 
     if (isNaN(lat) || isNaN(lng)) {
       return badRequest("Missing or invalid lat/lng parameters");
     }
 
-    log.info("Fetching nearby venues", { lat, lng, radius });
+    log.info("Fetching nearby venues", { lat, lng, radius, method: event.httpMethod });
 
     // Step 1: Query cached fused estimates from geohash neighborhood
     const cachedItems = await queryNearbyFused(lat, lng);
@@ -75,17 +83,7 @@ export async function handler(
       });
     }
 
-    // Step 2: Parse venue list from client (if provided) and compute missing
-    let clientVenues: ComputeInput[] = [];
-    if (params.venues) {
-      try {
-        clientVenues = JSON.parse(params.venues) as ComputeInput[];
-      } catch {
-        // Invalid JSON — skip client venues
-      }
-    }
-
-    // Compute on-demand for venues not in cache (up to MAX_INLINE_COMPUTES)
+    // Step 2: Compute on-demand for venues not in cache (up to MAX_INLINE_COMPUTES)
     const missing = clientVenues.filter((v) => !nearbyFused.has(v.venueId));
     const toCompute = missing.slice(0, MAX_INLINE_COMPUTES);
 
@@ -108,4 +106,44 @@ export async function handler(
     log.error("Failed to fetch nearby venues", undefined, err);
     return serverError("Failed to fetch nearby venues");
   }
+}
+
+/** Extract lat/lng/radius/timezone/venues from either query string or JSON body. */
+function parseParams(event: APIGatewayProxyEvent): {
+  lat: number;
+  lng: number;
+  radius: number;
+  timezone: string;
+  clientVenues: ComputeInput[];
+} {
+  if (event.httpMethod === "POST" && event.body) {
+    const body: NearbyVenuesBody = JSON.parse(event.body);
+    const parsedRadius = body.radius ?? 2000;
+    return {
+      lat: body.lat,
+      lng: body.lng,
+      radius: Math.min(isNaN(parsedRadius) ? 2000 : parsedRadius, MAX_RADIUS),
+      timezone: body.timezone ?? "UTC",
+      clientVenues: body.venues ?? [],
+    };
+  }
+
+  // GET — read from query string (backward compatible)
+  const params = event.queryStringParameters ?? {};
+  const parsedRadius = parseInt(params.radius ?? "2000", 10);
+  let clientVenues: ComputeInput[] = [];
+  if (params.venues) {
+    try {
+      clientVenues = JSON.parse(params.venues) as ComputeInput[];
+    } catch {
+      // Invalid JSON — skip client venues
+    }
+  }
+  return {
+    lat: parseFloat(params.lat ?? ""),
+    lng: parseFloat(params.lng ?? ""),
+    radius: Math.min(isNaN(parsedRadius) ? 2000 : parsedRadius, MAX_RADIUS),
+    timezone: params.timezone ?? "UTC",
+    clientVenues,
+  };
 }

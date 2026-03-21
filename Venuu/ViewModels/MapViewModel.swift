@@ -100,17 +100,25 @@ final class MapViewModel: ObservableObject {
     internal var lastSearchedRegion: MKCoordinateRegion?
     private var searchTask: Task<Void, Never>?
     private var refreshTimer: Task<Void, Never>?
+    private var prefetchTask: Task<Void, Never>?
 
     deinit {
         searchTask?.cancel()
         refreshTimer?.cancel()
         clusterDebounceTask?.cancel()
         expandTask?.cancel()
+        prefetchTask?.cancel()
     }
 
     // MARK: - Search Venues
 
     /// Search venues in the given region. Called on appear and when tapping "Search This Area".
+    ///
+    /// Two-phase approach for instant busyness colors:
+    /// - Phase A: Fire area pre-fetch + MapKit concurrently. Venues appear colored
+    ///   from the pre-fetched cache as each MapKit batch arrives.
+    /// - Phase B: Identify venues with no cached busyness and compute them via a
+    ///   single POST request. Update colors when the response arrives.
     func searchVenues(in region: MKCoordinateRegion) {
         let isInitialSearch = venues.isEmpty && lastSearchedRegion == nil
         searchTask?.cancel()
@@ -127,9 +135,18 @@ final class MapViewModel: ObservableObject {
             isSearching = true
             showSearchThisArea = false
 
+            let radius = region.span.latitudeDelta * 111_000
             Log.map.debug("Searching region: (\(region.center.latitude), \(region.center.longitude)) span: \(region.span.latitudeDelta)")
 
             do {
+                // Phase A: Fire area pre-fetch concurrently with MapKit discovery.
+                // The pre-fetch populates the fusion cache so onBatch can color venues instantly.
+                async let prefetch: Void = fusionService.prefetchArea(
+                    lat: region.center.latitude,
+                    lng: region.center.longitude,
+                    radius: radius
+                )
+
                 var results: [Venue]
                 if searchText.isEmpty {
                     // Progressive loading: show venues as each query type completes
@@ -146,17 +163,25 @@ final class MapViewModel: ObservableObject {
                     )
                 }
 
+                // Ensure pre-fetch completed before checking for uncached venues
+                await prefetch
+
                 guard !Task.isCancelled else { return }
 
                 Log.map.info("Found \(results.count) venues")
 
-                // Overlay busyness data: try fusion engine first, fall back to reports
-                await overlayBusynessData(on: &results, region: region)
-
-                // Carry over existing + cached estimates, then offline fallback for remaining
+                // Apply cached estimates from pre-fetch + carry-over + offline fallback
                 results = carryOverExistingBusyness(to: results)
                 results = applyCachedEstimates(to: results)
                 results = applyOfflineBusyness(to: results)
+
+                // Phase B: Compute missing venues — only those with no busyness data
+                let uncached = results.filter { $0.busynessConfidence == .none }
+                if !uncached.isEmpty {
+                    Log.map.info("\(uncached.count) venues uncached — fetching via POST")
+                    await overlayBusynessData(on: &results, region: region)
+                    results = applyOfflineBusyness(to: results)
+                }
 
                 // Only update if we got results — keep stale venues visible if rate-limited
                 if !results.isEmpty {
@@ -216,6 +241,18 @@ final class MapViewModel: ObservableObject {
 
         if (centerMoved || zoomChanged) && !isSearching {
             showSearchThisArea = true
+
+            // Pre-fetch fusion data for the new area so it's cached
+            // before the user taps "Search This Area"
+            prefetchTask?.cancel()
+            prefetchTask = Task {
+                let radius = region.span.latitudeDelta * 111_000
+                await fusionService.prefetchArea(
+                    lat: region.center.latitude,
+                    lng: region.center.longitude,
+                    radius: radius
+                )
+            }
         }
     }
 

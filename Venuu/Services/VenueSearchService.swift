@@ -136,6 +136,22 @@ final class VenueSearchService {
         "dunkin'", "domino's", "pizza hut", "papa john's"
     ]
 
+    /// Returns true if the lowercased venue name matches an excluded chain.
+    /// Uses prefix matching so "Subway" and "McDonald's King St" are excluded,
+    /// but "Subway Sushi Bar" passes through.
+    private static func isExcludedChain(_ name: String) -> Bool {
+        if excludedNames.contains(name) { return true }
+        for chain in excludedNames {
+            if name.hasPrefix(chain) {
+                let remainder = name.dropFirst(chain.count)
+                if remainder.isEmpty || remainder.first?.isLetter == false {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     // MARK: - Search
 
     /// Search venues by natural language query within a map region.
@@ -168,8 +184,8 @@ final class VenueSearchService {
         let venues = response.mapItems.compactMap { item -> Venue? in
             guard let name = item.name?.lowercased() else { return nil }
 
-            // Filter excluded names
-            if Self.excludedNames.contains(where: { name.contains($0) }) {
+            // Filter excluded fast-food chains (prefix match, not substring)
+            if Self.isExcludedChain(name) {
                 return nil
             }
 
@@ -179,9 +195,9 @@ final class VenueSearchService {
                 return nil
             }
 
-            // Filter to venues within the search region (MKLocalSearch returns results beyond it)
+            // Filter to venues within the search region + 10% buffer (MKLocalSearch returns results beyond it)
             let coord = item.placemark.coordinate
-            if !region.contains(coord) {
+            if !region.containsWithBuffer(coord) {
                 return nil
             }
 
@@ -255,27 +271,140 @@ final class VenueSearchService {
         return []
     }
 
+    // MARK: - Category-Based Search
+
+    /// Search venues by MapKit POI category within a map region.
+    /// Complements keyword search by matching on MapKit's internal classification.
+    func searchByCategory(
+        _ category: MKPointOfInterestCategory,
+        region: MKCoordinateRegion
+    ) async throws -> [Venue] {
+        let cacheLabel = "cat:\(category.rawValue)"
+
+        if let cached = cachedResults(for: cacheLabel, region: region) {
+            Log.search.debug("Cache hit for category '\(category.rawValue, privacy: .public)'")
+            return cached
+        }
+
+        if !canMakeRequest() {
+            Log.search.notice("Rate limited: returning stale cache for category '\(category.rawValue, privacy: .public)'")
+            return staleCachedResults(for: cacheLabel, region: region) ?? []
+        }
+
+        recordRequest()
+
+        let request = MKLocalPointsOfInterestRequest(coordinateRegion: region)
+        request.pointOfInterestFilter = MKPointOfInterestFilter(including: [category])
+
+        let search = MKLocalSearch(request: request)
+        let response = try await search.start()
+
+        let venues = response.mapItems.compactMap { item -> Venue? in
+            guard let name = item.name?.lowercased() else { return nil }
+
+            if Self.isExcludedChain(name) { return nil }
+
+            if let poi = item.pointOfInterestCategory,
+               Self.excludedCategories.contains(poi) {
+                return nil
+            }
+
+            let coord = item.placemark.coordinate
+            if !region.containsWithBuffer(coord) { return nil }
+
+            return Venue(mapItem: item)
+        }
+
+        Log.search.info("Category '\(category.rawValue, privacy: .public)' returned \(venues.count) venues (from \(response.mapItems.count) items)")
+        pruneCacheIfNeeded()
+        queryCache[cacheKey(for: cacheLabel, region: region)] = CachedSearch(region: region, results: venues, timestamp: Date())
+        return venues
+    }
+
+    // MARK: - Category Timeout-Protected Search
+
+    /// Execute a single category search with timeout and retry.
+    private func searchCategoryWithTimeout(
+        category: MKPointOfInterestCategory,
+        region: MKCoordinateRegion
+    ) async -> [Venue] {
+        let label = category.rawValue
+        for attempt in 0...Self.maxRetries {
+            guard !Task.isCancelled else { return [] }
+
+            if attempt > 0 {
+                try? await Task.sleep(for: .milliseconds(500 * attempt))
+                guard !Task.isCancelled else { return [] }
+                Log.search.info("Retrying category '\(label, privacy: .public)' (attempt \(attempt + 1))")
+            }
+
+            do {
+                let result: [Venue]? = try await withThrowingTaskGroup(of: [Venue]?.self) { group in
+                    group.addTask { [self] () -> [Venue]? in
+                        try await self.searchByCategory(category, region: region)
+                    }
+                    group.addTask { () -> [Venue]? in
+                        try await Task.sleep(for: .seconds(AppConstants.mapKitQueryTimeout))
+                        return nil
+                    }
+
+                    for try await result in group {
+                        if let venues = result {
+                            group.cancelAll()
+                            return venues
+                        } else {
+                            group.cancelAll()
+                            return nil
+                        }
+                    }
+                    return nil
+                }
+
+                if let venues = result { return venues }
+                Log.search.notice("Category '\(label, privacy: .public)' timed out (attempt \(attempt + 1))")
+            } catch is CancellationError {
+                return []
+            } catch {
+                Log.search.error("Category '\(label, privacy: .public)' failed (attempt \(attempt + 1)): \(error.localizedDescription)")
+            }
+        }
+
+        if let stale = staleCachedResults(for: "cat:\(label)", region: region) {
+            Log.search.notice("Category '\(label, privacy: .public)' returning stale cache after retries")
+            return stale
+        }
+        return []
+    }
+
     // MARK: - Multi-Type Search
 
     /// Search multiple venue types concurrently with progressive results.
     ///
-    /// Fires all 6 queries in parallel. Each completed query calls `onBatch` with
-    /// the deduplicated accumulated results so the UI can update progressively.
+    /// Two-tier approach for maximum coverage:
+    /// - **Tier 1:** Category-based searches (broad coverage by MapKit classification)
+    /// - **Tier 2:** Keyword searches (catch niche venues MapKit doesn't categorize well)
+    ///
+    /// Each completed query calls `onBatch` with deduplicated accumulated results
+    /// so the UI can update progressively.
     func searchAllTypes(
         region: MKCoordinateRegion,
         onBatch: (([Venue]) -> Void)? = nil
     ) async -> [Venue] {
-        Log.search.debug("Starting multi-type search (6 queries)")
-        let queries = ["restaurant", "bar", "cafe", "nightclub", "pub", "bakery"]
         let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
 
         var seen = Set<String>()
         var accumulated: [Venue] = []
 
+        // Tier 1: Category-based searches — broad baseline coverage
+        let categories: [MKPointOfInterestCategory] = [
+            .restaurant, .cafe, .nightlife, .bakery, .brewery, .winery
+        ]
+        Log.search.debug("Tier 1: starting \(categories.count) category searches")
+
         await withTaskGroup(of: [Venue].self) { group in
-            for query in queries {
+            for category in categories {
                 group.addTask {
-                    await self.searchWithTimeout(query: query, region: region)
+                    await self.searchCategoryWithTimeout(category: category, region: region)
                 }
             }
 
@@ -288,6 +417,30 @@ final class VenueSearchService {
             }
         }
 
+        Log.search.info("Tier 1 complete: \(accumulated.count) unique venues")
+
+        // Tier 2: Keyword searches — supplementary coverage for niche venues
+        let keywords = ["restaurant", "bar", "lounge", "brunch", "pub", "diner"]
+        Log.search.debug("Tier 2: starting \(keywords.count) keyword searches")
+
+        await withTaskGroup(of: [Venue].self) { group in
+            for keyword in keywords {
+                group.addTask {
+                    await self.searchWithTimeout(query: keyword, region: region)
+                }
+            }
+
+            for await batch in group {
+                for venue in batch where !seen.contains(venue.id) {
+                    seen.insert(venue.id)
+                    accumulated.append(venue)
+                }
+                onBatch?(accumulated)
+            }
+        }
+
+        Log.search.info("Tier 2 complete: \(accumulated.count) total unique venues")
+
         // Precompute distances, sort, and cap at limit — closest venues first
         let distances = accumulated.map { venue in
             center.distance(from: CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude))
@@ -298,7 +451,7 @@ final class VenueSearchService {
             .map(\.offset)
         accumulated = sortedIndices.map { accumulated[$0] }
 
-        Log.search.info("Multi-type search complete: \(accumulated.count) unique venues")
+        Log.search.info("Multi-type search complete: \(accumulated.count) venues after distance cap")
         return accumulated
     }
 
@@ -311,6 +464,16 @@ extension MKCoordinateRegion {
     func contains(_ coordinate: CLLocationCoordinate2D) -> Bool {
         let halfLat = span.latitudeDelta / 2.0
         let halfLng = span.longitudeDelta / 2.0
+        return coordinate.latitude >= center.latitude - halfLat
+            && coordinate.latitude <= center.latitude + halfLat
+            && coordinate.longitude >= center.longitude - halfLng
+            && coordinate.longitude <= center.longitude + halfLng
+    }
+
+    /// Returns true if the coordinate falls within this region plus a buffer (~10% by default).
+    func containsWithBuffer(_ coordinate: CLLocationCoordinate2D, bufferFraction: Double = 0.1) -> Bool {
+        let halfLat = span.latitudeDelta / 2.0 * (1.0 + bufferFraction)
+        let halfLng = span.longitudeDelta / 2.0 * (1.0 + bufferFraction)
         return coordinate.latitude >= center.latitude - halfLat
             && coordinate.latitude <= center.latitude + halfLat
             && coordinate.longitude >= center.longitude - halfLng

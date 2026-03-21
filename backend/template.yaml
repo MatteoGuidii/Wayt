@@ -256,6 +256,12 @@ Resources:
             RestApiId: !Ref VenuuApi
             Path: /v1/venues/nearby
             Method: GET
+        PostNearbyVenues:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VenuuApi
+            Path: /v1/venues/nearby
+            Method: POST
     Metadata:
       BuildMethod: makefile
 

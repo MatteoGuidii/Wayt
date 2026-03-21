@@ -26,10 +26,29 @@ final class FusionService {
         return latDelta < 0.005 && lngDelta < 0.005
     }
 
+    // MARK: - Area Pre-fetch
+
+    /// Pre-fetch cached fused estimates for an area (no venue list needed).
+    /// Populates the local cache so that subsequent `cachedEstimate(for:)` calls hit instantly.
+    /// Safe to call on every region change — skips if cache is already valid.
+    func prefetchArea(lat: Double, lng: Double, radius: Double = 2_000) async {
+        guard !isCacheValid(lat: lat, lng: lng) else {
+            Log.fusion.debug("Prefetch skipped — cache valid (\(self.nearbyCache.count) venues)")
+            return
+        }
+        do {
+            let _ = try await fetchNearbyEstimates(lat: lat, lng: lng, radius: radius)
+            Log.fusion.info("Area prefetch complete: \(self.nearbyCache.count) cached estimates")
+        } catch {
+            Log.fusion.notice("Area prefetch failed: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Nearby Fused Estimates
 
     /// Fetch fused busyness estimates for venues near the given coordinates.
-    /// Sends venue metadata in batches of 20 (URL length limit) and merges results.
+    /// Sends all venues in a single POST request. When `venues` is empty,
+    /// returns only cached estimates from the server (fast DynamoDB-only query).
     func fetchNearbyEstimates(
         lat: Double,
         lng: Double,
@@ -41,59 +60,32 @@ final class FusionService {
             return nearbyCache
         }
 
-        if venues.isEmpty {
-            Log.fusion.debug("No venues provided, skipping fusion fetch")
-            return [:]
-        }
+        Log.fusion.info("Fetching fused estimates (POST) for \(venues.count) venues")
 
-        let batchSize = 20
-        let batches = stride(from: 0, to: venues.count, by: batchSize).map {
-            Array(venues[($0)..<min($0 + batchSize, venues.count)])
-        }
+        let request = NearbyVenuesRequest(
+            lat: lat,
+            lng: lng,
+            radius: Int(radius),
+            timezone: TimeZone.current.identifier,
+            venues: venues
+        )
 
-        Log.fusion.info("Fetching fused estimates for \(venues.count) venues in \(batches.count) batch(es)")
+        let response: NearbyVenuesFusedResponse = try await APIClient.shared.post(
+            path: "/v1/venues/nearby",
+            body: request
+        )
+
         var indexed: [String: FusedEstimateResponse] = [:]
-
-        // Fetch all batches concurrently
-        try await withThrowingTaskGroup(of: [FusedEstimateResponse].self) { group in
-            for batch in batches {
-                group.addTask {
-                    var queryItems = [
-                        URLQueryItem(name: "lat", value: String(lat)),
-                        URLQueryItem(name: "lng", value: String(lng)),
-                        URLQueryItem(name: "radius", value: String(Int(radius))),
-                        URLQueryItem(name: "timezone", value: TimeZone.current.identifier),
-                    ]
-
-                    if !batch.isEmpty {
-                        let encoder = JSONEncoder()
-                        if let data = try? encoder.encode(batch),
-                           let json = String(data: data, encoding: .utf8) {
-                            queryItems.append(URLQueryItem(name: "venues", value: json))
-                        }
-                    }
-
-                    let response: NearbyVenuesFusedResponse = try await APIClient.shared.get(
-                        path: "/v1/venues/nearby",
-                        queryItems: queryItems
-                    )
-                    return response.venues
-                }
-            }
-
-            for try await venues in group {
-                for estimate in venues {
-                    if let venueId = estimate.venueId {
-                        indexed[venueId] = estimate
-                    }
-                }
+        for estimate in response.venues {
+            if let venueId = estimate.venueId {
+                indexed[venueId] = estimate
             }
         }
 
         Log.fusion.info("Fusion returned \(indexed.count) estimates")
-        // Only cache non-empty results — avoids blocking retries for 60s on transient failures
+        // Merge into existing cache rather than replacing — preserves pre-fetched data
         if !indexed.isEmpty {
-            nearbyCache = indexed
+            nearbyCache.merge(indexed) { _, new in new }
             cacheTimestamp = Date()
             cachedLat = lat
             cachedLng = lng
@@ -163,7 +155,16 @@ struct VenueInfo: Codable, Sendable {
     }
 }
 
-/// Response from GET /v1/venues/nearby.
+/// POST body for /v1/venues/nearby.
+struct NearbyVenuesRequest: Encodable, Sendable {
+    let lat: Double
+    let lng: Double
+    let radius: Int
+    let timezone: String
+    let venues: [VenueInfo]
+}
+
+/// Response from /v1/venues/nearby.
 struct NearbyVenuesFusedResponse: Codable, Sendable {
     let venues: [FusedEstimateResponse]
 }
