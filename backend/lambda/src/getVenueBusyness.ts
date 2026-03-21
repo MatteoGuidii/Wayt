@@ -1,8 +1,9 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { venueKey, fusedSK, getItem, queryByPK } from "./db";
 import { success, badRequest, serverError } from "./shared";
 import { computeVenueBusyness } from "./computeVenueBusyness";
 import { FusedEstimate, SignalSource } from "./signals/types";
+import { createLogger } from "./logger";
 
 /**
  * GET /v1/venues/{venueId}/busyness?venueName=&lat=&lng=
@@ -11,13 +12,18 @@ import { FusedEstimate, SignalSource } from "./signals/types";
  * including signal breakdown.
  */
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("getVenueBusyness", event, context);
+  const done = log.startTimer("Handler complete");
   try {
     const venueId = decodeURIComponent(event.pathParameters?.venueId ?? "");
     if (!venueId) {
       return badRequest("Missing venueId path parameter");
     }
+
+    log.info("Fetching venue busyness", { venueId });
 
     const params = event.queryStringParameters ?? {};
     const venueName = params.venueName ?? "";
@@ -54,7 +60,10 @@ export async function handler(
 
     // Step 2: If no valid cache, compute fresh
     if (!fused) {
+      log.debug("Cache miss, computing fresh", { venueId });
       fused = await computeVenueBusyness({ venueId, venueName, lat, lng, timezone });
+    } else {
+      log.debug("Cache hit", { venueId });
     }
 
     // Step 3: Build signal breakdown from cache
@@ -74,12 +83,13 @@ export async function handler(
         };
       });
 
+    done({ venueId, score: fused.busynessScore, confidence: fused.confidence, sourceCount: fused.sourceCount });
     return success({
       ...fused,
       signals,
     });
   } catch (err) {
-    console.error("[getVenueBusyness] Error:", err);
+    log.error("Failed to fetch venue busyness", undefined, err);
     return serverError("Failed to fetch venue busyness");
   }
 }

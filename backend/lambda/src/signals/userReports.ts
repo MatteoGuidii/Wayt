@@ -1,6 +1,7 @@
 import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, REPORTS_TABLE } from "../db";
 import { VenueSignal, SOURCE_CONFIG, normalizeLevel } from "./types";
+import { createLogger } from "../logger";
 
 /** How far back to look for reports (2 hours, matching the DynamoDB TTL). */
 const MAX_AGE_MS = 2 * 60 * 60 * 1000;
@@ -83,7 +84,8 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
       waitMinutes: avgWait,
     };
   } catch (err) {
-    console.error("[userReports] Failed to aggregate:", err);
+    const log = createLogger("userReports");
+    log.error("Failed to aggregate reports", { venueId }, err);
     return null;
   }
 }

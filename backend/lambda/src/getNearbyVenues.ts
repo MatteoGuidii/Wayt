@@ -1,8 +1,9 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { queryNearbyFused } from "./db";
 import { haversineDistance, success, badRequest, serverError } from "./shared";
 import { FusedEstimate } from "./signals/types";
 import { computeVenueBusyness, ComputeInput } from "./computeVenueBusyness";
+import { createLogger } from "./logger";
 
 /** Max allowed search radius (10 km). */
 const MAX_RADIUS = 10_000;
@@ -22,8 +23,11 @@ const MAX_INLINE_COMPUTES = 20;
  * For any venue not in the fused cache, we compute on-demand.
  */
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("getNearbyVenues", event, context);
+  const done = log.startTimer("Handler complete");
   try {
     const params = event.queryStringParameters ?? {};
     const lat = parseFloat(params.lat ?? "");
@@ -35,6 +39,8 @@ export async function handler(
     if (isNaN(lat) || isNaN(lng)) {
       return badRequest("Missing or invalid lat/lng parameters");
     }
+
+    log.info("Fetching nearby venues", { lat, lng, radius });
 
     // Step 1: Query cached fused estimates from geohash neighborhood
     const cachedItems = await queryNearbyFused(lat, lng);
@@ -84,6 +90,7 @@ export async function handler(
     const toCompute = missing.slice(0, MAX_INLINE_COMPUTES);
 
     if (toCompute.length > 0) {
+      log.info("Computing on-demand estimates", { count: toCompute.length, totalMissing: missing.length });
       const computeResults = await Promise.all(
         toCompute.map((v) => computeVenueBusyness({ ...v, timezone }))
       );
@@ -95,9 +102,10 @@ export async function handler(
     // Step 3: Return results
     const venues = Array.from(nearbyFused.values());
 
+    done({ venueCount: venues.length, cached: nearbyFused.size - toCompute.length, computed: toCompute.length });
     return success({ venues });
   } catch (err) {
-    console.error("[getNearbyVenues] Error:", err);
+    log.error("Failed to fetch nearby venues", undefined, err);
     return serverError("Failed to fetch nearby venues");
   }
 }

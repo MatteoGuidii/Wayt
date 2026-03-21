@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import MapKit
+import os
 import SwiftUI
 
 @MainActor
@@ -126,7 +127,7 @@ final class MapViewModel: ObservableObject {
             isSearching = true
             showSearchThisArea = false
 
-            print("[MapViewModel] Searching region: \(region.center.latitude), \(region.center.longitude) span: \(region.span.latitudeDelta)")
+            Log.map.debug("Searching region: (\(region.center.latitude), \(region.center.longitude)) span: \(region.span.latitudeDelta)")
 
             do {
                 var results: [Venue]
@@ -147,7 +148,7 @@ final class MapViewModel: ObservableObject {
 
                 guard !Task.isCancelled else { return }
 
-                print("[MapViewModel] Found \(results.count) venues")
+                Log.map.info("Found \(results.count) venues")
 
                 // Overlay busyness data: try fusion engine first, fall back to reports
                 await overlayBusynessData(on: &results, region: region)
@@ -163,10 +164,10 @@ final class MapViewModel: ObservableObject {
                     lastSearchedRegion = region
                     recomputeClusters()
                 }
-                print("[MapViewModel] Loaded \(results.count) venues with busyness")
+                Log.map.info("Loaded \(results.count) venues with busyness")
             } catch {
                 guard !Task.isCancelled else { return }
-                print("[MapViewModel] Search error: \(error.localizedDescription)")
+                Log.map.error("Search error: \(error.localizedDescription)")
             }
 
             isSearching = false
@@ -338,7 +339,7 @@ final class MapViewModel: ObservableObject {
                 await overlayBusynessData(on: &updated, region: region)
                 venues = updated
                 recomputeClusters()
-                print("[MapViewModel] Live refresh complete")
+                Log.map.debug("Live refresh complete")
             }
         }
     }
@@ -371,7 +372,7 @@ final class MapViewModel: ObservableObject {
             applyFusedEstimates(fused, to: &venues)
             return
         } catch {
-            print("[MapViewModel] Fusion unavailable, falling back to reports: \(error.localizedDescription)")
+            Log.map.notice("Fusion unavailable, falling back to reports: \(error.localizedDescription)")
         }
 
         // Fallback: use legacy reports endpoint
@@ -407,7 +408,7 @@ final class MapViewModel: ObservableObject {
                 radiusMeters: region.span.latitudeDelta * 111_000
             )
         } catch {
-            print("[MapViewModel] Reports unavailable: \(error.localizedDescription)")
+            Log.map.notice("Reports unavailable: \(error.localizedDescription)")
             return [:]
         }
     }

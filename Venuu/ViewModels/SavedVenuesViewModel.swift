@@ -1,6 +1,7 @@
 import Combine
 import CoreLocation
 import Foundation
+import os
 
 @MainActor
 final class SavedVenuesViewModel: ObservableObject {
@@ -39,7 +40,7 @@ final class SavedVenuesViewModel: ObservableObject {
             savedVenueIDs = Set(venues.map(\.venueId))
             hasLoadedFromAPI = true
         } catch {
-            print("[SavedVenues] Load failed: \(error.localizedDescription)")
+            Log.saved.error("Load saved venues failed: \(error.localizedDescription)")
         }
     }
 
@@ -60,7 +61,7 @@ final class SavedVenuesViewModel: ObservableObject {
                 // Revert on failure
                 savedVenueIDs.insert(venueId)
                 await loadSavedVenues(force: true)
-                print("[SavedVenues] Unsave failed: \(error.localizedDescription)")
+                Log.saved.error("Unsave failed, reverting: \(error.localizedDescription)")
             }
         } else {
             // Optimistic add
@@ -82,7 +83,7 @@ final class SavedVenuesViewModel: ObservableObject {
                 // Revert on failure
                 savedVenueIDs.remove(venueId)
                 persistIDs()
-                print("[SavedVenues] Save failed: \(error.localizedDescription)")
+                Log.saved.error("Save failed, reverting: \(error.localizedDescription)")
             }
         }
     }
@@ -99,7 +100,7 @@ final class SavedVenuesViewModel: ObservableObject {
         } catch {
             // Refresh from server on failure
             await loadSavedVenues(force: true)
-            print("[SavedVenues] Unsave failed: \(error.localizedDescription)")
+            Log.saved.error("Unsave by ID failed: \(error.localizedDescription)")
         }
     }
 

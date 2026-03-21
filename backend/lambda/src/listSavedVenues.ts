@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import {
@@ -8,12 +8,15 @@ import {
   serverError,
   getUserId,
 } from "./shared";
+import { createLogger } from "./logger";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("listSavedVenues", event, context);
   try {
     const userId = getUserId(
       event.requestContext.authorizer?.claims as Record<string, string> | undefined
@@ -42,9 +45,10 @@ export async function handler(
       (a, b) => new Date(b.savedAt as string).getTime() - new Date(a.savedAt as string).getTime()
     );
 
+    log.info("Listed saved venues", { count: venues.length });
     return success({ venues });
   } catch (err) {
-    console.error("[listSavedVenues] Error:", err);
+    log.error("Failed to list saved venues", undefined, err);
     return serverError("Failed to list saved venues");
   }
 }

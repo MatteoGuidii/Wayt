@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
@@ -11,13 +11,16 @@ import {
   serverError,
   getUserId,
 } from "./shared";
+import { createLogger } from "./logger";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3 = new S3Client({});
 
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("getUserProfile", event, context);
   try {
     const userId = getUserId(
       event.requestContext.authorizer?.claims as Record<string, string> | undefined
@@ -68,7 +71,7 @@ export async function handler(
       profileImageUrl: null,
     });
   } catch (err) {
-    console.error("[getUserProfile] Error:", err);
+    log.error("Failed to fetch profile", undefined, err);
     return serverError("Failed to fetch profile");
   }
 }

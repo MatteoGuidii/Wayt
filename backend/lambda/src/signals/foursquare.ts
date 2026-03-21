@@ -6,6 +6,7 @@ import {
   putItem,
 } from "../db";
 import { VenueSignal, SOURCE_CONFIG } from "./types";
+import { createLogger } from "../logger";
 
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY ?? "";
 const FSQ_BASE = "https://places-api.foursquare.com";
@@ -62,6 +63,8 @@ export async function fetchFoursquareSignal(
 ): Promise<VenueSignal | null> {
   if (!FOURSQUARE_API_KEY) return null;
 
+  const log = createLogger("foursquare");
+
   try {
     // Step 1: Get raw Foursquare data (from 30-day cache or fresh API call)
     const data = await getFoursquareVenueData(venueId, venueName, lat, lng);
@@ -94,7 +97,7 @@ export async function fetchFoursquareSignal(
 
     return signal;
   } catch (err) {
-    console.error("[foursquare] Failed to fetch signal:", err);
+    log.error("Failed to fetch signal", { venueId }, err);
     return null;
   }
 }
@@ -179,7 +182,8 @@ async function fetchWithRetry(
 
     const retryable = response.status === 429 || response.status >= 500;
     if (!retryable || attempt === maxRetries) {
-      console.warn(`[foursquare] ${label} returned ${response.status} (attempt ${attempt + 1})`);
+      const retryLog = createLogger("foursquare");
+      retryLog.warn("API request failed", { label, status: response.status, attempt: attempt + 1 });
       return null;
     }
 

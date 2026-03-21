@@ -9,6 +9,7 @@ import { VenueSignal, FusedEstimate, SOURCE_CONFIG, SignalSource } from "./signa
 import { fuseSignals, emptyEstimate } from "./signals/fusion";
 import { fetchFoursquareSignal } from "./signals/foursquare";
 import { aggregateUserReports } from "./signals/userReports";
+import { createLogger } from "./logger";
 
 /** TTL for the cached fused estimate (10 minutes). */
 const FUSED_TTL_SECONDS = 10 * 60;
@@ -34,6 +35,8 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
   const { venueId, venueName, lat, lng, timezone } = input;
   const now = Date.now();
   const nowSeconds = Math.floor(now / 1000);
+
+  const log = createLogger("computeVenueBusyness");
 
   try {
     // Step 1: Check for cached signals
@@ -66,10 +69,14 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
       }
     }
 
+    log.debug("Signal status", { venueId, cached: cachedSignals.length, stale: staleSourceIds });
+
     // Step 3: Fuse all available signals
     const fused = freshSignals.length > 0
       ? fuseSignals(freshSignals, now)
       : emptyEstimate(venueId);
+
+    log.info("Fused estimate computed", { venueId, score: fused.busynessScore, confidence: fused.confidence, sources: fused.sources });
 
     // Step 4: Cache the fused result with geohash for spatial queries
     const geohash = encode(lat, lng);
@@ -87,7 +94,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 
     return fused;
   } catch (err) {
-    console.error("[computeVenueBusyness] Error:", err);
+    log.error("Computation failed", { venueId }, err);
     return emptyEstimate(venueId);
   }
 }

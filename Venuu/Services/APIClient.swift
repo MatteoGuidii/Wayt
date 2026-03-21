@@ -1,6 +1,7 @@
 import Foundation
 import Amplify
 import AWSPluginsCore
+import os
 
 /// Generic HTTP client for API Gateway endpoints.
 /// Automatically attaches the Cognito auth token.
@@ -8,7 +9,7 @@ actor APIClient {
 
     static let shared = APIClient()
 
-    /// Base URL for all API requests. 
+    /// Base URL for all API requests.
     private let baseURL = "https://36w1q7mbqg.execute-api.ca-central-1.amazonaws.com/dev"
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -28,10 +29,20 @@ actor APIClient {
         path: String,
         queryItems: [URLQueryItem] = []
     ) async throws -> T {
+        let start = CFAbsoluteTimeGetCurrent()
+        Log.api.debug("GET \(path, privacy: .public)")
         let request = try await buildRequest(method: "GET", path: path, queryItems: queryItems)
         let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        Log.api.info("GET \(path, privacy: .public) -> \(status) (\(ms)ms)")
         try validateResponse(response)
-        return try decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            Log.api.error("GET \(path, privacy: .public) decode failed: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     // MARK: - POST
@@ -40,12 +51,22 @@ actor APIClient {
         path: String,
         body: Body
     ) async throws -> T {
+        let start = CFAbsoluteTimeGetCurrent()
+        Log.api.debug("POST \(path, privacy: .public)")
         var request = try await buildRequest(method: "POST", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        Log.api.info("POST \(path, privacy: .public) -> \(status) (\(ms)ms)")
         try validateResponse(response)
-        return try decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            Log.api.error("POST \(path, privacy: .public) decode failed: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     /// POST that returns no meaningful body (just success/failure)
@@ -53,10 +74,15 @@ actor APIClient {
         path: String,
         body: Body
     ) async throws {
+        let start = CFAbsoluteTimeGetCurrent()
+        Log.api.debug("POST \(path, privacy: .public)")
         var request = try await buildRequest(method: "POST", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (_, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        Log.api.info("POST \(path, privacy: .public) -> \(status) (\(ms)ms)")
         try validateResponse(response)
     }
 
@@ -66,22 +92,37 @@ actor APIClient {
         path: String,
         body: Body
     ) async throws -> T {
+        let start = CFAbsoluteTimeGetCurrent()
+        Log.api.debug("PUT \(path, privacy: .public)")
         var request = try await buildRequest(method: "PUT", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        Log.api.info("PUT \(path, privacy: .public) -> \(status) (\(ms)ms)")
         try validateResponse(response)
-        return try decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            Log.api.error("PUT \(path, privacy: .public) decode failed: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     func put<Body: Encodable>(
         path: String,
         body: Body
     ) async throws {
+        let start = CFAbsoluteTimeGetCurrent()
+        Log.api.debug("PUT \(path, privacy: .public)")
         var request = try await buildRequest(method: "PUT", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (_, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        Log.api.info("PUT \(path, privacy: .public) -> \(status) (\(ms)ms)")
         try validateResponse(response)
     }
 
@@ -89,12 +130,17 @@ actor APIClient {
 
     /// Uploads raw image data to a presigned S3 URL (no auth header needed).
     func uploadImage(to presignedURL: URL, imageData: Data) async throws {
+        let start = CFAbsoluteTimeGetCurrent()
+        Log.api.debug("Uploading image (\(imageData.count) bytes)")
         var request = URLRequest(url: presignedURL)
         request.httpMethod = "PUT"
         request.httpBody = imageData
         request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 30
         let (_, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        Log.api.info("Image upload -> \(status) (\(ms)ms)")
         try validateResponse(response)
     }
 
@@ -122,6 +168,8 @@ actor APIClient {
         // Attach Cognito token
         if let token = try? await fetchAuthToken() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        } else {
+            Log.auth.notice("Auth token unavailable, proceeding unauthenticated")
         }
 
         return request
@@ -142,9 +190,15 @@ actor APIClient {
         }
         switch http.statusCode {
         case 200...299: return
-        case 401: throw APIError.unauthorized
-        case 429: throw APIError.rateLimited
-        default: throw APIError.serverError(http.statusCode)
+        case 401:
+            Log.api.error("Unauthorized (401)")
+            throw APIError.unauthorized
+        case 429:
+            Log.api.notice("Rate limited (429)")
+            throw APIError.rateLimited
+        default:
+            Log.api.error("Server error (\(http.statusCode))")
+            throw APIError.serverError(http.statusCode)
         }
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Networking + local cache layer for saved venues.
 struct SavedVenuesService {
@@ -9,9 +10,11 @@ struct SavedVenuesService {
     // MARK: - Load from API
 
     func loadSavedVenues() async throws -> [SavedVenue] {
+        Log.saved.debug("Loading saved venues from API")
         let response: ListSavedVenuesResponse = try await APIClient.shared.get(
             path: "/user/saved-venues"
         )
+        Log.saved.info("Loaded \(response.venues.count) saved venues")
         let ids = response.venues.map(\.venueId)
         persistIDs(Set(ids))
         persistVenues(response.venues)
@@ -36,12 +39,14 @@ struct SavedVenuesService {
             lng: lng,
             address: address
         )
+        Log.saved.info("Saving venue \(venueId, privacy: .public)")
         try await APIClient.shared.post(path: "/user/saved-venues", body: body)
     }
 
     // MARK: - Unsave
 
     func unsaveVenue(venueId: String) async throws {
+        Log.saved.info("Unsaving venue \(venueId, privacy: .public)")
         let body = UnsaveVenueBody(venueId: venueId)
         try await APIClient.shared.post(path: "/user/saved-venues/remove", body: body)
     }
@@ -53,6 +58,7 @@ struct SavedVenuesService {
               let ids = try? JSONDecoder().decode([String].self, from: data) else {
             return []
         }
+        Log.saved.debug("Loaded \(ids.count) cached venue IDs")
         return Set(ids)
     }
 
@@ -69,6 +75,7 @@ struct SavedVenuesService {
               let venues = try? JSONDecoder().decode([SavedVenue].self, from: data) else {
             return []
         }
+        Log.saved.debug("Loaded \(venues.count) cached venues")
         return venues
     }
 

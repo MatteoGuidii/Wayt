@@ -1,5 +1,6 @@
-import Combine
 import Amplify
+import Combine
+import os
 import SwiftUI
 
 /// Lightweight observable that tracks whether the user is signed in or browsing as guest.
@@ -27,14 +28,17 @@ final class AuthState: ObservableObject {
                 let user = try await Amplify.Auth.getCurrentUser()
                 username = user.username
                 isSignedIn = true
+                Log.auth.info("Session valid, user signed in")
             } else {
                 isSignedIn = false
                 username = nil
+                Log.auth.info("No active session, guest mode")
             }
         } catch {
             // No valid session — stay in guest mode
             isSignedIn = false
             username = nil
+            Log.auth.notice("Session check failed, defaulting to guest mode: \(error.localizedDescription)")
         }
     }
 
@@ -42,6 +46,7 @@ final class AuthState: ObservableObject {
     func didSignIn(username: String) {
         self.username = username
         self.isSignedIn = true
+        Log.auth.info("User signed in")
     }
 
     /// Called after sign-out.
@@ -49,6 +54,7 @@ final class AuthState: ObservableObject {
         username = nil
         displayName = nil
         isSignedIn = false
+        Log.auth.info("User signed out")
     }
 
     /// Updates the display name from the profile view model.

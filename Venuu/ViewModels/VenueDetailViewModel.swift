@@ -1,6 +1,7 @@
 import Combine
 import CoreLocation
 import Foundation
+import os
 
 @MainActor
 final class VenueDetailViewModel: ObservableObject {
@@ -68,10 +69,12 @@ final class VenueDetailViewModel: ObservableObject {
     private func loadFusedEstimate() async -> BusynessEstimate? {
         // Check if the map's nearby fetch already cached this venue
         if let cached = FusionService.shared.cachedEstimate(for: venue.id) {
+            Log.fusion.debug("Using cached fusion estimate for detail \(self.venue.id, privacy: .public)")
             return busynessEngine.estimate(from: cached)
         }
 
         // Cache miss — fetch from the single-venue endpoint
+        Log.fusion.debug("Fusion cache miss for detail, fetching single-venue")
         do {
             let response = try await FusionService.shared.fetchVenueBusyness(
                 venueId: venue.id,
@@ -81,7 +84,7 @@ final class VenueDetailViewModel: ObservableObject {
             )
             return busynessEngine.estimate(from: response.toFusedEstimate())
         } catch {
-            print("[VenueDetail] Fusion unavailable: \(error.localizedDescription)")
+            Log.fusion.notice("Fusion unavailable for detail: \(error.localizedDescription)")
             return nil
         }
     }
@@ -91,7 +94,7 @@ final class VenueDetailViewModel: ObservableObject {
         do {
             return try await ReportService.shared.fetchVenueReports(venueId: venue.id)
         } catch {
-            print("[VenueDetail] Reports unavailable: \(error.localizedDescription)")
+            Log.reports.notice("Reports unavailable for detail: \(error.localizedDescription)")
             return []
         }
     }
@@ -146,9 +149,9 @@ final class VenueDetailViewModel: ObservableObject {
                 await MainActor.run {
                     NotificationCenter.default.post(name: .reportSubmitted, object: nil)
                 }
-                print("[VenueDetail] Report submitted successfully")
+                Log.reports.info("Report submitted successfully for \(venue.id, privacy: .public)")
             } catch {
-                print("[VenueDetail] Submit failed: \(error.localizedDescription)")
+                Log.reports.error("Report submission failed: \(error.localizedDescription)")
             }
         }
     }

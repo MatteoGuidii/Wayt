@@ -1,5 +1,6 @@
 import CoreLocation
 import Foundation
+import os
 
 /// Fetches fused busyness estimates from the v1 Signal Fusion Engine endpoints.
 /// Falls back gracefully — callers should catch errors and use ReportService instead.
@@ -35,15 +36,22 @@ final class FusionService {
         radius: Double = 2_000,
         venues: [VenueInfo] = []
     ) async throws -> [String: FusedEstimateResponse] {
-        if isCacheValid(lat: lat, lng: lng) { return nearbyCache }
+        if isCacheValid(lat: lat, lng: lng) {
+            Log.fusion.debug("Nearby fusion cache hit (\(self.nearbyCache.count) venues)")
+            return nearbyCache
+        }
 
-        if venues.isEmpty { return [:] }
+        if venues.isEmpty {
+            Log.fusion.debug("No venues provided, skipping fusion fetch")
+            return [:]
+        }
 
         let batchSize = 20
         let batches = stride(from: 0, to: venues.count, by: batchSize).map {
             Array(venues[($0)..<min($0 + batchSize, venues.count)])
         }
 
+        Log.fusion.info("Fetching fused estimates for \(venues.count) venues in \(batches.count) batch(es)")
         var indexed: [String: FusedEstimateResponse] = [:]
 
         // Fetch all batches concurrently
@@ -82,6 +90,7 @@ final class FusionService {
             }
         }
 
+        Log.fusion.info("Fusion returned \(indexed.count) estimates")
         // Only cache non-empty results — avoids blocking retries for 60s on transient failures
         if !indexed.isEmpty {
             nearbyCache = indexed
@@ -101,6 +110,7 @@ final class FusionService {
         lat: Double,
         lng: Double
     ) async throws -> DetailedFusedResponse {
+        Log.fusion.debug("Fetching single-venue busyness for \(venueId, privacy: .public)")
         let encoded = venueId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? venueId
         let queryItems = [
             URLQueryItem(name: "venueName", value: venueName),
@@ -121,12 +131,16 @@ final class FusionService {
         guard Date().timeIntervalSince(cacheTimestamp) < AppConstants.reportCacheTTL else {
             return nil
         }
+        if nearbyCache[venueId] != nil {
+            Log.fusion.debug("Fusion cache hit for \(venueId, privacy: .public)")
+        }
         return nearbyCache[venueId]
     }
 
     // MARK: - Cache Control
 
     func invalidateCache() {
+        Log.fusion.debug("Fusion cache invalidated")
         nearbyCache = [:]
         cacheTimestamp = .distantPast
     }

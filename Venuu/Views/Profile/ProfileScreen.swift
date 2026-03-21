@@ -1,8 +1,9 @@
-import SwiftUI
-import PhotosUI
-import UIKit
 import Amplify
 import AWSCognitoAuthPlugin
+import os
+import PhotosUI
+import SwiftUI
+import UIKit
 
 struct ProfileScreen: View {
 
@@ -643,7 +644,7 @@ struct ProfileScreen: View {
                     let result = await Amplify.Auth.signOut()
                     if let globalResult = result as? AWSCognitoSignOutResult,
                        case .failed = globalResult {
-                        print("Sign-out failed")
+                        Log.auth.error("Sign-out failed")
                     } else {
                         viewModel.reset()
                         savedVenuesVM.reset()

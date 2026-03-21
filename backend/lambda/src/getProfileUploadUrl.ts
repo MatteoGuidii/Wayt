@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
@@ -11,13 +11,16 @@ import {
   serverError,
   getUserId,
 } from "./shared";
+import { createLogger } from "./logger";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3 = new S3Client({});
 
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("getProfileUploadUrl", event, context);
   try {
     const userId = getUserId(
       event.requestContext.authorizer?.claims as Record<string, string> | undefined
@@ -54,9 +57,10 @@ export async function handler(
       })
     );
 
+    log.info("Upload URL generated");
     return success({ uploadUrl, imageKey });
   } catch (err) {
-    console.error("[getProfileUploadUrl] Error:", err);
+    log.error("Failed to generate upload URL", undefined, err);
     return serverError("Failed to generate upload URL");
   }
 }

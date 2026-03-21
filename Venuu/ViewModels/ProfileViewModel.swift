@@ -1,6 +1,7 @@
+import Amplify
 import Combine
 import Foundation
-import Amplify
+import os
 
 @MainActor
 final class ProfileViewModel: ObservableObject {
@@ -157,6 +158,7 @@ final class ProfileViewModel: ObservableObject {
             profileImageUrl = profile.profileImageUrl
             hasLoadedFromAPI = true
             saveToCache()
+            Log.profile.info("Profile loaded: \(profile.totalReports) reports")
 
             // Cache profile image to disk if we don't have one yet
             if profile.profileImageUrl != nil, cachedImageData == nil {
@@ -169,7 +171,7 @@ final class ProfileViewModel: ObservableObject {
             if !hasLoadedFromCache {
                 loadError = true
             }
-            print("[Profile] Load failed: \(error.localizedDescription)")
+            Log.profile.error("Profile load failed: \(error.localizedDescription)")
         }
         isLoading = false
     }
@@ -192,9 +194,10 @@ final class ProfileViewModel: ObservableObject {
             displayName = trimmed
             showFirstTimeNamePrompt = false
             saveToCache()
+            Log.profile.info("Display name updated")
             return true
         } catch {
-            print("[Profile] Update failed: \(error.localizedDescription)")
+            Log.profile.error("Profile update failed: \(error.localizedDescription)")
             return false
         }
     }
@@ -217,11 +220,12 @@ final class ProfileViewModel: ObservableObject {
             Self.saveCachedImage(imageData)
             cachedImageData = imageData
 
+            Log.profile.info("Profile image uploaded")
             // Reload profile to get the new presigned GET URL
             await loadProfile(force: true)
             return true
         } catch {
-            print("[Profile] Image upload failed: \(error.localizedDescription)")
+            Log.profile.error("Image upload failed: \(error.localizedDescription)")
             return false
         }
     }

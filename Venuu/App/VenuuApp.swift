@@ -1,6 +1,7 @@
-import SwiftUI
 import Amplify
 import AWSCognitoAuthPlugin
+import os
+import SwiftUI
 
 @main
 struct VenuuApp: App {
@@ -19,6 +20,7 @@ struct VenuuApp: App {
                 .environmentObject(locationService)
                 .environmentObject(authState)
                 .onChange(of: scenePhase) { _, newPhase in
+                    Log.app.debug("Scene phase changed to \(String(describing: newPhase))")
                     switch newPhase {
                     case .active:
                         locationService.startUpdating()
@@ -35,9 +37,9 @@ struct VenuuApp: App {
         do {
             try Amplify.add(plugin: AWSCognitoAuthPlugin())
             try Amplify.configure()
-            print("[Venuu] Amplify configured")
+            Log.app.info("Amplify configured successfully")
         } catch {
-            print("[Venuu] Amplify failed: \(error)")
+            Log.app.fault("Amplify configuration failed: \(error.localizedDescription)")
         }
     }
 }

@@ -1,7 +1,8 @@
 import Combine
-import Foundation
 import CoreLocation
+import Foundation
 import MapKit
+import os
 
 @MainActor
 final class LocationService: NSObject, ObservableObject {
@@ -35,6 +36,7 @@ final class LocationService: NSObject, ObservableObject {
     // MARK: - Public
 
     func requestPermission() {
+        Log.location.info("Requesting location permission")
         manager.requestWhenInUseAuthorization()
     }
 
@@ -61,7 +63,12 @@ extension LocationService: CLLocationManagerDelegate {
         let age = -location.timestamp.timeIntervalSinceNow
         guard age < 15,
               location.horizontalAccuracy >= 0,
-              location.horizontalAccuracy <= 200 else { return }
+              location.horizontalAccuracy <= 200 else {
+            Task { @MainActor in
+                Log.location.debug("Rejected location: age=\(String(format: "%.1f", age))s accuracy=\(String(format: "%.0f", location.horizontalAccuracy))m")
+            }
+            return
+        }
 
         Task { @MainActor in
             // Only accept if more accurate than current, or current is stale (>30s)
@@ -70,6 +77,7 @@ extension LocationService: CLLocationManagerDelegate {
                location.horizontalAccuracy > current.horizontalAccuracy {
                 return
             }
+            Log.location.debug("Location updated: (\(location.coordinate.latitude), \(location.coordinate.longitude)) accuracy=\(String(format: "%.0f", location.horizontalAccuracy))m")
             self.userLocation = location
             self.region = MKCoordinateRegion(
                 center: location.coordinate,
@@ -82,6 +90,7 @@ extension LocationService: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
+            Log.location.info("Authorization changed to \(String(describing: status))")
             self.authorizationStatus = status
             if status == .authorizedWhenInUse || status == .authorizedAlways {
                 self.startUpdating()
@@ -93,7 +102,9 @@ extension LocationService: CLLocationManagerDelegate {
         _ manager: CLLocationManager,
         didFailWithError error: Error
     ) {
-        print("[LocationService] Error: \(error.localizedDescription)")
+        Task { @MainActor in
+            Log.location.error("Location update failed: \(error.localizedDescription)")
+        }
     }
 }
 

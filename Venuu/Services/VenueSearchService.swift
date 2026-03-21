@@ -1,6 +1,7 @@
 import CoreLocation
 import Foundation
 import MapKit
+import os
 
 /// Lightweight wrapper around MKLocalSearch with result caching and rate-limit protection.
 @MainActor
@@ -144,12 +145,13 @@ final class VenueSearchService {
     ) async throws -> [Venue] {
         // Return cached results if the region hasn't changed much
         if let cached = cachedResults(for: query, region: region) {
+            Log.search.debug("Cache hit for '\(query, privacy: .public)'")
             return cached
         }
 
         // Rate-limit guard — return stale cache or skip instead of blocking
         if !canMakeRequest() {
-            print("[VenueSearchService] Rate limit: returning stale cache for '\(query)'")
+            Log.search.notice("Rate limited: returning stale cache for '\(query, privacy: .public)'")
             return staleCachedResults(for: query, region: region) ?? []
         }
 
@@ -186,6 +188,7 @@ final class VenueSearchService {
             return Venue(mapItem: item)
         }
 
+        Log.search.info("'\(query, privacy: .public)' returned \(venues.count) venues (from \(response.mapItems.count) items)")
         pruneCacheIfNeeded()
         queryCache[cacheKey(for: query, region: region)] = CachedSearch(region: region, results: venues, timestamp: Date())
         return venues
@@ -207,7 +210,7 @@ final class VenueSearchService {
                 // Brief backoff before retry
                 try? await Task.sleep(for: .milliseconds(500 * attempt))
                 guard !Task.isCancelled else { return [] }
-                print("[VenueSearchService] Retrying '\(query)' (attempt \(attempt + 1))")
+                Log.search.info("Retrying '\(query, privacy: .public)' (attempt \(attempt + 1))")
             }
 
             do {
@@ -236,17 +239,17 @@ final class VenueSearchService {
                     return venues
                 }
                 // Timeout — retry
-                print("[VenueSearchService] '\(query)' timed out (attempt \(attempt + 1))")
+                Log.search.notice("'\(query, privacy: .public)' timed out (attempt \(attempt + 1))")
             } catch is CancellationError {
                 return []
             } catch {
-                print("[VenueSearchService] '\(query)' failed (attempt \(attempt + 1)): \(error.localizedDescription)")
+                Log.search.error("'\(query, privacy: .public)' failed (attempt \(attempt + 1)): \(error.localizedDescription)")
             }
         }
 
         // All retries exhausted — return stale cache if available
         if let stale = staleCachedResults(for: query, region: region) {
-            print("[VenueSearchService] '\(query)' returning stale cache after retries")
+            Log.search.notice("'\(query, privacy: .public)' returning stale cache after retries")
             return stale
         }
         return []
@@ -262,6 +265,7 @@ final class VenueSearchService {
         region: MKCoordinateRegion,
         onBatch: (([Venue]) -> Void)? = nil
     ) async -> [Venue] {
+        Log.search.debug("Starting multi-type search (6 queries)")
         let queries = ["restaurant", "bar", "cafe", "nightclub", "pub", "bakery"]
         let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
 
@@ -294,6 +298,7 @@ final class VenueSearchService {
             .map(\.offset)
         accumulated = sortedIndices.map { accumulated[$0] }
 
+        Log.search.info("Multi-type search complete: \(accumulated.count) unique venues")
         return accumulated
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Estimates venue busyness from server-computed fused signals (primary)
 /// or from cached user reports when offline (fallback).
@@ -12,12 +13,14 @@ struct BusynessEngine: Sendable {
     func estimate(from response: FusedEstimateResponse) -> BusynessEstimate {
         // Convert 0.0-1.0 normalized score to 1.0-5.0 level scale
         let levelValue = response.busynessScore * 4.0 + 1.0
-        return BusynessEstimate(
+        let result = BusynessEstimate(
             level: BusynessLevel(closestTo: levelValue),
             confidence: BusynessConfidence(fromServer: response.confidence),
             reportCount: response.reportCount,
             waitMinutes: response.waitMinutes
         )
+        Log.engine.debug("Fused estimate: score=\(response.busynessScore) confidence=\(response.confidence, privacy: .public) sources=\(response.sourceCount ?? 0)")
+        return result
     }
 
     // MARK: - Offline Fallback
@@ -31,6 +34,7 @@ struct BusynessEngine: Sendable {
         let validReports = reports.filter { $0.isValid }
 
         guard !validReports.isEmpty else {
+            Log.engine.debug("Offline estimate: no valid reports, returning neutral")
             return BusynessEstimate(
                 level: .moderate,
                 confidence: .none,

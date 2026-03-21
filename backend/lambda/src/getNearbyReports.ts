@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import {
@@ -11,6 +11,7 @@ import {
   haversineDistance,
 } from "./shared";
 import { neighborhood } from "./geohash";
+import { createLogger } from "./logger";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -37,8 +38,11 @@ async function queryCell(geohash: string, cutoff: number): Promise<ReportItem[]>
 }
 
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("getNearbyReports", event, context);
+  const done = log.startTimer("Handler complete");
   try {
     const params = event.queryStringParameters ?? {};
     const lat = parseFloat(params.lat ?? "");
@@ -49,6 +53,7 @@ export async function handler(
       return badRequest("Missing or invalid lat/lng parameters");
     }
 
+    log.info("Fetching nearby reports", { lat, lng, radius });
     const now = Date.now();
     const cutoff = now - MAX_AGE_MS;
 
@@ -105,9 +110,10 @@ export async function handler(
       venues.push(summary);
     }
 
+    done({ venueCount: venues.length, reportCount: items.length });
     return success({ venues });
   } catch (err) {
-    console.error("[getNearbyReports] Error:", err);
+    log.error("Failed to fetch reports", undefined, err);
     return serverError("Failed to fetch reports");
   }
 }
