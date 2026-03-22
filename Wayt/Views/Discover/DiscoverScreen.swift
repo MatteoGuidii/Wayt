@@ -381,46 +381,58 @@ struct DiscoverScreen: View {
     }
 
     private func goNowCard(_ venue: Venue) -> some View {
-        ZStack(alignment: .bottom) {
-            LookAroundThumbnail(
-                coordinate: venue.coordinate,
-                category: venue.category,
-                size: CGSize(width: 170, height: 160)
-            )
-
-            VStack(alignment: .leading, spacing: 4) {
-                if let busyness = venue.busyness {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(busyness.color)
-                            .frame(width: 6, height: 6)
-                        Text(busyness.label)
-                            .font(WaytTheme.microFont)
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(busyness.color.opacity(0.8))
-                    .clipShape(Capsule())
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ZStack {
+                    PinShape()
+                        .fill(venue.category.color.opacity(0.15))
+                        .frame(width: 36, height: 42)
+                    Image(systemName: venue.category.icon)
+                        .font(WaytTheme.cardTitleFont)
+                        .foregroundStyle(venue.category.color)
+                        .offset(y: -2)
                 }
 
-                Text(venue.name)
-                    .font(WaytTheme.subheadFont)
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+                Spacer()
+
+                if let busyness = venue.busyness {
+                    Text(busyness.label)
+                        .font(WaytTheme.microFont)
+                        .foregroundStyle(busyness.color)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(busyness.color.opacity(0.12))
+                        .clipShape(Capsule())
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(10)
-            .background(
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.6)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+
+            Text(venue.name)
+                .font(WaytTheme.subheadFont)
+                .lineLimit(2)
+                .foregroundStyle(.primary)
+
+            if let busyness = venue.busyness {
+                Text(busyness.description)
+                    .font(WaytTheme.badgeFont)
+                    .foregroundStyle(WaytTheme.secondaryText)
+                    .lineLimit(1)
+            }
         }
-        .frame(width: 170, height: 160)
+        .padding(14)
+        .frame(width: 170, height: 120, alignment: .topLeading)
+        .background(
+            ZStack {
+                WaytTheme.cardBackground
+                LinearGradient(
+                    colors: [
+                        (venue.busyness?.color ?? .clear).opacity(0.04),
+                        Color.clear
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

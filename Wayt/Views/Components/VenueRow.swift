@@ -9,13 +9,17 @@ struct VenueRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // LookAround thumbnail (falls back to category icon)
-            LookAroundThumbnail(
-                coordinate: venue.coordinate,
-                category: venue.category,
-                size: CGSize(width: 50, height: 50)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            // Category icon (pin-shaped)
+            ZStack {
+                PinShape()
+                    .fill(venue.category.color.opacity(0.12))
+                    .frame(width: 44, height: 50)
+
+                Image(systemName: venue.category.icon)
+                    .font(WaytTheme.calloutBoldFont)
+                    .foregroundStyle(venue.category.color)
+                    .offset(y: -2)
+            }
 
             // Venue info
             VStack(alignment: .leading, spacing: 4) {
