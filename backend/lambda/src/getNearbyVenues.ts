@@ -73,8 +73,6 @@ export async function handler(
         sources: item.sources as string[],
         conflictDetected: item.conflictDetected as boolean,
         computedAt: item.computedAt as string,
-        isOpen: (item.isOpen as boolean | null) ?? null,
-        hoursToday: (item.hoursToday as FusedEstimate["hoursToday"]) ?? [],
       });
     }
 

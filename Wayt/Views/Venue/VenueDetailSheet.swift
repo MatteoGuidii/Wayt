@@ -84,7 +84,6 @@ struct VenueDetailSheet: View {
                         .padding(.top, -8)
                     lookAroundSection
                     busynessSection
-                    hoursSection
                     actionsSection
                     reportButton
                     recentReportsSection
@@ -237,90 +236,40 @@ struct VenueDetailSheet: View {
 
     private var busynessSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(viewModel.estimate.isOpen == false ? "Status" : "Current Busyness")
+            Text("Current Busyness")
                 .font(WaytTheme.subtitleFont)
 
-            if viewModel.estimate.isOpen == false {
-                // Closed state
-                HStack(spacing: 16) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "moon.zzz.fill")
-                            .font(WaytTheme.displayFont)
-                            .foregroundStyle(Color(.systemGray))
+            HStack(spacing: 16) {
+                VStack(spacing: 4) {
+                    Image(systemName: viewModel.estimate.level.icon)
+                        .font(WaytTheme.displayFont)
+                        .foregroundStyle(viewModel.estimate.level.color)
 
-                        Text("Closed")
-                            .font(WaytTheme.bodyBoldFont)
-                            .foregroundStyle(Color(.systemGray))
-                    }
-                    .frame(width: 80)
+                    Text(viewModel.estimate.level.label)
+                        .font(WaytTheme.bodyBoldFont)
+                        .foregroundStyle(viewModel.estimate.level.color)
+                }
+                .frame(width: 80)
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("This venue is currently closed")
-                            .font(WaytTheme.bodyFont)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(viewModel.estimate.level.description)
+                        .font(WaytTheme.bodyFont)
+
+                    BusynessBadge(
+                        level: viewModel.estimate.level,
+                        confidence: viewModel.estimate.confidence
+                    )
+
+                    if let wait = viewModel.estimate.waitMinutes {
+                        Label("~\(wait) min wait", systemImage: "clock")
+                            .font(WaytTheme.captionFont)
                             .foregroundStyle(WaytTheme.secondaryText)
                     }
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .waytCard()
-            } else {
-                // Open or unknown — show busyness as before
-                HStack(spacing: 16) {
-                    VStack(spacing: 4) {
-                        Image(systemName: viewModel.estimate.level.icon)
-                            .font(WaytTheme.displayFont)
-                            .foregroundStyle(viewModel.estimate.level.color)
-
-                        Text(viewModel.estimate.level.label)
-                            .font(WaytTheme.bodyBoldFont)
-                            .foregroundStyle(viewModel.estimate.level.color)
-                    }
-                    .frame(width: 80)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(viewModel.estimate.level.description)
-                            .font(WaytTheme.bodyFont)
-
-                        BusynessBadge(
-                            level: viewModel.estimate.level,
-                            confidence: viewModel.estimate.confidence,
-                            isOpen: viewModel.estimate.isOpen
-                        )
-
-                        if let wait = viewModel.estimate.waitMinutes {
-                            Label("~\(wait) min wait", systemImage: "clock")
-                                .font(WaytTheme.captionFont)
-                                .foregroundStyle(WaytTheme.secondaryText)
-                        }
-                    }
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .waytCard()
             }
-        }
-    }
-
-    // MARK: - Business Hours
-
-    @ViewBuilder
-    private var hoursSection: some View {
-        if !viewModel.estimate.hoursToday.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Today's Hours", systemImage: "clock")
-                    .font(WaytTheme.subtitleFont)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(viewModel.estimate.hoursToday, id: \.open) { window in
-                        Text(window.formatted)
-                            .font(WaytTheme.bodyFont)
-                            .foregroundStyle(WaytTheme.secondaryText)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .waytCard()
-            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .waytCard()
         }
     }
 

@@ -226,8 +226,6 @@ struct DetailedFusedResponse: Codable, Sendable {
     let conflictDetected: Bool
     let computedAt: String
     let signals: [SignalDetail]?
-    let isOpen: Bool?
-    let hoursToday: [HoursWindow]?
 
     /// Convert to a FusedEstimateResponse for the BusynessEngine.
     func toFusedEstimate() -> FusedEstimateResponse {
@@ -240,9 +238,7 @@ struct DetailedFusedResponse: Codable, Sendable {
             sourceCount: sourceCount,
             sources: sources,
             conflictDetected: conflictDetected,
-            computedAt: computedAt,
-            isOpen: isOpen,
-            hoursToday: hoursToday
+            computedAt: computedAt
         )
     }
 }

@@ -43,16 +43,6 @@ export interface FusedEstimate {
   conflictDetected: boolean;
   /** ISO timestamp of when this estimate was computed. */
   computedAt: string;
-  /** Whether the venue is currently open. null = unknown (no hours data). */
-  isOpen: boolean | null;
-  /** Today's operating hours windows (e.g., [{open:"1100",close:"2300"}]). Empty = unknown. */
-  hoursToday: HoursWindow[];
-}
-
-/** A single operating hours window (open/close in "HHmm" format). */
-export interface HoursWindow {
-  open: string;
-  close: string;
 }
 
 // -----------------------------------------------

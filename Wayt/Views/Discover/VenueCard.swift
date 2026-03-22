@@ -21,19 +21,7 @@ struct VenueCard: View {
 
                 Spacer()
 
-                if venue.isOpen == false {
-                    HStack(spacing: 4) {
-                        Image(systemName: "moon.zzz.fill")
-                            .font(.system(size: 9, weight: .medium))
-                        Text("Closed")
-                            .font(WaytTheme.microFont)
-                    }
-                    .foregroundStyle(Color(.systemGray))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.gray.opacity(0.12))
-                    .clipShape(Capsule())
-                } else if let busyness = venue.busyness {
+                if let busyness = venue.busyness {
                     HStack(spacing: 4) {
                         Circle()
                             .fill(busyness.color)
@@ -84,6 +72,6 @@ struct VenueCard: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
-        .busynessGlow(venue.isOpen == false ? nil : venue.busyness?.color)
+        .busynessGlow(venue.busyness?.color)
     }
 }

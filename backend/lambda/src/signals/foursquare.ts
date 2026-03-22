@@ -5,7 +5,7 @@ import {
   getItem,
   putItem,
 } from "../db";
-import { VenueSignal, SOURCE_CONFIG, HoursWindow } from "./types";
+import { VenueSignal, SOURCE_CONFIG } from "./types";
 import { createLogger } from "../logger";
 
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY ?? "";
@@ -38,18 +38,13 @@ interface FsqPlaceDetails {
   rating?: number;
   stats?: { total_photos?: number; total_tips?: number; total_ratings?: number };
   hours_popular?: Array<{ day: number; open: string; close: string }>;
-  hours?: {
-    regular?: Array<{ day: number; open: string; close: string }>;
-    open_now?: boolean;
-  };
 }
 
-/** Cached raw Foursquare venue data (popularity + hours_popular + hours_regular). */
+/** Cached raw Foursquare venue data (popularity + hours_popular). */
 interface CachedFsqData {
   popularity: number | null;
   rating: number | null;
   hoursPopular: Array<{ day: number; open: string; close: string }>;
-  hoursRegular: Array<{ day: number; open: string; close: string }>;
 }
 
 /**
@@ -107,48 +102,6 @@ export async function fetchFoursquareSignal(
   }
 }
 
-/** Result from checking venue open/closed status + today's hours. */
-export interface FoursquareHoursResult {
-  isOpen: boolean | null;
-  hoursToday: HoursWindow[];
-}
-
-/**
- * Get the isOpen status and today's operating hours from cached Foursquare data.
- * Returns `{ isOpen: null, hoursToday: [] }` if no cached data available.
- */
-export async function getFoursquareHours(
-  venueId: string,
-  timezone: string
-): Promise<FoursquareHoursResult> {
-  const empty: FoursquareHoursResult = { isOpen: null, hoursToday: [] };
-  const cached = await getItem(venueKey(venueId), FSQDATA_SK);
-  if (!cached) return empty;
-
-  const data: CachedFsqData = {
-    popularity: (cached.popularity as number | null) ?? null,
-    rating: (cached.rating as number | null) ?? null,
-    hoursPopular: (cached.hoursPopular as CachedFsqData["hoursPopular"]) ?? [],
-    hoursRegular: (cached.hoursRegular as CachedFsqData["hoursRegular"]) ?? [],
-  };
-
-  const isOpen = computeIsOpen(data, Date.now(), timezone);
-  const hoursToday = getTodayHours(data, Date.now(), timezone);
-  return { isOpen, hoursToday };
-}
-
-/** Extract today's operating hours windows from cached data. */
-function getTodayHours(data: CachedFsqData, nowMs: number, timezone: string): HoursWindow[] {
-  if (data.hoursRegular.length === 0) return [];
-
-  const { localDay } = getLocalTime(nowMs, timezone);
-  const fsqDay = localDay === 0 ? 7 : localDay;
-
-  return data.hoursRegular
-    .filter((h) => h.day === fsqDay)
-    .map((h) => ({ open: h.open.replace(":", ""), close: h.close.replace(":", "") }));
-}
-
 // -----------------------------------------------
 // Raw data caching (30-day TTL)
 // -----------------------------------------------
@@ -171,7 +124,6 @@ async function getFoursquareVenueData(
         popularity: (cached.popularity as number | null) ?? null,
         rating: (cached.rating as number | null) ?? null,
         hoursPopular: (cached.hoursPopular as CachedFsqData["hoursPopular"]) ?? [],
-        hoursRegular: (cached.hoursRegular as CachedFsqData["hoursRegular"]) ?? [],
       };
     }
   }
@@ -187,7 +139,6 @@ async function getFoursquareVenueData(
     popularity: details.popularity ?? null,
     rating: details.rating ?? null,
     hoursPopular: details.hours_popular ?? [],
-    hoursRegular: details.hours?.regular ?? [],
   };
 
   // Cache raw data for 30 days
@@ -243,6 +194,44 @@ async function fetchWithRetry(
   return null;
 }
 
+/** Max distance (meters) to accept a Foursquare match. */
+const MATCH_MAX_DISTANCE_M = 200;
+/** Minimum combined score to accept a Foursquare match. */
+const MATCH_MIN_SCORE = 0.3;
+
+/** Noise words stripped before comparing venue names. */
+const NOISE_WORDS = new Set([
+  "the", "a", "an", "and", "&", "of", "at", "in", "on",
+  "restaurant", "restaurants", "bar", "bars", "cafe", "café",
+  "grill", "kitchen", "lounge", "pub", "bakery", "bistro",
+  "eatery", "diner", "tavern", "steakhouse", "pizzeria",
+]);
+
+/**
+ * Compute name similarity between two venue names using Jaccard index.
+ * Returns 0.0–1.0 where 1.0 is identical token sets.
+ */
+function nameSimilarity(a: string, b: string): number {
+  const tokenize = (s: string): Set<string> => {
+    const tokens = s.toLowerCase().replace(/[''`]/g, "").split(/[\s\-_,.:;!?&()/]+/).filter(Boolean);
+    return new Set(tokens.filter((t) => !NOISE_WORDS.has(t)));
+  };
+
+  const setA = tokenize(a);
+  const setB = tokenize(b);
+
+  if (setA.size === 0 && setB.size === 0) return 1.0;
+  if (setA.size === 0 || setB.size === 0) return 0.0;
+
+  let intersection = 0;
+  for (const token of setA) {
+    if (setB.has(token)) intersection++;
+  }
+
+  const union = new Set([...setA, ...setB]).size;
+  return intersection / union;
+}
+
 /** Search for a venue by name + coordinates and return the best Foursquare place ID. */
 async function matchVenue(
   venueId: string,
@@ -250,10 +239,12 @@ async function matchVenue(
   lat: number,
   lng: number
 ): Promise<string | null> {
+  const log = createLogger("foursquare:match");
+
   const params = new URLSearchParams({
     query: venueName,
     ll: `${lat},${lng}`,
-    limit: "1",
+    limit: "5",
   });
 
   const response = await fetchWithRetry(
@@ -263,10 +254,45 @@ async function matchVenue(
   if (!response) return null;
 
   const data = (await response.json()) as FsqSearchResponse;
-  const topResult = data.results?.[0];
-  if (!topResult) return null;
+  const candidates = data.results ?? [];
+  if (candidates.length === 0) return null;
 
-  const fsqId = topResult.fsq_place_id;
+  // Score each candidate by name similarity + distance
+  let bestCandidate: (typeof candidates)[0] | null = null;
+  let bestScore = -1;
+
+  for (const candidate of candidates) {
+    const distance = candidate.distance ?? Infinity;
+    if (distance > MATCH_MAX_DISTANCE_M) continue;
+
+    const distanceScore = Math.max(0, 1.0 - distance / MATCH_MAX_DISTANCE_M);
+    const nameScore = nameSimilarity(venueName, candidate.name);
+    const score = 0.4 * distanceScore + 0.6 * nameScore;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestCandidate = candidate;
+    }
+  }
+
+  if (!bestCandidate || bestScore < MATCH_MIN_SCORE) {
+    log.debug("No match passed threshold", {
+      venueId,
+      venueName,
+      candidateCount: candidates.length,
+      bestScore: bestScore.toFixed(3),
+    });
+    return null;
+  }
+
+  const fsqId = bestCandidate.fsq_place_id;
+  log.debug("Matched venue", {
+    venueId,
+    venueName,
+    fsqName: bestCandidate.name,
+    distance: bestCandidate.distance,
+    score: bestScore.toFixed(3),
+  });
 
   // Cache the mapping for 30 days
   const now = Math.floor(Date.now() / 1000);
@@ -274,7 +300,9 @@ async function matchVenue(
     PK: venueKey(venueId),
     SK: mappingSK("foursquare"),
     fsqId,
-    fsqName: topResult.name,
+    fsqName: bestCandidate.name,
+    matchScore: bestScore,
+    matchDistance: bestCandidate.distance,
     cachedAt: new Date().toISOString(),
     ttl: now + MAPPING_TTL_DAYS * 86_400,
   });
@@ -284,7 +312,7 @@ async function matchVenue(
 
 /** Fetch Foursquare place details including popularity. */
 async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null> {
-  const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular,hours";
+  const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular";
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/${fsqId}?fields=${fields}`,
     `Details for fsq_id=${fsqId}`
@@ -452,51 +480,6 @@ function computeTemporalConfidence(
   return Math.min(0.85, base + dataBonus);
 }
 
-/**
- * Determine whether a venue is currently open based on its regular operating hours.
- * Returns `null` when no hours data is available (unknown).
- * Handles cross-midnight windows (e.g., bar open 21:00–02:00).
- */
-export function computeIsOpen(
-  data: CachedFsqData,
-  nowMs: number,
-  timezone: string
-): boolean | null {
-  if (data.hoursRegular.length === 0) return null;
-
-  const { localDay, localMinutes } = getLocalTime(nowMs, timezone);
-  // Foursquare uses 1=Mon..7=Sun; getLocalTime returns JS 0=Sun..6=Sat
-  const fsqDay = localDay === 0 ? 7 : localDay;
-
-  // Check today's windows (including cross-midnight windows from yesterday)
-  for (const h of data.hoursRegular) {
-    const open = parseTimeToMinutes(h.open);
-    const close = parseTimeToMinutes(h.close);
-
-    if (h.day === fsqDay) {
-      if (close > open) {
-        // Normal window: e.g., 11:00–23:00
-        if (localMinutes >= open && localMinutes < close) return true;
-      } else if (close <= open && close > 0) {
-        // Cross-midnight window (start): e.g., 21:00–02:00 — open from 21:00 to midnight
-        if (localMinutes >= open) return true;
-      }
-    }
-
-    // Check if a cross-midnight window from yesterday covers now
-    const yesterday = fsqDay === 1 ? 7 : fsqDay - 1;
-    if (h.day === yesterday) {
-      const yOpen = parseTimeToMinutes(h.open);
-      const yClose = parseTimeToMinutes(h.close);
-      if (yClose <= yOpen && yClose > 0) {
-        // Yesterday's cross-midnight window: open until yClose today
-        if (localMinutes < yClose) return true;
-      }
-    }
-  }
-
-  return false;
-}
 
 /** Parse "HH:mm" or "HHmm" time string to minutes since midnight. */
 function parseTimeToMinutes(time: string): number {

@@ -42,11 +42,8 @@ struct VenueMarkerView: View {
                         .offset(x: -6, y: -4)
                 }
 
-                // Closed badge or wait-time badge (top-right of circle)
-                if isClosed {
-                    closedBadge
-                        .offset(x: 6, y: -4)
-                } else if let wait = venue.estimatedWaitMinutes, wait > 0 {
+                // Wait-time badge (top-right of circle)
+                if let wait = venue.estimatedWaitMinutes, wait > 0 {
                     waitBadge(minutes: wait)
                         .offset(x: 6, y: -4)
                 }
@@ -69,19 +66,14 @@ struct VenueMarkerView: View {
             radius: isSelected ? 6 : 3,
             y: 2
         )
-        .opacity(isClosed ? 0.55 : 1.0)
         .scaleEffect(isSelected ? 1.12 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
     }
 
     // MARK: - Marker background color
 
-    private var isClosed: Bool {
-        venue.isOpen == false
-    }
-
     private var markerBackground: Color {
-        if isClosed || venue.busynessConfidence == .none {
+        if venue.busynessConfidence == .none {
             return Color(.systemGray4)
         }
         return venue.busyness?.color ?? Color(.systemGray4)
@@ -121,17 +113,6 @@ struct VenueMarkerView: View {
                 .strokeBorder(.white, lineWidth: 2.5)
                 .shadow(color: markerBackground.opacity(0.4), radius: 4)
         }
-    }
-
-    // MARK: - Closed Badge
-
-    private var closedBadge: some View {
-        Image(systemName: "moon.zzz.fill")
-            .font(.system(size: 8, weight: .bold))
-            .foregroundStyle(.white)
-            .padding(3)
-            .background(Color(.systemGray3), in: Circle())
-            .overlay(Circle().strokeBorder(.white, lineWidth: 1))
     }
 
     // MARK: - Wait Badge

@@ -37,7 +37,7 @@ final class DiscoverViewModel: ObservableObject {
     var vibePulse: [Int: Int] {
         var counts: [Int: Int] = [:]
         for level in 1...5 { counts[level] = 0 }
-        for venue in venues where venue.isOpen != false {
+        for venue in venues {
             if let level = venue.busyness?.rawValue {
                 counts[level, default: 0] += 1
             }
@@ -115,17 +115,15 @@ final class DiscoverViewModel: ObservableObject {
             base = base.filter { $0.busyness == busynessLevel }
         }
 
-        let openBase = base.filter { $0.isOpen != false }
-
-        // Popular / buzzing: busyness >= 4 (busy + packed) — exclude closed
-        popularVenues = openBase
+        // Popular / buzzing: busyness >= 4 (busy + packed)
+        popularVenues = base
             .filter { ($0.busyness?.rawValue ?? 0) >= 4 }
             .sorted { ($0.busyness?.rawValue ?? 0) > ($1.busyness?.rawValue ?? 0) }
             .prefix(10)
             .map { $0 }
 
-        // Go Now picks: quiet or moderate (1–3) — comfortable, not dead — exclude closed
-        sweetSpotVenues = openBase
+        // Go Now picks: quiet or moderate (1–3) — comfortable, not dead
+        sweetSpotVenues = base
             .filter {
                 let level = $0.busyness?.rawValue ?? 0
                 return level >= 1 && level <= 3
@@ -133,12 +131,6 @@ final class DiscoverViewModel: ObservableObject {
             .prefix(8)
             .map { $0 }
 
-        // All Spots: keep closed venues but sort them to the bottom
-        filteredVenues = base.sorted { a, b in
-            let aOpen = a.isOpen != false
-            let bOpen = b.isOpen != false
-            if aOpen != bOpen { return aOpen }
-            return false // preserve existing order within same open/closed group
-        }
+        filteredVenues = base
     }
 }

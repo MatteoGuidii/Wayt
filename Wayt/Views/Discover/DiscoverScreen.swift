@@ -438,7 +438,7 @@ struct DiscoverScreen: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
-        .busynessGlow(venue.isOpen == false ? nil : venue.busyness?.color)
+        .busynessGlow(venue.busyness?.color)
     }
 
     // MARK: - Buzzing (On Fire)

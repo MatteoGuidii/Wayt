@@ -40,8 +40,6 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     var reportCount: Int = 0
     var lastReportedAt: Date?
     var estimatedWaitMinutes: Int?
-    var isOpen: Bool?
-    var hoursToday: [HoursWindow] = []
 
     // MARK: - Init from MKMapItem
 
@@ -70,7 +68,6 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
             && lhs.busynessConfidence == rhs.busynessConfidence
             && lhs.reportCount == rhs.reportCount
             && lhs.estimatedWaitMinutes == rhs.estimatedWaitMinutes
-            && lhs.isOpen == rhs.isOpen
     }
 
     func hash(into hasher: inout Hasher) {

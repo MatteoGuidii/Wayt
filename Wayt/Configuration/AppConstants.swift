@@ -19,7 +19,7 @@ enum AppConstants {
     // MARK: - Search
 
     /// Default search radius in meters
-    static let defaultSearchRadius: CLLocationDistance = 2_000
+    static let defaultSearchRadius: CLLocationDistance = 800
 
     /// Maximum venues to load per search (clustering keeps rendered annotations low)
     static let maxVisibleVenues = 300
