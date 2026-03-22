@@ -18,7 +18,7 @@
                BlueprintIdentifier = "958E983E2EC5484C0062E64D"
                BuildableName = "Wayt.app"
                BlueprintName = "Wayt"
-               ReferencedContainer = "container:Venuu.xcodeproj">
+               ReferencedContainer = "container:Wayt.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -38,7 +38,7 @@
                BlueprintIdentifier = "958E984B2EC5484D0062E64D"
                BuildableName = "WaytTests.xctest"
                BlueprintName = "WaytTests"
-               ReferencedContainer = "container:Venuu.xcodeproj">
+               ReferencedContainer = "container:Wayt.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -49,7 +49,7 @@
                BlueprintIdentifier = "958E98552EC5484D0062E64D"
                BuildableName = "WaytUITests.xctest"
                BlueprintName = "WaytUITests"
-               ReferencedContainer = "container:Venuu.xcodeproj">
+               ReferencedContainer = "container:Wayt.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -72,7 +72,7 @@
             BlueprintIdentifier = "958E983E2EC5484C0062E64D"
             BuildableName = "Wayt.app"
             BlueprintName = "Wayt"
-            ReferencedContainer = "container:Venuu.xcodeproj">
+            ReferencedContainer = "container:Wayt.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -89,7 +89,7 @@
             BlueprintIdentifier = "958E983E2EC5484C0062E64D"
             BuildableName = "Wayt.app"
             BlueprintName = "Wayt"
-            ReferencedContainer = "container:Venuu.xcodeproj">
+            ReferencedContainer = "container:Wayt.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
