@@ -14,7 +14,7 @@ enum AppConstants {
     // MARK: - API
 
     /// Base URL for the deployed API Gateway endpoint
-    static let apiBaseURL = "https://36w1q7mbqg.execute-api.ca-central-1.amazonaws.com/dev"
+    static let apiBaseURL = "https://ajwkls2g42.execute-api.ca-central-1.amazonaws.com/dev"
 
     // MARK: - Search
 

@@ -92,6 +92,8 @@ Resources:
             RestApiId: !Ref WaytApi
             Path: /reports
             Method: GET
+            Auth:
+              Authorizer: NONE
     Metadata:
       BuildMethod: makefile
 
@@ -110,6 +112,8 @@ Resources:
             RestApiId: !Ref WaytApi
             Path: /venues/{venueId}/reports
             Method: GET
+            Auth:
+              Authorizer: NONE
     Metadata:
       BuildMethod: makefile
 
@@ -261,12 +265,16 @@ Resources:
             RestApiId: !Ref WaytApi
             Path: /v1/venues/nearby
             Method: GET
+            Auth:
+              Authorizer: NONE
         PostNearbyVenues:
           Type: Api
           Properties:
             RestApiId: !Ref WaytApi
             Path: /v1/venues/nearby
             Method: POST
+            Auth:
+              Authorizer: NONE
     Metadata:
       BuildMethod: makefile
 
@@ -308,6 +316,8 @@ Resources:
             RestApiId: !Ref WaytApi
             Path: /v1/venues/{venueId}/busyness
             Method: GET
+            Auth:
+              Authorizer: NONE
     Metadata:
       BuildMethod: makefile
 

@@ -10,7 +10,7 @@ actor APIClient {
     static let shared = APIClient()
 
     /// Base URL for all API requests.
-    private let baseURL = "https://36w1q7mbqg.execute-api.ca-central-1.amazonaws.com/dev"
+    private let baseURL = "https://ajwkls2g42.execute-api.ca-central-1.amazonaws.com/dev"
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
     private let session: URLSession
