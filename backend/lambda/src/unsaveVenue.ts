@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import {
@@ -8,12 +8,15 @@ import {
   serverError,
   getUserId,
 } from "./shared";
+import { createLogger } from "./logger";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("unsaveVenue", event, context);
   const userId = getUserId(
     event.requestContext.authorizer?.claims as Record<string, string> | undefined
   );
@@ -36,6 +39,7 @@ export async function handler(
       return badRequest("Missing required field: venueId");
     }
 
+    log.info("Unsaving venue", { venueId });
     await ddb.send(
       new DeleteCommand({
         TableName: SAVED_VENUES_TABLE,
@@ -45,7 +49,7 @@ export async function handler(
 
     return success({ venueId, message: "Venue unsaved" });
   } catch (err) {
-    console.error("[unsaveVenue] Error:", err);
+    log.error("Failed to unsave venue", undefined, err);
     return serverError("Failed to unsave venue");
   }
 }

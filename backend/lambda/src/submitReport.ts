@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import {
@@ -11,24 +11,34 @@ import {
   serverError,
   getUserId,
 } from "./shared";
+import { venueKey, fusedSK, deleteItem } from "./db";
+import { encode } from "./geohash";
+import { createLogger } from "./logger";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("submitReport", event, context);
+  const done = log.startTimer("Handler complete");
   try {
     // Parse & validate
     const body: SubmitReportBody = JSON.parse(event.body ?? "{}");
     const { venueId, busynessLevel, waitMinutes, venueName, venueType, lat, lng } = body;
 
     if (!venueId || !venueName || !venueType || lat == null || lng == null) {
+      log.warn("Validation failed", { reason: "missing fields" });
       return badRequest("Missing required fields: venueId, venueName, venueType, lat, lng");
     }
 
     if (!Number.isInteger(busynessLevel) || busynessLevel < 1 || busynessLevel > 5) {
+      log.warn("Validation failed", { reason: "invalid busynessLevel", busynessLevel });
       return badRequest("busynessLevel must be an integer 1-5");
     }
+
+    log.info("Submitting report", { venueId, busynessLevel });
 
     // Auth
     const userId = getUserId(
@@ -42,7 +52,8 @@ export async function handler(
     const reportId = `${venueId}_${now}_${userId.slice(0, 8)}`;
     const ttl = Math.floor(now / 1000) + REPORT_TTL_SECONDS;
 
-    // Write report
+    // Write report (geohash enables efficient spatial queries via GSI)
+    const geohash = encode(lat, lng);
     await ddb.send(
       new PutCommand({
         TableName: REPORTS_TABLE,
@@ -57,6 +68,7 @@ export async function handler(
           venueType,
           lat,
           lng,
+          geohash,
           ttl,
         },
       })
@@ -78,9 +90,21 @@ export async function handler(
       })
     );
 
+    log.info("Report written", { reportId, venueId });
+
+    // Invalidate cached fused estimate so next query recomputes with fresh data.
+    // user_reports signals are never cached in SIGNALS_TABLE (always re-aggregated
+    // from REPORTS_TABLE), so deleting FUSED#CURRENT is sufficient.
+    try {
+      await deleteItem(venueKey(venueId), fusedSK());
+    } catch {
+      log.warn("Fused cache invalidation failed (non-critical)");
+    }
+
+    done({ statusCode: 201 });
     return created({ reportId, message: "Report submitted" });
   } catch (err) {
-    console.error("[submitReport] Error:", err);
+    log.error("Report submission failed", undefined, err);
     return serverError("Failed to submit report");
   }
 }

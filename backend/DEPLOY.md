@@ -1,4 +1,4 @@
-# Venuu Backend — Deployment Guide
+# Wayt Backend — Deployment Guide
 
 ## Architecture
 
@@ -39,7 +39,7 @@ sam deploy --guided
 ```
 
 During guided deploy, enter:
-- **Stack name**: `venuu-backend-dev`
+- **Stack name**: `wayt-backend-dev`
 - **Region**: `us-east-1` (same as Amplify)
 - **CognitoUserPoolArn**: paste the ARN from Step 1
 - **Stage**: `dev` (default)
@@ -52,7 +52,7 @@ https://abc123.execute-api.us-east-1.amazonaws.com/dev
 
 ## Step 4: Update the iOS App
 
-In `Venuu/Services/APIClient.swift`, update the base URL:
+In `Wayt/Services/APIClient.swift`, update the base URL:
 ```swift
 private let baseURL = "https://abc123.execute-api.us-east-1.amazonaws.com/dev"
 ```
@@ -85,7 +85,7 @@ When dev is tested and ready:
 
 ```bash
 sam deploy \
-  --stack-name venuu-backend-prod \
+  --stack-name wayt-backend-prod \
   --parameter-overrides Stage=prod CognitoUserPoolArn=arn:aws:... \
   --no-confirm-changeset
 ```
@@ -108,10 +108,10 @@ Update `APIClient.swift` to point to the prod URL when shipping.
 
 ```bash
 # View logs for a function
-sam logs -n SubmitReportFunction --stack-name venuu-backend-dev --tail
+sam logs -n SubmitReportFunction --stack-name wayt-backend-dev --tail
 
 # Delete the dev stack
-sam delete --stack-name venuu-backend-dev
+sam delete --stack-name wayt-backend-dev
 
 # Redeploy after code changes
 cd lambda && npm run build && cd .. && sam build && sam deploy

@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import {
@@ -9,12 +9,15 @@ import {
   serverError,
   getUserId,
 } from "./shared";
+import { createLogger } from "./logger";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("saveVenue", event, context);
   const userId = getUserId(
     event.requestContext.authorizer?.claims as Record<string, string> | undefined
   );
@@ -36,6 +39,7 @@ export async function handler(
       return badRequest("Missing required fields: venueId, venueName, categoryRaw, lat, lng");
     }
 
+    log.info("Saving venue", { venueId });
     const now = new Date().toISOString();
 
     await ddb.send(
@@ -54,9 +58,10 @@ export async function handler(
       })
     );
 
+    log.info("Venue saved", { venueId });
     return created({ venueId, message: "Venue saved" });
   } catch (err) {
-    console.error("[saveVenue] Error:", err);
+    log.error("Failed to save venue", undefined, err);
     return serverError("Failed to save venue");
   }
 }

@@ -1,6 +1,6 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import {
   REPORTS_TABLE,
   VenueReportSummary,
@@ -10,15 +10,39 @@ import {
   serverError,
   haversineDistance,
 } from "./shared";
+import { neighborhood } from "./geohash";
+import { createLogger } from "./logger";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 // Reports older than 2 hours are irrelevant
 const MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
+const GEOHASH_INDEX = "GeohashIndex";
+
+/** Query a single geohash cell for reports newer than cutoff. */
+async function queryCell(geohash: string, cutoff: number): Promise<ReportItem[]> {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: REPORTS_TABLE,
+      IndexName: GEOHASH_INDEX,
+      KeyConditionExpression: "geohash = :gh AND #ts > :cutoff",
+      ExpressionAttributeNames: { "#ts": "timestamp" },
+      ExpressionAttributeValues: {
+        ":gh": geohash,
+        ":cutoff": cutoff,
+      },
+    })
+  );
+  return (result.Items ?? []) as ReportItem[];
+}
+
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  const log = createLogger("getNearbyReports", event, context);
+  const done = log.startTimer("Handler complete");
   try {
     const params = event.queryStringParameters ?? {};
     const lat = parseFloat(params.lat ?? "");
@@ -29,29 +53,14 @@ export async function handler(
       return badRequest("Missing or invalid lat/lng parameters");
     }
 
-    // Bounding box for pre-filter (rough degrees → ~111km per degree)
-    const degDelta = radius / 111_000;
+    log.info("Fetching nearby reports", { lat, lng, radius });
     const now = Date.now();
     const cutoff = now - MAX_AGE_MS;
 
-    // Scan with filter (fine for MVP; add GSI + geohash at scale)
-    const result = await ddb.send(
-      new ScanCommand({
-        TableName: REPORTS_TABLE,
-        FilterExpression:
-          "lat BETWEEN :minLat AND :maxLat AND lng BETWEEN :minLng AND :maxLng AND #ts > :cutoff",
-        ExpressionAttributeNames: { "#ts": "timestamp" },
-        ExpressionAttributeValues: {
-          ":minLat": lat - degDelta,
-          ":maxLat": lat + degDelta,
-          ":minLng": lng - degDelta,
-          ":maxLng": lng + degDelta,
-          ":cutoff": cutoff,
-        },
-      })
-    );
-
-    const items = (result.Items ?? []) as ReportItem[];
+    // Query the 9-cell geohash neighborhood (covers ~15km x 15km at precision 5)
+    const cells = neighborhood(lat, lng);
+    const cellResults = await Promise.all(cells.map((cell) => queryCell(cell, cutoff)));
+    const items = cellResults.flat();
 
     // Filter by actual distance and aggregate by venue
     const venueMap = new Map<
@@ -101,9 +110,10 @@ export async function handler(
       venues.push(summary);
     }
 
+    done({ venueCount: venues.length, reportCount: items.length });
     return success({ venues });
   } catch (err) {
-    console.error("[getNearbyReports] Error:", err);
+    log.error("Failed to fetch reports", undefined, err);
     return serverError("Failed to fetch reports");
   }
 }

@@ -32,6 +32,7 @@ xcuserdata/
 
 # SAM CLI auto-generated build files
 backend/.aws-sam/
+backend/samconfig.toml
 
 # Docs
 *.docx

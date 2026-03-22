@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Venuu Backend - API Gateway + Lambda (TypeScript) + DynamoDB
+Description: Wayt Backend - API Gateway + Lambda (TypeScript) + DynamoDB
 
 Globals:
   Function:
@@ -13,6 +13,7 @@ Globals:
         USERS_TABLE: !Ref UserProfilesTable
         PROFILE_IMAGES_BUCKET: !Ref ProfileImagesBucket
         SAVED_VENUES_TABLE: !Ref SavedVenuesTable
+        SIGNALS_TABLE: !Ref WaytSignalsTable
 
 Parameters:
   CognitoUserPoolArn:
@@ -27,11 +28,17 @@ Parameters:
       - prod
     Description: Deployment stage (dev or prod)
 
+  FoursquareApiKey:
+    Type: String
+    Default: ""
+    Description: Foursquare Places API key (leave empty to disable Foursquare signals)
+    NoEcho: true
+
 Resources:
   # -----------------------------------------------
   # API Gateway
   # -----------------------------------------------
-  VenuuApi:
+  WaytApi:
     Type: AWS::Serverless::Api
     Properties:
       StageName: !Ref Stage
@@ -58,11 +65,13 @@ Resources:
             TableName: !Ref VenueReportsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref UserProfilesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WaytSignalsTable
       Events:
         PostReport:
           Type: Api
           Properties:
-            RestApiId: !Ref VenuuApi
+            RestApiId: !Ref WaytApi
             Path: /reports
             Method: POST
     Metadata:
@@ -80,7 +89,7 @@ Resources:
         GetReports:
           Type: Api
           Properties:
-            RestApiId: !Ref VenuuApi
+            RestApiId: !Ref WaytApi
             Path: /reports
             Method: GET
     Metadata:
@@ -98,7 +107,7 @@ Resources:
         GetVenueReports:
           Type: Api
           Properties:
-            RestApiId: !Ref VenuuApi
+            RestApiId: !Ref WaytApi
             Path: /venues/{venueId}/reports
             Method: GET
     Metadata:
@@ -120,7 +129,7 @@ Resources:
         GetProfile:
           Type: Api
           Properties:
-            RestApiId: !Ref VenuuApi
+            RestApiId: !Ref WaytApi
             Path: /user/profile
             Method: GET
     Metadata:
@@ -138,7 +147,7 @@ Resources:
         UpdateProfile:
           Type: Api
           Properties:
-            RestApiId: !Ref VenuuApi
+            RestApiId: !Ref WaytApi
             Path: /user/profile
             Method: PUT
     Metadata:
@@ -160,7 +169,7 @@ Resources:
         GetUploadUrl:
           Type: Api
           Properties:
-            RestApiId: !Ref VenuuApi
+            RestApiId: !Ref WaytApi
             Path: /user/profile/upload-url
             Method: GET
     Metadata:
@@ -181,7 +190,7 @@ Resources:
         SaveVenue:
           Type: Api
           Properties:
-            RestApiId: !Ref VenuuApi
+            RestApiId: !Ref WaytApi
             Path: /user/saved-venues
             Method: POST
     Metadata:
@@ -199,7 +208,7 @@ Resources:
         UnsaveVenue:
           Type: Api
           Properties:
-            RestApiId: !Ref VenuuApi
+            RestApiId: !Ref WaytApi
             Path: /user/saved-venues/remove
             Method: POST
     Metadata:
@@ -217,8 +226,87 @@ Resources:
         ListSavedVenues:
           Type: Api
           Properties:
-            RestApiId: !Ref VenuuApi
+            RestApiId: !Ref WaytApi
             Path: /user/saved-venues
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  # -----------------------------------------------
+  # Signal Fusion Engine — Lambda Functions
+  # -----------------------------------------------
+  GetNearbyVenuesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getNearbyVenues.handler
+      Timeout: 15
+      Environment:
+        Variables:
+          FOURSQUARE_API_KEY: !Ref FoursquareApiKey
+          COLD_VENUES_FUNCTION: !Ref ComputeColdVenuesFunction
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WaytSignalsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref VenueReportsTable
+        - Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !GetAtt ComputeColdVenuesFunction.Arn
+      Events:
+        GetNearbyVenues:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WaytApi
+            Path: /v1/venues/nearby
+            Method: GET
+        PostNearbyVenues:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WaytApi
+            Path: /v1/venues/nearby
+            Method: POST
+    Metadata:
+      BuildMethod: makefile
+
+  ComputeColdVenuesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/computeColdVenues.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          FOURSQUARE_API_KEY: !Ref FoursquareApiKey
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WaytSignalsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref VenueReportsTable
+    Metadata:
+      BuildMethod: makefile
+
+  GetVenueBusynessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getVenueBusyness.handler
+      Timeout: 15
+      Environment:
+        Variables:
+          FOURSQUARE_API_KEY: !Ref FoursquareApiKey
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WaytSignalsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref VenueReportsTable
+      Events:
+        GetVenueBusyness:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WaytApi
+            Path: /v1/venues/{venueId}/busyness
             Method: GET
     Metadata:
       BuildMethod: makefile
@@ -236,11 +324,22 @@ Resources:
           AttributeType: S
         - AttributeName: timestamp
           AttributeType: N
+        - AttributeName: geohash
+          AttributeType: S
       KeySchema:
         - AttributeName: venueId
           KeyType: HASH
         - AttributeName: timestamp
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GeohashIndex
+          KeySchema:
+            - AttributeName: geohash
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
@@ -274,13 +373,48 @@ Resources:
           KeyType: RANGE
 
   # -----------------------------------------------
+  # Signal Fusion Engine — DynamoDB Table
+  # -----------------------------------------------
+  WaytSignalsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "WaytSignals-${Stage}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: geohash
+          AttributeType: S
+        - AttributeName: geoSK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GeohashIndex
+          KeySchema:
+            - AttributeName: geohash
+              KeyType: HASH
+            - AttributeName: geoSK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # -----------------------------------------------
   # S3 Buckets
   # -----------------------------------------------
   ProfileImagesBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub "venuu-profile-images-${AWS::AccountId}-${Stage}"
+      BucketName: !Sub "wayt-profile-images-${AWS::AccountId}-${Stage}"
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders: ["*"]
@@ -296,7 +430,7 @@ Resources:
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL
-    Value: !Sub "https://${VenuuApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+    Value: !Sub "https://${WaytApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
   VenueReportsTableName:
     Value: !Ref VenueReportsTable
   UserProfilesTableName:
@@ -305,5 +439,7 @@ Outputs:
     Value: !Ref ProfileImagesBucket
   SavedVenuesTableName:
     Value: !Ref SavedVenuesTable
+  WaytSignalsTableName:
+    Value: !Ref WaytSignalsTable
   Stage:
     Value: !Ref Stage
