@@ -5,12 +5,15 @@ struct BusynessBadge: View {
 
     let level: BusynessLevel?
     let confidence: BusynessConfidence
+    var isOpen: Bool? = nil
     var style: BadgeStyle = .standard
 
     @State private var isPulsing = false
 
     var body: some View {
-        if let level {
+        if isOpen == false {
+            closedBadge
+        } else if let level {
             HStack(spacing: 4) {
                 ZStack {
                     Circle()
@@ -57,6 +60,22 @@ struct BusynessBadge: View {
                 .background(Color.gray.opacity(0.10))
                 .clipShape(Capsule())
         }
+    }
+
+    private var closedBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.system(size: style == .compact ? 9 : 10, weight: .medium))
+                .foregroundStyle(Color(.systemGray))
+            Text("Closed")
+                .font(style == .compact ? WaytTheme.badgeFont : WaytTheme.footnoteLightFont)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color(.systemGray))
+        }
+        .padding(.horizontal, style == .compact ? 6 : 8)
+        .padding(.vertical, style == .compact ? 3 : 5)
+        .background(Color.gray.opacity(0.12))
+        .clipShape(Capsule())
     }
 
     private var dotSize: CGFloat {

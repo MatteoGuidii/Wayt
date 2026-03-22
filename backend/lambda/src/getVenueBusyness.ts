@@ -54,6 +54,8 @@ export async function handler(
           sources: cached.sources as string[],
           conflictDetected: cached.conflictDetected as boolean,
           computedAt: cached.computedAt as string,
+          isOpen: (cached.isOpen as boolean | null) ?? null,
+          hoursToday: (cached.hoursToday as FusedEstimate["hoursToday"]) ?? [],
         };
       }
     }

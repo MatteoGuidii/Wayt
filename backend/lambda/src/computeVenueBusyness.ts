@@ -7,7 +7,7 @@ import {
 import { encode } from "./geohash";
 import { VenueSignal, FusedEstimate, SOURCE_CONFIG, SignalSource } from "./signals/types";
 import { fuseSignals, emptyEstimate } from "./signals/fusion";
-import { fetchFoursquareSignal } from "./signals/foursquare";
+import { fetchFoursquareSignal, getFoursquareHours } from "./signals/foursquare";
 import { aggregateUserReports } from "./signals/userReports";
 import { createLogger } from "./logger";
 
@@ -73,14 +73,23 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 
     log.debug("Signal status", { venueId, cached: cachedSignals.length, stale: staleSourceIds });
 
-    // Step 3: Fuse all available signals
-    const fused = freshSignals.length > 0
-      ? fuseSignals(freshSignals, now)
-      : emptyEstimate(venueId);
+    // Step 3: Determine open/closed status + today's hours from Foursquare
+    const { isOpen, hoursToday } = await getFoursquareHours(venueId, timezone ?? "UTC");
 
-    log.info("Fused estimate computed", { venueId, score: fused.busynessScore, confidence: fused.confidence, sources: fused.sources });
+    // Step 4: Fuse all available signals
+    let fused = freshSignals.length > 0
+      ? fuseSignals(freshSignals, now, isOpen, hoursToday)
+      : { ...emptyEstimate(venueId), isOpen, hoursToday };
 
-    // Step 4: Cache the fused result with geohash for spatial queries
+    // Step 4b: If venue is closed, suppress busyness score
+    if (fused.isOpen === false) {
+      fused.busynessScore = 0.0;
+      fused.confidence = "HIGH";
+    }
+
+    log.info("Fused estimate computed", { venueId, score: fused.busynessScore, confidence: fused.confidence, sources: fused.sources, isOpen: fused.isOpen });
+
+    // Step 5: Cache the fused result with geohash for spatial queries
     const geohash = encode(lat, lng);
     await putItem({
       PK: venueKey(venueId),

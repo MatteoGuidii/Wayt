@@ -9,17 +9,13 @@ struct VenueRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Category icon (pin-shaped)
-            ZStack {
-                PinShape()
-                    .fill(venue.category.color.opacity(0.12))
-                    .frame(width: 44, height: 50)
-
-                Image(systemName: venue.category.icon)
-                    .font(WaytTheme.calloutBoldFont)
-                    .foregroundStyle(venue.category.color)
-                    .offset(y: -2)
-            }
+            // LookAround thumbnail (falls back to category icon)
+            LookAroundThumbnail(
+                coordinate: venue.coordinate,
+                category: venue.category,
+                size: CGSize(width: 50, height: 50)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             // Venue info
             VStack(alignment: .leading, spacing: 4) {
@@ -61,6 +57,7 @@ struct VenueRow: View {
             BusynessBadge(
                 level: venue.busyness,
                 confidence: venue.busynessConfidence,
+                isOpen: venue.isOpen,
                 style: .compact
             )
         }
@@ -71,7 +68,7 @@ struct VenueRow: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.05), lineWidth: 1)
         )
-        .busynessGlow(venue.busyness?.color, radius: 6, y: 3)
+        .busynessGlow(venue.isOpen == false ? nil : venue.busyness?.color, radius: 6, y: 3)
     }
 
     // MARK: - Distance

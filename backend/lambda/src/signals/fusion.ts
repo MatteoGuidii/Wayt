@@ -1,4 +1,4 @@
-import { VenueSignal, FusedEstimate, ConfidenceLevel } from "./types";
+import { VenueSignal, FusedEstimate, ConfidenceLevel, HoursWindow } from "./types";
 
 /** Threshold: sources diverging by more than this are in conflict. */
 const CONFLICT_THRESHOLD = 0.3;
@@ -18,7 +18,7 @@ const OUTLIER_PENALTY = 0.5;
  * 4. Weighted average to produce final score
  * 5. Map to confidence level based on source count and agreement
  */
-export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEstimate {
+export function fuseSignals(signals: VenueSignal[], now = Date.now(), isOpen: boolean | null = null, hoursToday: HoursWindow[] = []): FusedEstimate {
   if (signals.length === 0) {
     return emptyEstimate("");
   }
@@ -100,6 +100,8 @@ export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEsti
     sources: signals.map((s) => s.sourceId),
     conflictDetected,
     computedAt: new Date(now).toISOString(),
+    isOpen,
+    hoursToday,
   };
 }
 
@@ -155,5 +157,7 @@ export function emptyEstimate(venueId: string): FusedEstimate {
     sources: [],
     conflictDetected: false,
     computedAt: new Date().toISOString(),
+    isOpen: null,
+    hoursToday: [],
   };
 }

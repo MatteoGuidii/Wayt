@@ -17,7 +17,9 @@ struct BusynessEngine: Sendable {
             level: BusynessLevel(closestTo: levelValue),
             confidence: BusynessConfidence(fromServer: response.confidence),
             reportCount: response.reportCount,
-            waitMinutes: response.waitMinutes
+            waitMinutes: response.waitMinutes,
+            isOpen: response.isOpen,
+            hoursToday: response.hoursToday ?? []
         )
         Log.engine.debug("Fused estimate: score=\(response.busynessScore) confidence=\(response.confidence, privacy: .public) sources=\(response.sourceCount ?? 0)")
         return result
@@ -39,7 +41,9 @@ struct BusynessEngine: Sendable {
                 level: .moderate,
                 confidence: .none,
                 reportCount: 0,
-                waitMinutes: nil
+                waitMinutes: nil,
+                isOpen: nil,
+                hoursToday: []
             )
         }
 
@@ -54,7 +58,9 @@ struct BusynessEngine: Sendable {
             level: level,
             confidence: confidence,
             reportCount: validReports.count,
-            waitMinutes: avgWait
+            waitMinutes: avgWait,
+            isOpen: nil,
+            hoursToday: []
         )
     }
 
@@ -101,6 +107,30 @@ struct BusynessEstimate: Sendable {
     let confidence: BusynessConfidence
     let reportCount: Int
     let waitMinutes: Int?
+    let isOpen: Bool?
+    let hoursToday: [HoursWindow]
+}
+
+/// A single operating hours window (open/close in "HHmm" format, e.g. "1100"/"2300").
+struct HoursWindow: Codable, Sendable, Equatable {
+    let open: String
+    let close: String
+
+    /// Format as a human-readable time range, e.g. "11:00 AM – 11:00 PM".
+    var formatted: String {
+        "\(Self.formatTime(open)) – \(Self.formatTime(close))"
+    }
+
+    /// Format "HHmm" → "H:mm AM/PM".
+    static func formatTime(_ hhmm: String) -> String {
+        let clean = hhmm.replacingOccurrences(of: ":", with: "")
+        guard clean.count >= 3 else { return hhmm }
+        let h = Int(clean.prefix(clean.count - 2)) ?? 0
+        let m = Int(clean.suffix(2)) ?? 0
+        let period = h >= 12 ? "PM" : "AM"
+        let h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h)
+        return m == 0 ? "\(h12) \(period)" : "\(h12):\(String(format: "%02d", m)) \(period)"
+    }
 }
 
 // MARK: - Server Response Model
@@ -118,6 +148,8 @@ struct FusedEstimateResponse: Codable, Sendable {
     let sources: [String]?
     let conflictDetected: Bool?
     let computedAt: String?
+    let isOpen: Bool?
+    let hoursToday: [HoursWindow]?
 
     // Minimal init for backward compat (used by tests and legacy code)
     init(
@@ -129,7 +161,9 @@ struct FusedEstimateResponse: Codable, Sendable {
         sourceCount: Int? = nil,
         sources: [String]? = nil,
         conflictDetected: Bool? = nil,
-        computedAt: String? = nil
+        computedAt: String? = nil,
+        isOpen: Bool? = nil,
+        hoursToday: [HoursWindow]? = nil
     ) {
         self.busynessScore = busynessScore
         self.confidence = confidence
@@ -140,6 +174,8 @@ struct FusedEstimateResponse: Codable, Sendable {
         self.sources = sources
         self.conflictDetected = conflictDetected
         self.computedAt = computedAt
+        self.isOpen = isOpen
+        self.hoursToday = hoursToday
     }
 }
 

@@ -5,7 +5,7 @@ import {
   getItem,
   putItem,
 } from "../db";
-import { VenueSignal, SOURCE_CONFIG } from "./types";
+import { VenueSignal, SOURCE_CONFIG, HoursWindow } from "./types";
 import { createLogger } from "../logger";
 
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY ?? "";
@@ -38,13 +38,18 @@ interface FsqPlaceDetails {
   rating?: number;
   stats?: { total_photos?: number; total_tips?: number; total_ratings?: number };
   hours_popular?: Array<{ day: number; open: string; close: string }>;
+  hours?: {
+    regular?: Array<{ day: number; open: string; close: string }>;
+    open_now?: boolean;
+  };
 }
 
-/** Cached raw Foursquare venue data (popularity + hours_popular). */
+/** Cached raw Foursquare venue data (popularity + hours_popular + hours_regular). */
 interface CachedFsqData {
   popularity: number | null;
   rating: number | null;
   hoursPopular: Array<{ day: number; open: string; close: string }>;
+  hoursRegular: Array<{ day: number; open: string; close: string }>;
 }
 
 /**
@@ -102,6 +107,48 @@ export async function fetchFoursquareSignal(
   }
 }
 
+/** Result from checking venue open/closed status + today's hours. */
+export interface FoursquareHoursResult {
+  isOpen: boolean | null;
+  hoursToday: HoursWindow[];
+}
+
+/**
+ * Get the isOpen status and today's operating hours from cached Foursquare data.
+ * Returns `{ isOpen: null, hoursToday: [] }` if no cached data available.
+ */
+export async function getFoursquareHours(
+  venueId: string,
+  timezone: string
+): Promise<FoursquareHoursResult> {
+  const empty: FoursquareHoursResult = { isOpen: null, hoursToday: [] };
+  const cached = await getItem(venueKey(venueId), FSQDATA_SK);
+  if (!cached) return empty;
+
+  const data: CachedFsqData = {
+    popularity: (cached.popularity as number | null) ?? null,
+    rating: (cached.rating as number | null) ?? null,
+    hoursPopular: (cached.hoursPopular as CachedFsqData["hoursPopular"]) ?? [],
+    hoursRegular: (cached.hoursRegular as CachedFsqData["hoursRegular"]) ?? [],
+  };
+
+  const isOpen = computeIsOpen(data, Date.now(), timezone);
+  const hoursToday = getTodayHours(data, Date.now(), timezone);
+  return { isOpen, hoursToday };
+}
+
+/** Extract today's operating hours windows from cached data. */
+function getTodayHours(data: CachedFsqData, nowMs: number, timezone: string): HoursWindow[] {
+  if (data.hoursRegular.length === 0) return [];
+
+  const { localDay } = getLocalTime(nowMs, timezone);
+  const fsqDay = localDay === 0 ? 7 : localDay;
+
+  return data.hoursRegular
+    .filter((h) => h.day === fsqDay)
+    .map((h) => ({ open: h.open.replace(":", ""), close: h.close.replace(":", "") }));
+}
+
 // -----------------------------------------------
 // Raw data caching (30-day TTL)
 // -----------------------------------------------
@@ -124,6 +171,7 @@ async function getFoursquareVenueData(
         popularity: (cached.popularity as number | null) ?? null,
         rating: (cached.rating as number | null) ?? null,
         hoursPopular: (cached.hoursPopular as CachedFsqData["hoursPopular"]) ?? [],
+        hoursRegular: (cached.hoursRegular as CachedFsqData["hoursRegular"]) ?? [],
       };
     }
   }
@@ -139,6 +187,7 @@ async function getFoursquareVenueData(
     popularity: details.popularity ?? null,
     rating: details.rating ?? null,
     hoursPopular: details.hours_popular ?? [],
+    hoursRegular: details.hours?.regular ?? [],
   };
 
   // Cache raw data for 30 days
@@ -235,7 +284,7 @@ async function matchVenue(
 
 /** Fetch Foursquare place details including popularity. */
 async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null> {
-  const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular";
+  const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular,hours";
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/${fsqId}?fields=${fields}`,
     `Details for fsq_id=${fsqId}`
@@ -401,6 +450,52 @@ function computeTemporalConfidence(
   const dataBonus = Math.min(0.1, windowCount * 0.03);
 
   return Math.min(0.85, base + dataBonus);
+}
+
+/**
+ * Determine whether a venue is currently open based on its regular operating hours.
+ * Returns `null` when no hours data is available (unknown).
+ * Handles cross-midnight windows (e.g., bar open 21:00–02:00).
+ */
+export function computeIsOpen(
+  data: CachedFsqData,
+  nowMs: number,
+  timezone: string
+): boolean | null {
+  if (data.hoursRegular.length === 0) return null;
+
+  const { localDay, localMinutes } = getLocalTime(nowMs, timezone);
+  // Foursquare uses 1=Mon..7=Sun; getLocalTime returns JS 0=Sun..6=Sat
+  const fsqDay = localDay === 0 ? 7 : localDay;
+
+  // Check today's windows (including cross-midnight windows from yesterday)
+  for (const h of data.hoursRegular) {
+    const open = parseTimeToMinutes(h.open);
+    const close = parseTimeToMinutes(h.close);
+
+    if (h.day === fsqDay) {
+      if (close > open) {
+        // Normal window: e.g., 11:00–23:00
+        if (localMinutes >= open && localMinutes < close) return true;
+      } else if (close <= open && close > 0) {
+        // Cross-midnight window (start): e.g., 21:00–02:00 — open from 21:00 to midnight
+        if (localMinutes >= open) return true;
+      }
+    }
+
+    // Check if a cross-midnight window from yesterday covers now
+    const yesterday = fsqDay === 1 ? 7 : fsqDay - 1;
+    if (h.day === yesterday) {
+      const yOpen = parseTimeToMinutes(h.open);
+      const yClose = parseTimeToMinutes(h.close);
+      if (yClose <= yOpen && yClose > 0) {
+        // Yesterday's cross-midnight window: open until yClose today
+        if (localMinutes < yClose) return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /** Parse "HH:mm" or "HHmm" time string to minutes since midnight. */
