@@ -1,17 +1,17 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { queryNearbyFused } from "./db";
+import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
+import { queryNearbyFused, batchCheckExists } from "./db";
 import { haversineDistance, success, badRequest, serverError } from "./shared";
 import { FusedEstimate } from "./signals/types";
 import { computeVenueBusyness, ComputeInput } from "./computeVenueBusyness";
+import { emptyEstimate } from "./signals/fusion";
 import { createLogger } from "./logger";
 
 /** Max allowed search radius (10 km). */
 const MAX_RADIUS = 10_000;
-/**
- * Max venues to compute on-demand per request.
- * Limits latency — the rest will be computed on subsequent requests.
- */
-const MAX_INLINE_COMPUTES = 50;
+
+const BACKGROUND_FUNCTION = process.env.COLD_VENUES_FUNCTION ?? "";
+const lambdaClient = new LambdaClient({});
 
 /** POST request body shape. */
 interface NearbyVenuesBody {
@@ -25,14 +25,11 @@ interface NearbyVenuesBody {
 /**
  * GET or POST /v1/venues/nearby
  *
- * Returns fused busyness estimates for venues near the given coordinates.
+ * Ultra-fast path: returns ONLY cached fused estimates from DynamoDB.
+ * Any venues not in cache are dispatched to a background Lambda for
+ * async computation — results appear on the next client refresh.
  *
- * GET: params via query string (venues JSON-encoded, batched to 20 for URL limit).
- * POST: params via JSON body (no batching needed — send all venues at once).
- *
- * The `venues` field is an optional array of venue objects
- * ({ venueId, venueName, lat, lng }) that the iOS app discovered via MapKit.
- * For any venue not in the fused cache, we compute on-demand.
+ * Response time target: <500ms regardless of venue count.
  */
 export async function handler(
   event: APIGatewayProxyEvent,
@@ -41,7 +38,6 @@ export async function handler(
   const log = createLogger("getNearbyVenues", event, context);
   const done = log.startTimer("Handler complete");
   try {
-    // Parse params from query string (GET) or body (POST)
     const { lat, lng, radius, timezone, clientVenues } = parseParams(event);
 
     if (isNaN(lat) || isNaN(lng)) {
@@ -50,10 +46,9 @@ export async function handler(
 
     log.info("Fetching nearby venues", { lat, lng, radius, method: event.httpMethod });
 
-    // Step 1: Query cached fused estimates from geohash neighborhood
+    // Step 1: Query cached fused estimates from geohash neighborhood (fast DynamoDB-only)
     const cachedItems = await queryNearbyFused(lat, lng);
 
-    // Filter by haversine distance and check TTL
     const nowSeconds = Math.floor(Date.now() / 1000);
     const nearbyFused = new Map<string, FusedEstimate>();
 
@@ -62,10 +57,8 @@ export async function handler(
       const itemLng = item.lng as number;
       const ttl = item.ttl as number | undefined;
 
-      // Skip expired items
       if (ttl && ttl < nowSeconds) continue;
 
-      // Skip items outside radius
       const dist = haversineDistance(lat, lng, itemLat, itemLng);
       if (dist > radius) continue;
 
@@ -83,24 +76,64 @@ export async function handler(
       });
     }
 
-    // Step 2: Compute on-demand for venues not in cache (up to MAX_INLINE_COMPUTES)
+    // Step 2: Classify missing venues as warm (cached FSQ data) vs cold (need API)
     const missing = clientVenues.filter((v) => !nearbyFused.has(v.venueId));
-    const toCompute = missing.slice(0, MAX_INLINE_COMPUTES);
+    let warmCount = 0;
+    let coldCount = 0;
 
-    if (toCompute.length > 0) {
-      log.info("Computing on-demand estimates", { count: toCompute.length, totalMissing: missing.length });
-      const computeResults = await Promise.all(
-        toCompute.map((v) => computeVenueBusyness({ ...v, timezone }))
-      );
-      for (const result of computeResults) {
-        nearbyFused.set(result.venueId, result);
+    if (missing.length > 0) {
+      const missingIds = missing.map((v) => v.venueId);
+      const warmIds = await batchCheckExists(missingIds, "FSQDATA#CURRENT");
+
+      const warmVenues = missing.filter((v) => warmIds.has(v.venueId));
+      const coldVenues = missing.filter((v) => !warmIds.has(v.venueId));
+      warmCount = warmVenues.length;
+      coldCount = coldVenues.length;
+
+      log.info("Missing venues classified", { warm: warmCount, cold: coldCount });
+
+      // Compute warm venues inline (DynamoDB-only, no Foursquare API calls)
+      if (warmVenues.length > 0) {
+        const warmResults = await Promise.all(
+          warmVenues.map((v) => computeVenueBusyness({ ...v, timezone }))
+        );
+        for (const result of warmResults) {
+          nearbyFused.set(result.venueId, result);
+        }
+      }
+
+      // Dispatch ONLY cold venues to background Lambda
+      if (coldVenues.length > 0 && BACKGROUND_FUNCTION) {
+        try {
+          await lambdaClient.send(
+            new InvokeCommand({
+              FunctionName: BACKGROUND_FUNCTION,
+              InvocationType: "Event",
+              Payload: Buffer.from(
+                JSON.stringify({ venues: coldVenues, timezone })
+              ),
+            })
+          );
+        } catch (err) {
+          log.warn("Failed to dispatch cold venues", { count: coldCount });
+        }
+      }
+
+      // Empty estimates for cold venues only
+      for (const v of coldVenues) {
+        nearbyFused.set(v.venueId, emptyEstimate(v.venueId));
       }
     }
 
-    // Step 3: Return results
+    // Step 3: Return results immediately
     const venues = Array.from(nearbyFused.values());
 
-    done({ venueCount: venues.length, cached: nearbyFused.size - toCompute.length, computed: toCompute.length });
+    done({
+      venueCount: venues.length,
+      cached: venues.length - warmCount - coldCount,
+      inlineComputed: warmCount,
+      dispatched: coldCount,
+    });
     return success({ venues });
   } catch (err) {
     log.error("Failed to fetch nearby venues", undefined, err);

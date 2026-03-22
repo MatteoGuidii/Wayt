@@ -5,6 +5,7 @@ import {
   PutCommand,
   DeleteCommand,
   GetCommand,
+  BatchGetCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { neighborhood } from "./geohash";
 
@@ -139,4 +140,43 @@ export async function queryByPK(
     })
   );
   return (result.Items ?? []) as Record<string, unknown>[];
+}
+
+/**
+ * Batch-check which venue IDs have a specific SK present and unexpired.
+ * Returns the set of venue IDs that have a valid (non-expired) item.
+ * Processes in chunks of 100 (DynamoDB BatchGetItem limit).
+ */
+export async function batchCheckExists(
+  venueIds: string[],
+  sk: string
+): Promise<Set<string>> {
+  const found = new Set<string>();
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  // DynamoDB BatchGetItem limit is 100 keys per request
+  for (let i = 0; i < venueIds.length; i += 100) {
+    const chunk = venueIds.slice(i, i + 100);
+    const keys = chunk.map((id) => ({ PK: venueKey(id), SK: sk }));
+
+    const result = await ddb.send(
+      new BatchGetCommand({
+        RequestItems: {
+          [SIGNALS_TABLE]: { Keys: keys },
+        },
+      })
+    );
+
+    const items = result.Responses?.[SIGNALS_TABLE] ?? [];
+    for (const item of items) {
+      const ttl = item.ttl as number | undefined;
+      if (!ttl || ttl >= nowSeconds) {
+        // Extract venueId from PK (format: "VENUE#venueId")
+        const pk = item.PK as string;
+        found.add(pk.replace("VENUE#", ""));
+      }
+    }
+  }
+
+  return found;
 }

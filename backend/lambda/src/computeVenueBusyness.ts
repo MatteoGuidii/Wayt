@@ -11,8 +11,10 @@ import { fetchFoursquareSignal } from "./signals/foursquare";
 import { aggregateUserReports } from "./signals/userReports";
 import { createLogger } from "./logger";
 
-/** TTL for the cached fused estimate (10 minutes). */
-const FUSED_TTL_SECONDS = 10 * 60;
+/** TTL for the cached fused estimate (30 minutes).
+ * The Gaussian temporal model changes slowly (~hour-wide peaks),
+ * so 30 min recomputation frequency is sufficient. */
+const FUSED_TTL_SECONDS = 30 * 60;
 
 export interface ComputeInput {
   venueId: string;

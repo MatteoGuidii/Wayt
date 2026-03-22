@@ -1,5 +1,5 @@
 // -----------------------------------------------
-// Signal types for the Venuu Fusion Engine
+// Signal types for the Wayt Fusion Engine
 // -----------------------------------------------
 
 /** A single busyness signal from one data source. */

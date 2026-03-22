@@ -2,9 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(gh pr:*)",
-      "Bash(find /Users/matteo/Desktop/Venuu/amplify -type f \\\\\\(-name *.json -o -name *.yaml -o -name *.yml \\\\\\) ! -path */node_modules/*)",
+      "Bash(find /Users/matteo/Desktop/Wayt/amplify -type f \\\\\\(-name *.json -o -name *.yaml -o -name *.yml \\\\\\) ! -path */node_modules/*)",
       "Read(//Users/matteo/.claude/projects/**)",
-      "Bash(find /Users/matteo/Desktop/Venuu -maxdepth 2 \\\\\\(-name README.md -o -name ROADMAP.md -o -name .env* -o -name cloudformation* -o -name serverless.yml \\\\\\))",
+      "Bash(find /Users/matteo/Desktop/Wayt -maxdepth 2 \\\\\\(-name README.md -o -name ROADMAP.md -o -name .env* -o -name cloudformation* -o -name serverless.yml \\\\\\))",
       "Bash(npm install:*)",
       "WebFetch(domain:docs.foursquare.com)",
       "Bash(aws logs:*)",
@@ -12,7 +12,8 @@
       "Bash(aws cloudformation:*)",
       "Bash(aws lambda:*)",
       "Bash(sam build:*)",
-      "Bash(sam deploy:*)"
+      "Bash(sam deploy:*)",
+      "Bash(gh repo:*)"
     ]
   }
 }

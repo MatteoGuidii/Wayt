@@ -1,7 +1,7 @@
 {
-  "name": "venuu-backend",
+  "name": "wayt-backend",
   "version": "1.0.0",
-  "description": "Venuu backend Lambda functions",
+  "description": "Wayt backend Lambda functions",
   "private": true,
   "scripts": {
     "build": "tsc",
@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.500.0",
+    "@aws-sdk/client-lambda": "^3.500.0",
     "@aws-sdk/client-s3": "^3.500.0",
     "@aws-sdk/lib-dynamodb": "^3.500.0",
     "@aws-sdk/s3-request-presigner": "^3.500.0",
