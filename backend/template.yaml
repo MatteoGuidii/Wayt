@@ -13,7 +13,7 @@ Globals:
         USERS_TABLE: !Ref UserProfilesTable
         PROFILE_IMAGES_BUCKET: !Ref ProfileImagesBucket
         SAVED_VENUES_TABLE: !Ref SavedVenuesTable
-        SIGNALS_TABLE: !Ref VenuuSignalsTable
+        SIGNALS_TABLE: !Ref WaytSignalsTable
 
 Parameters:
   CognitoUserPoolArn:
@@ -66,7 +66,7 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: !Ref UserProfilesTable
         - DynamoDBCrudPolicy:
-            TableName: !Ref VenuuSignalsTable
+            TableName: !Ref WaytSignalsTable
       Events:
         PostReport:
           Type: Api
@@ -247,7 +247,7 @@ Resources:
           COLD_VENUES_FUNCTION: !Ref ComputeColdVenuesFunction
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref VenuuSignalsTable
+            TableName: !Ref WaytSignalsTable
         - DynamoDBReadPolicy:
             TableName: !Ref VenueReportsTable
         - Statement:
@@ -281,7 +281,7 @@ Resources:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref VenuuSignalsTable
+            TableName: !Ref WaytSignalsTable
         - DynamoDBReadPolicy:
             TableName: !Ref VenueReportsTable
     Metadata:
@@ -298,7 +298,7 @@ Resources:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref VenuuSignalsTable
+            TableName: !Ref WaytSignalsTable
         - DynamoDBReadPolicy:
             TableName: !Ref VenueReportsTable
       Events:
@@ -375,10 +375,10 @@ Resources:
   # -----------------------------------------------
   # Signal Fusion Engine — DynamoDB Table
   # -----------------------------------------------
-  VenuuSignalsTable:
+  WaytSignalsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "VenuuSignals-${Stage}"
+      TableName: !Sub "WaytSignals-${Stage}"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: PK
@@ -414,7 +414,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub "venuu-profile-images-${AWS::AccountId}-${Stage}"
+      BucketName: !Sub "wayt-profile-images-${AWS::AccountId}-${Stage}"
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders: ["*"]
@@ -439,7 +439,7 @@ Outputs:
     Value: !Ref ProfileImagesBucket
   SavedVenuesTableName:
     Value: !Ref SavedVenuesTable
-  VenuuSignalsTableName:
-    Value: !Ref VenuuSignalsTable
+  WaytSignalsTableName:
+    Value: !Ref WaytSignalsTable
   Stage:
     Value: !Ref Stage
