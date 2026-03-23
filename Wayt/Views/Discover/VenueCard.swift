@@ -41,6 +41,23 @@ struct VenueCard: View {
                 .font(WaytTheme.subheadFont)
                 .lineLimit(2)
 
+            if let isOpen = venue.isOpen {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(isOpen ? .green : .red)
+                        .frame(width: 6, height: 6)
+                    Text(isOpen ? "Open" : "Closed")
+                        .font(WaytTheme.badgeFont)
+                        .foregroundStyle(isOpen ? .green : .red)
+                    if let hours = venue.hoursToday {
+                        Text("· \(hours)")
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                }
+                .lineLimit(1)
+            }
+
             if let wait = venue.estimatedWaitMinutes, wait > 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "clock.fill")
@@ -53,7 +70,7 @@ struct VenueCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
-        .frame(width: 170, height: 120, alignment: .topLeading)
+        .frame(width: 170, height: 140, alignment: .topLeading)
         .background(
             ZStack {
                 WaytTheme.cardBackground

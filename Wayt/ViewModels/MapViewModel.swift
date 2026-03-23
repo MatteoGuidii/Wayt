@@ -496,6 +496,8 @@ final class MapViewModel: ObservableObject {
                 venues[i].busynessConfidence = estimate.confidence
                 venues[i].reportCount = estimate.reportCount
                 venues[i].estimatedWaitMinutes = estimate.waitMinutes
+                venues[i].isOpen = estimate.isOpen
+                venues[i].hoursToday = estimate.hoursToday
             }
         }
     }
@@ -531,6 +533,8 @@ final class MapViewModel: ObservableObject {
             v.busynessConfidence = existing.busynessConfidence
             v.reportCount = existing.reportCount
             v.estimatedWaitMinutes = existing.estimatedWaitMinutes
+            v.isOpen = existing.isOpen
+            v.hoursToday = existing.hoursToday
             return v
         }
     }
@@ -547,6 +551,8 @@ final class MapViewModel: ObservableObject {
             v.busynessConfidence = estimate.confidence
             v.reportCount = estimate.reportCount
             v.estimatedWaitMinutes = estimate.waitMinutes
+            v.isOpen = estimate.isOpen
+            v.hoursToday = estimate.hoursToday
             return v
         }
     }

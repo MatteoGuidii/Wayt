@@ -6,6 +6,7 @@ import {
   batchMatchVenues,
   computeTimeAwareBusyness,
 } from "./signals/foursquare";
+import { getGoogleHoursData, isOpenNow } from "./signals/google";
 
 /**
  * Async background Lambda invoked by getNearbyVenues for ALL missing venues.
@@ -77,8 +78,30 @@ export async function handler(event: BackgroundEvent): Promise<void> {
       const nowSeconds = Math.floor(nowMs / 1000);
       const quickEstimates: Record<string, unknown>[] = [];
 
+      // Fetch Google hours for matched venues (5 concurrent max)
+      const matchedEntries = Array.from(matched.entries());
+      const googleHoursMap = new Map<string, { isOpen: boolean; hoursToday: string | null }>();
+      const GOOGLE_CONCURRENCY = 5;
+
+      for (let i = 0; i < matchedEntries.length; i += GOOGLE_CONCURRENCY) {
+        const batch = matchedEntries.slice(i, i + GOOGLE_CONCURRENCY);
+        const results = await Promise.all(
+          batch.map(async ([venueId]) => {
+            const venue = coldVenues.find((v) => v.venueId === venueId);
+            if (!venue) return null;
+            const hours = await getGoogleHoursData(venueId, venue.venueName, venue.lat, venue.lng);
+            if (!hours) return null;
+            return { venueId, status: isOpenNow(hours, nowMs, timezone) };
+          })
+        );
+        for (const r of results) {
+          if (r) googleHoursMap.set(r.venueId, r.status);
+        }
+      }
+
       for (const [venueId, match] of matched) {
-        const { score, confidence } = computeTimeAwareBusyness(match.data, nowMs, timezone);
+        const openStatus = googleHoursMap.get(venueId) ?? null;
+        const { score, confidence } = computeTimeAwareBusyness(match.data, nowMs, timezone, openStatus?.isOpen);
         const venue = coldVenues.find((v) => v.venueId === venueId);
         const lat = venue?.lat ?? 0;
         const lng = venue?.lng ?? 0;
@@ -98,6 +121,8 @@ export async function handler(event: BackgroundEvent): Promise<void> {
           sources: ["foursquare"],
           conflictDetected: false,
           computedAt: new Date(nowMs).toISOString(),
+          isOpen: openStatus?.isOpen ?? null,
+          hoursToday: openStatus?.hoursToday ?? null,
           lat,
           lng,
           venueName: venue?.venueName ?? "",

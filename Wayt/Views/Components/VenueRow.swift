@@ -54,6 +54,23 @@ struct VenueRow: View {
                         .foregroundStyle(WaytTheme.secondaryText)
                     }
                 }
+
+                // Hours row
+                if let isOpen = venue.isOpen {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(isOpen ? .green : .red)
+                            .frame(width: 7, height: 7)
+                        Text(isOpen ? "Open" : "Closed")
+                            .font(WaytTheme.captionFont)
+                            .foregroundStyle(isOpen ? .green : .red)
+                        if let hours = venue.hoursToday {
+                            Text("· \(hours)")
+                                .font(WaytTheme.captionLightFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                        }
+                    }
+                }
             }
 
             Spacer()

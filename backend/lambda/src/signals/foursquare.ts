@@ -8,6 +8,12 @@ import {
 import { haversineDistance } from "../shared";
 import { VenueSignal, SOURCE_CONFIG } from "./types";
 import { createLogger } from "../logger";
+import {
+  nameSimilarity,
+  MATCH_MAX_DISTANCE_M,
+  MATCH_MIN_SCORE,
+  getLocalTime,
+} from "./matching";
 
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY ?? "";
 const FSQ_BASE = "https://places-api.foursquare.com";
@@ -199,43 +205,6 @@ async function fetchWithRetry(
   return null;
 }
 
-/** Max distance (meters) to accept a Foursquare match. */
-const MATCH_MAX_DISTANCE_M = 200;
-/** Minimum combined score to accept a Foursquare match. */
-const MATCH_MIN_SCORE = 0.3;
-
-/** Noise words stripped before comparing venue names. */
-const NOISE_WORDS = new Set([
-  "the", "a", "an", "and", "&", "of", "at", "in", "on",
-  "restaurant", "restaurants", "bar", "bars", "cafe", "café",
-  "grill", "kitchen", "lounge", "pub", "bakery", "bistro",
-  "eatery", "diner", "tavern", "steakhouse", "pizzeria",
-]);
-
-/**
- * Compute name similarity between two venue names using Jaccard index.
- * Returns 0.0–1.0 where 1.0 is identical token sets.
- */
-function nameSimilarity(a: string, b: string): number {
-  const tokenize = (s: string): Set<string> => {
-    const tokens = s.toLowerCase().replace(/[''`]/g, "").split(/[\s\-_,.:;!?&()/]+/).filter(Boolean);
-    return new Set(tokens.filter((t) => !NOISE_WORDS.has(t)));
-  };
-
-  const setA = tokenize(a);
-  const setB = tokenize(b);
-
-  if (setA.size === 0 && setB.size === 0) return 1.0;
-  if (setA.size === 0 || setB.size === 0) return 0.0;
-
-  let intersection = 0;
-  for (const token of setA) {
-    if (setB.has(token)) intersection++;
-  }
-
-  const union = new Set([...setA, ...setB]).size;
-  return intersection / union;
-}
 
 /** Search for a venue by name + coordinates and return the best Foursquare place ID. */
 async function matchVenue(
@@ -359,36 +328,17 @@ export const DAY_MULTIPLIERS: Record<number, number> = {
  * Based on the approach described in "Predicting Temporal Activity Patterns
  * of New Venues" (EPJ Data Science, 2018) and how Google Popular Times works.
  */
-/** Convert a UTC timestamp to local day-of-week and minutes-since-midnight using Intl. */
-export function getLocalTime(nowMs: number, timezone: string): { localDay: number; localMinutes: number } {
-  try {
-    const fmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: timezone,
-      hour: "numeric",
-      minute: "numeric",
-      weekday: "short",
-      hourCycle: "h23", // 0-23 range; hour12:false can give h24 where midnight=24
-    });
-    const parts = fmt.formatToParts(new Date(nowMs));
-    const hour = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
-    const minute = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0", 10);
-    const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
-    const dayMap: Record<string, number> = {
-      Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
-    };
-    return { localDay: dayMap[weekday] ?? 0, localMinutes: hour * 60 + minute };
-  } catch {
-    // Invalid timezone — fall back to UTC
-    const d = new Date(nowMs);
-    return { localDay: d.getUTCDay(), localMinutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
-  }
-}
-
 export function computeTimeAwareBusyness(
   data: CachedFsqData,
   nowMs: number,
-  timezone: string = "UTC"
+  timezone: string = "UTC",
+  isOpen?: boolean | null
 ): { score: number; confidence: number } {
+  // When Google hours confirm venue is closed, short-circuit to zero
+  if (isOpen === false) {
+    return { score: 0.0, confidence: 0.85 };
+  }
+
   const basePopularity = data.popularity ?? (data.rating != null ? data.rating / 10 : null);
 
   if (basePopularity == null) {

@@ -9,6 +9,7 @@ import { VenueSignal, FusedEstimate, SOURCE_CONFIG, SignalSource } from "./signa
 import { fuseSignals, emptyEstimate } from "./signals/fusion";
 import { fetchFoursquareSignal } from "./signals/foursquare";
 import { aggregateUserReports } from "./signals/userReports";
+import { getGoogleHoursData, isOpenNow } from "./signals/google";
 import { createLogger } from "./logger";
 
 /** TTL for the cached fused estimate (2 hours).
@@ -74,26 +75,43 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 
     log.debug("Signal status", { venueId, cached: cachedSignals.length, stale: staleSourceIds });
 
+    // Step 2b: Fetch Google hours for open/closed status (parallel with signals)
+    const googleHours = await getGoogleHoursData(venueId, venueName, lat, lng);
+    const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
+
     // Step 3: Fuse all available signals
     const fused = freshSignals.length > 0
       ? fuseSignals(freshSignals, now)
       : emptyEstimate(venueId);
 
-    log.info("Fused estimate computed", { venueId, score: fused.busynessScore, confidence: fused.confidence, sources: fused.sources });
+    // Attach Google hours data to the fused estimate
+    fused.isOpen = openStatus?.isOpen ?? null;
+    fused.hoursToday = openStatus?.hoursToday ?? null;
 
-    // Step 5: Cache the fused result with geohash for spatial queries
-    const geohash = encode(lat, lng);
-    await putItem({
-      PK: venueKey(venueId),
-      SK: fusedSK(),
-      geohash,
-      geoSK: `FUSED#${venueId}`,
-      ...fused,
-      lat,
-      lng,
-      venueName,
-      ttl: nowSeconds + FUSED_TTL_SECONDS,
-    });
+    // When venue is closed, override busyness to zero
+    if (openStatus?.isOpen === false) {
+      fused.busynessScore = 0.0;
+    }
+
+    log.info("Fused estimate computed", { venueId, score: fused.busynessScore, confidence: fused.confidence, sources: fused.sources, isOpen: fused.isOpen });
+
+    // Step 5: Cache the fused result with geohash for spatial queries.
+    // Only cache if we have real signals — don't persist empty estimates
+    // (no Foursquare match + no user reports) so the system retries next time.
+    if (freshSignals.length > 0) {
+      const geohash = encode(lat, lng);
+      await putItem({
+        PK: venueKey(venueId),
+        SK: fusedSK(),
+        geohash,
+        geoSK: `FUSED#${venueId}`,
+        ...fused,
+        lat,
+        lng,
+        venueName,
+        ttl: nowSeconds + FUSED_TTL_SECONDS,
+      });
+    }
 
     return fused;
   } catch (err) {

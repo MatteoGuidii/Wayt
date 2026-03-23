@@ -31,7 +31,9 @@ final class VenueDetailViewModel: ObservableObject {
                 level: existingLevel,
                 confidence: venue.busynessConfidence,
                 reportCount: venue.reportCount,
-                waitMinutes: venue.estimatedWaitMinutes
+                waitMinutes: venue.estimatedWaitMinutes,
+                isOpen: venue.isOpen,
+                hoursToday: venue.hoursToday
             )
         } else {
             self.estimate = busynessEngine.estimateOffline()
@@ -134,7 +136,9 @@ final class VenueDetailViewModel: ObservableObject {
             level: level,
             confidence: confidence,
             reportCount: newReportCount,
-            waitMinutes: waitMinutes ?? estimate.waitMinutes
+            waitMinutes: waitMinutes ?? estimate.waitMinutes,
+            isOpen: estimate.isOpen,
+            hoursToday: estimate.hoursToday
         )
         reportSubmitted = true
 

@@ -34,6 +34,12 @@ Parameters:
     Description: Foursquare Places API key (leave empty to disable Foursquare signals)
     NoEcho: true
 
+  GooglePlacesApiKey:
+    Type: String
+    Default: ""
+    Description: Google Places API key for operating hours (leave empty to disable)
+    NoEcho: true
+
 Resources:
   # -----------------------------------------------
   # API Gateway
@@ -248,6 +254,7 @@ Resources:
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
+          GOOGLE_PLACES_API_KEY: !Ref GooglePlacesApiKey
           COLD_VENUES_FUNCTION: !Ref ComputeColdVenuesFunction
       Policies:
         - DynamoDBCrudPolicy:
@@ -287,6 +294,7 @@ Resources:
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
+          GOOGLE_PLACES_API_KEY: !Ref GooglePlacesApiKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref WaytSignalsTable
@@ -304,6 +312,7 @@ Resources:
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
+          GOOGLE_PLACES_API_KEY: !Ref GooglePlacesApiKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref WaytSignalsTable

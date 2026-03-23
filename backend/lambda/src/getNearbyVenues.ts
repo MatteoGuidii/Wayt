@@ -6,6 +6,7 @@ import { FusedEstimate } from "./signals/types";
 import { ComputeInput } from "./computeVenueBusyness";
 import { emptyEstimate } from "./signals/fusion";
 import { computeTimeAwareBusyness } from "./signals/foursquare";
+import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod } from "./signals/google";
 import { createLogger } from "./logger";
 
 /** Max allowed search radius (10 km). */
@@ -63,6 +64,11 @@ export async function handler(
 
       if (ttl && ttl < nowSeconds) continue;
 
+      // Skip cached empty estimates (sourceCount === 0) — treat as cache miss so
+      // the background Lambda retries with improved matching thresholds.
+      const sourceCount = item.sourceCount as number;
+      if (sourceCount === 0) continue;
+
       const dist = haversineDistance(lat, lng, itemLat, itemLng);
       if (dist > radius) continue;
 
@@ -77,6 +83,8 @@ export async function handler(
         sources: item.sources as string[],
         conflictDetected: item.conflictDetected as boolean,
         computedAt: item.computedAt as string,
+        isOpen: (item.isOpen as boolean | null) ?? null,
+        hoursToday: (item.hoursToday as string | null) ?? null,
       });
     }
 
@@ -88,8 +96,11 @@ export async function handler(
     if (missing.length > 0) {
       const missingIds = missing.map((v) => v.venueId);
 
-      // Batch-read FSQDATA#CURRENT for all missing venues (single DynamoDB call per 100)
-      const fsqDataMap = await batchGetItems(missingIds, "FSQDATA#CURRENT");
+      // Batch-read FSQDATA#CURRENT and GDATA#CURRENT for all missing venues
+      const [fsqDataMap, googleDataMap] = await Promise.all([
+        batchGetItems(missingIds, "FSQDATA#CURRENT"),
+        batchGetItems(missingIds, "GDATA#CURRENT"),
+      ]);
 
       // Compute scores inline for warm venues (pure math, no DynamoDB writes)
       for (const v of missing) {
@@ -101,7 +112,19 @@ export async function handler(
             hoursPopular: (fsqData.hoursPopular as Array<{ day: number; open: string; close: string }>) ?? [],
           };
 
-          const { score, confidence } = computeTimeAwareBusyness(data, nowMs, timezone);
+          // Check Google hours for open/closed status
+          const googleData = googleDataMap.get(v.venueId);
+          let openStatus: { isOpen: boolean; hoursToday: string | null } | null = null;
+          if (googleData) {
+            const cachedHours: CachedGoogleHours = {
+              businessStatus: (googleData.businessStatus as CachedGoogleHours["businessStatus"]) ?? null,
+              regularPeriods: (googleData.regularPeriods as GoogleOpenPeriod[]) ?? [],
+              cachedAt: googleData.cachedAt as string,
+            };
+            openStatus = isOpenNow(cachedHours, nowMs, timezone);
+          }
+
+          const { score, confidence } = computeTimeAwareBusyness(data, nowMs, timezone, openStatus?.isOpen);
           nearbyFused.set(v.venueId, {
             venueId: v.venueId,
             busynessScore: Math.round(score * 1000) / 1000,
@@ -112,6 +135,8 @@ export async function handler(
             sources: ["foursquare"],
             conflictDetected: false,
             computedAt: new Date(nowMs).toISOString(),
+            isOpen: openStatus?.isOpen ?? null,
+            hoursToday: openStatus?.hoursToday ?? null,
           });
           inlineCount++;
         }

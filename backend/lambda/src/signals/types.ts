@@ -43,6 +43,10 @@ export interface FusedEstimate {
   conflictDetected: boolean;
   /** ISO timestamp of when this estimate was computed. */
   computedAt: string;
+  /** Whether the venue is currently open (from Google Places hours). null = unknown. */
+  isOpen?: boolean | null;
+  /** Today's operating hours for display (e.g. "11:00 AM – 10:00 PM"). null = unknown. */
+  hoursToday?: string | null;
 }
 
 // -----------------------------------------------

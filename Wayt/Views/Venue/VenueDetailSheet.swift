@@ -177,6 +177,33 @@ struct VenueDetailSheet: View {
                     .font(WaytTheme.captionFont)
                     .foregroundStyle(WaytTheme.secondaryText)
             }
+
+            if let isOpen = viewModel.estimate.isOpen {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(isOpen ? .green : .red)
+
+                    HStack(spacing: 5) {
+                        Text(isOpen ? "Open" : "Closed")
+                            .font(WaytTheme.subheadFont)
+                            .foregroundStyle(isOpen ? .green : .red)
+
+                        if let hours = viewModel.estimate.hoursToday {
+                            Text("·")
+                                .font(WaytTheme.subheadLightFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                            Text(hours)
+                                .font(WaytTheme.subheadLightFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                        }
+                    }
+                }
+                .padding(.vertical, 6)
+                .padding(.horizontal, 10)
+                .background((isOpen ? Color.green : Color.red).opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
         }
     }
 
