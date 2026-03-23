@@ -6,6 +6,7 @@ import {
   DeleteCommand,
   GetCommand,
   BatchGetCommand,
+  BatchWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { neighborhood } from "./geohash";
 
@@ -179,4 +180,73 @@ export async function batchCheckExists(
   }
 
   return found;
+}
+
+/**
+ * Batch-read items by venueId + SK. Returns a map of venueId → item.
+ * Only returns unexpired items. Processes in chunks of 100.
+ */
+export async function batchGetItems(
+  venueIds: string[],
+  sk: string
+): Promise<Map<string, Record<string, unknown>>> {
+  const result = new Map<string, Record<string, unknown>>();
+  if (venueIds.length === 0) return result;
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  for (let i = 0; i < venueIds.length; i += 100) {
+    const chunk = venueIds.slice(i, i + 100);
+    const keys = chunk.map((id) => ({ PK: venueKey(id), SK: sk }));
+
+    const response = await ddb.send(
+      new BatchGetCommand({
+        RequestItems: {
+          [SIGNALS_TABLE]: { Keys: keys },
+        },
+      })
+    );
+
+    const items = response.Responses?.[SIGNALS_TABLE] ?? [];
+    for (const item of items) {
+      const ttl = item.ttl as number | undefined;
+      if (ttl && ttl < nowSeconds) continue;
+
+      const pk = item.PK as string;
+      const venueId = pk.replace("VENUE#", "");
+      result.set(venueId, item);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Batch-write multiple items to DynamoDB.
+ * Processes in chunks of 25 (DynamoDB BatchWriteItem limit).
+ * Retries unprocessed items once.
+ */
+export async function batchPutItems(items: Record<string, unknown>[]): Promise<void> {
+  if (items.length === 0) return;
+
+  for (let i = 0; i < items.length; i += 25) {
+    const chunk = items.slice(i, i + 25);
+    const request = {
+      RequestItems: {
+        [SIGNALS_TABLE]: chunk.map((item) => ({
+          PutRequest: { Item: item },
+        })),
+      },
+    };
+
+    const result = await ddb.send(new BatchWriteCommand(request));
+
+    // Retry unprocessed items once
+    const unprocessed = result.UnprocessedItems?.[SIGNALS_TABLE];
+    if (unprocessed && unprocessed.length > 0) {
+      await ddb.send(
+        new BatchWriteCommand({ RequestItems: { [SIGNALS_TABLE]: unprocessed } })
+      );
+    }
+  }
 }

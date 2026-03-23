@@ -14,7 +14,10 @@
       "Bash(sam build:*)",
       "Bash(sam deploy:*)",
       "Bash(gh repo:*)",
-      "WebFetch(domain:developers.google.com)"
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:outscraper.com)",
+      "WebFetch(domain:issuetracker.google.com)",
+      "WebFetch(domain:nicolalazzari.ai)"
     ]
   }
 }

@@ -11,10 +11,11 @@ import { fetchFoursquareSignal } from "./signals/foursquare";
 import { aggregateUserReports } from "./signals/userReports";
 import { createLogger } from "./logger";
 
-/** TTL for the cached fused estimate (30 minutes).
+/** TTL for the cached fused estimate (2 hours).
  * The Gaussian temporal model changes slowly (~hour-wide peaks),
- * so 30 min recomputation frequency is sufficient. */
-const FUSED_TTL_SECONDS = 30 * 60;
+ * so 2-hour recomputation frequency is sufficient. Longer TTL means
+ * app reopens within 2 hours hit the fast geohash cache path. */
+const FUSED_TTL_SECONDS = 2 * 60 * 60;
 
 export interface ComputeInput {
   venueId: string;

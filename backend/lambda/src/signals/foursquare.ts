@@ -5,6 +5,7 @@ import {
   getItem,
   putItem,
 } from "../db";
+import { haversineDistance } from "../shared";
 import { VenueSignal, SOURCE_CONFIG } from "./types";
 import { createLogger } from "../logger";
 
@@ -20,19 +21,23 @@ const FSQ_HEADERS = {
   "X-Places-Api-Version": FSQ_API_VERSION,
 };
 
+interface FsqSearchResult {
+  fsq_id: string;
+  name: string;
+  popularity?: number;
+  rating?: number;
+  distance?: number;
+  hours_popular?: Array<{ day: number; open: string; close: string }>;
+  stats?: { total_photos?: number; total_tips?: number; total_ratings?: number };
+  geocodes?: { main?: { latitude: number; longitude: number } };
+}
+
 interface FsqSearchResponse {
-  results?: Array<{
-    fsq_place_id: string;
-    name: string;
-    popularity?: number;
-    rating?: number;
-    distance?: number;
-    stats?: { total_photos?: number; total_tips?: number; total_ratings?: number };
-  }>;
+  results?: FsqSearchResult[];
 }
 
 interface FsqPlaceDetails {
-  fsq_place_id: string;
+  fsq_id: string;
   name: string;
   popularity?: number;
   rating?: number;
@@ -41,7 +46,7 @@ interface FsqPlaceDetails {
 }
 
 /** Cached raw Foursquare venue data (popularity + hours_popular). */
-interface CachedFsqData {
+export interface CachedFsqData {
   popularity: number | null;
   rating: number | null;
   hoursPopular: Array<{ day: number; open: string; close: string }>;
@@ -285,7 +290,7 @@ async function matchVenue(
     return null;
   }
 
-  const fsqId = bestCandidate.fsq_place_id;
+  const fsqId = bestCandidate.fsq_id;
   log.debug("Matched venue", {
     venueId,
     venueName,
@@ -312,7 +317,7 @@ async function matchVenue(
 
 /** Fetch Foursquare place details including popularity. */
 async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null> {
-  const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular";
+  const fields = "fsq_id,name,popularity,rating,stats,hours_popular";
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/${fsqId}?fields=${fields}`,
     `Details for fsq_id=${fsqId}`
@@ -332,7 +337,7 @@ async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null>
  * even if both have popular windows. Derived from industry foot traffic data.
  * Saturday = 1.0 reference for restaurants; Friday for bars.
  */
-const DAY_MULTIPLIERS: Record<number, number> = {
+export const DAY_MULTIPLIERS: Record<number, number> = {
   1: 0.55,  // Monday
   2: 0.60,  // Tuesday
   3: 0.65,  // Wednesday
@@ -355,7 +360,7 @@ const DAY_MULTIPLIERS: Record<number, number> = {
  * of New Venues" (EPJ Data Science, 2018) and how Google Popular Times works.
  */
 /** Convert a UTC timestamp to local day-of-week and minutes-since-midnight using Intl. */
-function getLocalTime(nowMs: number, timezone: string): { localDay: number; localMinutes: number } {
+export function getLocalTime(nowMs: number, timezone: string): { localDay: number; localMinutes: number } {
   try {
     const fmt = new Intl.DateTimeFormat("en-US", {
       timeZone: timezone,
@@ -379,7 +384,7 @@ function getLocalTime(nowMs: number, timezone: string): { localDay: number; loca
   }
 }
 
-function computeTimeAwareBusyness(
+export function computeTimeAwareBusyness(
   data: CachedFsqData,
   nowMs: number,
   timezone: string = "UTC"
@@ -488,3 +493,190 @@ function parseTimeToMinutes(time: string): number {
   const m = parseInt(clean.slice(2, 4), 10) || 0;
   return h * 60 + m;
 }
+
+// -----------------------------------------------
+// Batch area search (replaces N individual searches with 2-3 area queries)
+// -----------------------------------------------
+
+/** Foursquare category IDs for dining & drinking. */
+const FSQ_DINING_CATEGORIES = "13000";  // Food & Dining (covers restaurants, cafes, bars, bakeries, etc.)
+
+/** Result of matching a client venue to a Foursquare place via batch area search. */
+export interface BatchMatchResult {
+  fsqId: string;
+  fsqName: string;
+  matchScore: number;
+  data: CachedFsqData;
+}
+
+/**
+ * Perform 1-3 Foursquare area searches and match results to client venues.
+ *
+ * Instead of N individual `matchVenue()` calls (2 API calls each), this does
+ * 1-3 area searches that return up to 50 results each, including `hours_popular`.
+ * Venues are matched using the same name similarity + distance scoring.
+ *
+ * Caches mappings and raw data for all matched venues (30-day TTL).
+ */
+export async function batchMatchVenues(
+  venues: Array<{ venueId: string; venueName: string; lat: number; lng: number }>,
+  centerLat: number,
+  centerLng: number,
+  radiusMeters: number
+): Promise<Map<string, BatchMatchResult>> {
+  if (!FOURSQUARE_API_KEY || venues.length === 0) {
+    return new Map();
+  }
+
+  const log = createLogger("foursquare:batch");
+  const results = new Map<string, BatchMatchResult>();
+
+  // Clamp radius to Foursquare's max of 100km, practical max ~5km for our use case
+  const radius = Math.min(Math.max(radiusMeters, 500), 100_000);
+
+  // Fetch Foursquare places in the area (up to 50 per call)
+  const fsqPlaces = await batchSearchArea(centerLat, centerLng, radius, log);
+  if (fsqPlaces.length === 0) return results;
+
+  log.info("Batch search returned places", { count: fsqPlaces.length });
+
+  // Match each client venue against the Foursquare pool
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const cachePuts: Promise<void>[] = [];
+
+  for (const venue of venues) {
+    let bestResult: FsqSearchResult | null = null;
+    let bestScore = -1;
+
+    for (const fsq of fsqPlaces) {
+      // Compute distance between client venue and Foursquare result
+      const fsqLat = fsq.geocodes?.main?.latitude;
+      const fsqLng = fsq.geocodes?.main?.longitude;
+      let distance: number;
+
+      if (fsqLat != null && fsqLng != null) {
+        distance = haversineDistance(venue.lat, venue.lng, fsqLat, fsqLng);
+      } else if (fsq.distance != null) {
+        // Fallback: use distance from center (less accurate but usable)
+        distance = fsq.distance;
+      } else {
+        continue;
+      }
+
+      if (distance > MATCH_MAX_DISTANCE_M) continue;
+
+      const distanceScore = Math.max(0, 1.0 - distance / MATCH_MAX_DISTANCE_M);
+      const nameScore = nameSimilarity(venue.venueName, fsq.name);
+      const score = 0.4 * distanceScore + 0.6 * nameScore;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestResult = fsq;
+      }
+    }
+
+    if (!bestResult || bestScore < MATCH_MIN_SCORE) continue;
+
+    const data: CachedFsqData = {
+      popularity: bestResult.popularity ?? null,
+      rating: bestResult.rating ?? null,
+      hoursPopular: bestResult.hours_popular ?? [],
+    };
+
+    results.set(venue.venueId, {
+      fsqId: bestResult.fsq_id,
+      fsqName: bestResult.name,
+      matchScore: bestScore,
+      data,
+    });
+
+    // Cache mapping + raw data in parallel (fire-and-forget within the batch)
+    cachePuts.push(
+      putItem({
+        PK: venueKey(venue.venueId),
+        SK: mappingSK("foursquare"),
+        fsqId: bestResult.fsq_id,
+        fsqName: bestResult.name,
+        matchScore: bestScore,
+        cachedAt: new Date().toISOString(),
+        ttl: nowSeconds + MAPPING_TTL_DAYS * 86_400,
+      }),
+      putItem({
+        PK: venueKey(venue.venueId),
+        SK: FSQDATA_SK,
+        ...data,
+        cachedAt: new Date().toISOString(),
+        ttl: nowSeconds + DATA_TTL_DAYS * 86_400,
+      })
+    );
+  }
+
+  // Wait for all cache writes
+  await Promise.all(cachePuts);
+
+  log.info("Batch matching complete", {
+    clientVenues: venues.length,
+    matched: results.size,
+    unmatched: venues.length - results.size,
+  });
+
+  return results;
+}
+
+/**
+ * Search Foursquare for venues in an area using 2 parallel queries for broader coverage.
+ * Query 1: category-filtered (dining/drinking) — precise matches.
+ * Query 2: no category filter — catches miscategorized or niche venues.
+ * Returns up to 100 deduplicated results with popularity and hours_popular.
+ */
+async function batchSearchArea(
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+  log: ReturnType<typeof createLogger>
+): Promise<FsqSearchResult[]> {
+  const fields = "fsq_id,name,popularity,rating,distance,hours_popular,geocodes";
+  const radiusStr = String(Math.round(radiusMeters));
+  const ll = `${lat},${lng}`;
+
+  // Two parallel searches for broader coverage (max 100 results total)
+  const [categoryResults, broadResults] = await Promise.all([
+    // Search 1: Dining & drinking category (precise)
+    fetchAreaSearch({ ll, radius: radiusStr, categories: FSQ_DINING_CATEGORIES, limit: "50", fields }),
+    // Search 2: No category filter (catches miscategorized venues)
+    fetchAreaSearch({ ll, radius: radiusStr, limit: "50", fields }),
+  ]);
+
+  // Deduplicate by fsq_id
+  const seen = new Set<string>();
+  const combined: FsqSearchResult[] = [];
+  for (const place of [...categoryResults, ...broadResults]) {
+    if (!seen.has(place.fsq_id)) {
+      seen.add(place.fsq_id);
+      combined.push(place);
+    }
+  }
+
+  log.debug("Area search results", {
+    category: categoryResults.length,
+    broad: broadResults.length,
+    deduplicated: combined.length,
+  });
+  return combined;
+}
+
+/** Execute a single Foursquare area search with given params. */
+async function fetchAreaSearch(
+  params: Record<string, string>
+): Promise<FsqSearchResult[]> {
+  const searchParams = new URLSearchParams(params);
+  const response = await fetchWithRetry(
+    `${FSQ_BASE}/places/search?${searchParams}`,
+    `Area search`
+  );
+  if (!response) return [];
+
+  const data = (await response.json()) as FsqSearchResponse;
+  return data.results ?? [];
+}
+

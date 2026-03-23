@@ -391,7 +391,8 @@ final class MapViewModel: ObservableObject {
     /// Exits early if all venues already have real data or the user navigated away.
     private func scheduleProgressiveRefreshes(region: MKCoordinateRegion) {
         // Cumulative delays from dispatch time; sleep the delta between each.
-        let cumulativeDelays = [5, 15, 45]
+        // +2s catches batch-matched quick estimates, +5s catches warm venues, +12s final sweep.
+        let cumulativeDelays = [2, 5, 12]
         followUpTask?.cancel()
         followUpTask = Task {
             var previous = 0
@@ -401,8 +402,8 @@ final class MapViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 guard !venues.isEmpty else { return }
 
-                // Stop if all venues already have real busyness data
-                let needsRefresh = venues.contains { $0.busynessConfidence == .none || $0.busynessConfidence == .estimated }
+                // Stop if all venues have at least some busyness data (quick-estimate or better)
+                let needsRefresh = venues.contains { $0.busynessConfidence == .none }
                 guard needsRefresh else {
                     Log.map.debug("Progressive refresh: all venues have real data, stopping")
                     return
