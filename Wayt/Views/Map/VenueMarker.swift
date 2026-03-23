@@ -73,6 +73,9 @@ struct VenueMarkerView: View {
     // MARK: - Marker background color
 
     private var markerBackground: Color {
+        if venue.isOpen == false {
+            return Color(.systemGray4)
+        }
         if venue.busynessConfidence == .none {
             return Color(.systemGray4)
         }

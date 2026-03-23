@@ -21,7 +21,20 @@ struct VenueCard: View {
 
                 Spacer()
 
-                if let busyness = venue.busyness {
+                if venue.isOpen == false {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.secondary)
+                            .frame(width: 7, height: 7)
+                        Text("Closed")
+                            .font(WaytTheme.microFont)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.gray.opacity(0.12))
+                    .clipShape(Capsule())
+                } else if let busyness = venue.busyness {
                     HStack(spacing: 4) {
                         Circle()
                             .fill(busyness.color)
@@ -76,7 +89,7 @@ struct VenueCard: View {
                 WaytTheme.cardBackground
                 LinearGradient(
                     colors: [
-                        (venue.busyness?.color ?? .clear).opacity(0.04),
+                        (venue.isOpen == false ? .clear : (venue.busyness?.color ?? .clear)).opacity(0.04),
                         Color.clear
                     ],
                     startPoint: .topLeading,
@@ -89,6 +102,6 @@ struct VenueCard: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
-        .busynessGlow(venue.busyness?.color)
+        .busynessGlow(venue.isOpen == false ? nil : venue.busyness?.color)
     }
 }

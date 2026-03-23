@@ -79,7 +79,8 @@ struct VenueRow: View {
             BusynessBadge(
                 level: venue.busyness,
                 confidence: venue.busynessConfidence,
-                style: .compact
+                style: .compact,
+                isOpen: venue.isOpen
             )
         }
         .padding(12)
@@ -89,7 +90,7 @@ struct VenueRow: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.05), lineWidth: 1)
         )
-        .busynessGlow(venue.busyness?.color, radius: 6, y: 3)
+        .busynessGlow(venue.isOpen == false ? nil : venue.busyness?.color, radius: 6, y: 3)
     }
 
     // MARK: - Distance

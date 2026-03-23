@@ -6,11 +6,26 @@ struct BusynessBadge: View {
     let level: BusynessLevel?
     let confidence: BusynessConfidence
     var style: BadgeStyle = .standard
+    var isOpen: Bool? = nil
 
     @State private var isPulsing = false
 
     var body: some View {
-        if let level {
+        if isOpen == false {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(Color.secondary)
+                    .frame(width: dotSize, height: dotSize)
+                Text("Closed")
+                    .font(style == .compact ? WaytTheme.badgeFont : WaytTheme.footnoteLightFont)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, style == .compact ? 6 : 8)
+            .padding(.vertical, style == .compact ? 3 : 5)
+            .background(Color.gray.opacity(0.12))
+            .clipShape(Capsule())
+        } else if let level {
             HStack(spacing: 4) {
                 ZStack {
                     Circle()

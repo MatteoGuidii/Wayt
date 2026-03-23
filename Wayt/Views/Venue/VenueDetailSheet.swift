@@ -270,37 +270,59 @@ struct VenueDetailSheet: View {
             Text("Current Busyness")
                 .font(WaytTheme.subtitleFont)
 
-            HStack(spacing: 16) {
-                VStack(spacing: 4) {
-                    Image(systemName: viewModel.estimate.level.icon)
-                        .font(WaytTheme.displayFont)
-                        .foregroundStyle(viewModel.estimate.level.color)
+            if viewModel.estimate.isOpen == false {
+                HStack(spacing: 16) {
+                    VStack(spacing: 4) {
+                        Image(systemName: "door.left.hand.closed")
+                            .font(WaytTheme.displayFont)
+                            .foregroundStyle(.secondary)
 
-                    Text(viewModel.estimate.level.label)
-                        .font(WaytTheme.bodyBoldFont)
-                        .foregroundStyle(viewModel.estimate.level.color)
-                }
-                .frame(width: 80)
+                        Text("Closed")
+                            .font(WaytTheme.bodyBoldFont)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 80)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(viewModel.estimate.level.description)
+                    Text("This venue is currently closed.")
                         .font(WaytTheme.bodyFont)
+                        .foregroundStyle(WaytTheme.secondaryText)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .waytCard()
+            } else {
+                HStack(spacing: 16) {
+                    VStack(spacing: 4) {
+                        Image(systemName: viewModel.estimate.level.icon)
+                            .font(WaytTheme.displayFont)
+                            .foregroundStyle(viewModel.estimate.level.color)
 
-                    BusynessBadge(
-                        level: viewModel.estimate.level,
-                        confidence: viewModel.estimate.confidence
-                    )
+                        Text(viewModel.estimate.level.label)
+                            .font(WaytTheme.bodyBoldFont)
+                            .foregroundStyle(viewModel.estimate.level.color)
+                    }
+                    .frame(width: 80)
 
-                    if let wait = viewModel.estimate.waitMinutes {
-                        Label("~\(wait) min wait", systemImage: "clock")
-                            .font(WaytTheme.captionFont)
-                            .foregroundStyle(WaytTheme.secondaryText)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(viewModel.estimate.level.description)
+                            .font(WaytTheme.bodyFont)
+
+                        BusynessBadge(
+                            level: viewModel.estimate.level,
+                            confidence: viewModel.estimate.confidence
+                        )
+
+                        if let wait = viewModel.estimate.waitMinutes {
+                            Label("~\(wait) min wait", systemImage: "clock")
+                                .font(WaytTheme.captionFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                        }
                     }
                 }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .waytCard()
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .waytCard()
         }
     }
 
