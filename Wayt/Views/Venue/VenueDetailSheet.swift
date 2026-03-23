@@ -83,6 +83,7 @@ struct VenueDetailSheet: View {
                     headerSection
                         .padding(.top, -8)
                     lookAroundSection
+                    hoursSection
                     busynessSection
                     actionsSection
                     reportButton
@@ -177,33 +178,6 @@ struct VenueDetailSheet: View {
                     .font(WaytTheme.captionFont)
                     .foregroundStyle(WaytTheme.secondaryText)
             }
-
-            if let isOpen = viewModel.estimate.isOpen {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(isOpen ? .green : .red)
-
-                    HStack(spacing: 5) {
-                        Text(isOpen ? "Open" : "Closed")
-                            .font(WaytTheme.subheadFont)
-                            .foregroundStyle(isOpen ? .green : .red)
-
-                        if let hours = viewModel.estimate.hoursToday {
-                            Text("·")
-                                .font(WaytTheme.subheadLightFont)
-                                .foregroundStyle(WaytTheme.secondaryText)
-                            Text(hours)
-                                .font(WaytTheme.subheadLightFont)
-                                .foregroundStyle(WaytTheme.secondaryText)
-                        }
-                    }
-                }
-                .padding(.vertical, 6)
-                .padding(.horizontal, 10)
-                .background((isOpen ? Color.green : Color.red).opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
         }
     }
 
@@ -257,6 +231,36 @@ struct VenueDetailSheet: View {
             // Transient error (network/server) — don't cache so we can retry later
         }
         isLoadingLookAround = false
+    }
+
+    // MARK: - Hours
+
+    @ViewBuilder
+    private var hoursSection: some View {
+        if let isOpen = viewModel.estimate.isOpen {
+            HStack(spacing: 12) {
+                Image(systemName: isOpen ? "door.left.hand.open" : "door.left.hand.closed")
+                    .font(.system(size: 22))
+                    .foregroundStyle(isOpen ? .green : .red)
+                    .frame(width: 36)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(isOpen ? "Open Now" : "Closed")
+                        .font(WaytTheme.bodyBoldFont)
+                        .foregroundStyle(isOpen ? .green : .red)
+
+                    if let hours = viewModel.estimate.hoursToday {
+                        Text(hours)
+                            .font(WaytTheme.captionFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(14)
+            .waytCard()
+        }
     }
 
     // MARK: - Busyness

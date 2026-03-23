@@ -68,6 +68,7 @@ struct VenueRow: View {
                             Text("· \(hours)")
                                 .font(WaytTheme.captionLightFont)
                                 .foregroundStyle(WaytTheme.secondaryText)
+                                .lineLimit(1)
                         }
                     }
                 }
