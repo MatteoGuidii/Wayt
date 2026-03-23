@@ -1,8 +1,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { ddb } from "./db";
 import {
   USERS_TABLE,
   PROFILE_IMAGES_BUCKET,
@@ -12,8 +12,6 @@ import {
   getUserId,
 } from "./shared";
 import { createLogger } from "./logger";
-
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3 = new S3Client({});
 
 export async function handler(

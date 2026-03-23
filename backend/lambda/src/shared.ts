@@ -4,7 +4,6 @@ import { APIGatewayProxyResult } from "aws-lambda";
 // Environment
 // -----------------------------------------------
 
-export const REPORTS_TABLE = process.env.REPORTS_TABLE!;
 export const USERS_TABLE = process.env.USERS_TABLE!;
 export const PROFILE_IMAGES_BUCKET = process.env.PROFILE_IMAGES_BUCKET!;
 export const SAVED_VENUES_TABLE = process.env.SAVED_VENUES_TABLE!;

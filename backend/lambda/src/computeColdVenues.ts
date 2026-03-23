@@ -7,6 +7,7 @@ import {
   computeTimeAwareBusyness,
 } from "./signals/foursquare";
 import { getGoogleHoursData, isOpenNow } from "./signals/google";
+import { foursquareConfidenceLevel } from "./signals/fusion";
 
 /**
  * Async background Lambda invoked by getNearbyVenues for ALL missing venues.
@@ -114,7 +115,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
           geoSK: `FUSED#${venueId}`,
           venueId,
           busynessScore: Math.round(score * 1000) / 1000,
-          confidence: confidence >= 0.6 ? "MEDIUM" : "LOW",
+          confidence: foursquareConfidenceLevel(confidence),
           reportCount: 0,
           waitMinutes: null,
           sourceCount: 1,

@@ -44,10 +44,6 @@ export function mappingSK(provider: string) {
   return `MAP#${provider}`;
 }
 
-export function activeAreaPK(geohash: string) {
-  return `AREA#${geohash}`;
-}
-
 // -----------------------------------------------
 // GSI query helper
 // -----------------------------------------------
@@ -172,9 +168,8 @@ export async function batchCheckExists(
     for (const item of items) {
       const ttl = item.ttl as number | undefined;
       if (!ttl || ttl >= nowSeconds) {
-        // Extract venueId from PK (format: "VENUE#venueId")
         const pk = item.PK as string;
-        found.add(pk.replace("VENUE#", ""));
+        found.add(pk.substring(6)); // Strip "VENUE#" prefix
       }
     }
   }
@@ -213,7 +208,7 @@ export async function batchGetItems(
       if (ttl && ttl < nowSeconds) continue;
 
       const pk = item.PK as string;
-      const venueId = pk.replace("VENUE#", "");
+      const venueId = pk.substring(6); // Strip "VENUE#" prefix
       result.set(venueId, item);
     }
   }

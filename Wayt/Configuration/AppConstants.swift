@@ -9,7 +9,7 @@ extension Notification.Name {
 }
 
 /// App-wide constants. Accessible from any isolation domain.
-enum AppConstants {
+nonisolated enum AppConstants {
 
     // MARK: - API
 

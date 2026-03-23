@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wayt Icon Generator</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #1a1a1a; color: #fff; padding: 40px; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    p { color: #999; margin-bottom: 32px; }
+    .container { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }
+    .preview { background: #111; border-radius: 16px; padding: 24px; }
+    .controls { display: flex; flex-direction: column; gap: 16px; min-width: 300px; }
+    label { font-size: 13px; color: #aaa; margin-bottom: 4px; display: block; }
+    input[type="color"] { width: 100%; height: 40px; border: none; border-radius: 8px; cursor: pointer; }
+    input[type="range"] { width: 100%; }
+    .row { display: flex; gap: 16px; }
+    .row > div { flex: 1; }
+    button { background: #FFD600; color: #000; border: none; padding: 14px 24px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    button:hover { background: #FFCA00; }
+    .sizes { display: flex; gap: 12px; margin-top: 16px; }
+    .sizes canvas { border-radius: 12px; background: #222; }
+    .size-label { font-size: 11px; color: #666; text-align: center; margin-top: 4px; }
+    .size-group { text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Wayt Icon Generator</h1>
+  <p>Edit colors and export at any size. Open this file in any browser.</p>
+
+  <div class="container">
+    <div class="preview">
+      <canvas id="main" width="512" height="512"></canvas>
+    </div>
+
+    <div class="controls">
+      <div>
+        <label>Gradient Top</label>
+        <input type="color" id="gradTop" value="#FFD600">
+      </div>
+      <div>
+        <label>Gradient Bottom</label>
+        <input type="color" id="gradBottom" value="#CC7A00">
+      </div>
+      <div>
+        <label>Logo Color</label>
+        <input type="color" id="logoColor" value="#FFFFFF">
+      </div>
+      <div>
+        <label>Stroke Width: <span id="strokeLabel">80</span></label>
+        <input type="range" id="strokeWidth" min="40" max="120" value="80">
+      </div>
+      <div>
+        <label>Corner Radius: <span id="radiusLabel">224</span></label>
+        <input type="range" id="cornerRadius" min="0" max="400" value="224">
+      </div>
+
+      <button onclick="exportSVG()">Download SVG (1024×1024)</button>
+      <button onclick="exportPNG(1024)">Download PNG (1024×1024)</button>
+      <button onclick="exportPNG(512)">Download PNG (512×512)</button>
+      <button onclick="exportPNG(180)">Download PNG (180×180 — iOS)</button>
+
+      <h3 style="margin-top: 24px; font-size: 14px;">Preview Sizes</h3>
+      <div class="sizes">
+        <div class="size-group">
+          <canvas id="s60" width="60" height="60"></canvas>
+          <div class="size-label">60px</div>
+        </div>
+        <div class="size-group">
+          <canvas id="s40" width="40" height="40"></canvas>
+          <div class="size-label">40px</div>
+        </div>
+        <div class="size-group">
+          <canvas id="s29" width="29" height="29"></canvas>
+          <div class="size-label">29px</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ── Icon geometry (1024×1024 coordinate space) ──
+const ICON = {
+  viewBox: 1024,
+  outerLegs: [
+    { x1: 150, y1: 200, x2: 350, y2: 824 },
+    { x1: 874, y1: 200, x2: 674, y2: 824 },
+  ],
+  lowerV: [
+    { x1: 350, y1: 824, x2: 512, y2: 560 },
+    { x1: 674, y1: 824, x2: 512, y2: 560 },
+  ],
+  upperTriangle: [
+    { x1: 400, y1: 336, x2: 624, y2: 336 },  // top bar
+    { x1: 400, y1: 336, x2: 512, y2: 560 },   // left side
+    { x1: 624, y1: 336, x2: 512, y2: 560 },   // right side
+  ],
+};
+
+function getConfig() {
+  return {
+    gradTop: document.getElementById('gradTop').value,
+    gradBottom: document.getElementById('gradBottom').value,
+    logoColor: document.getElementById('logoColor').value,
+    strokeWidth: parseInt(document.getElementById('strokeWidth').value),
+    cornerRadius: parseInt(document.getElementById('cornerRadius').value),
+  };
+}
+
+function drawIcon(canvas) {
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width;
+  const scale = size / ICON.viewBox;
+  const cfg = getConfig();
+
+  ctx.clearRect(0, 0, size, size);
+
+  // Background
+  const r = cfg.cornerRadius * scale;
+  roundRect(ctx, 0, 0, size, size, r);
+  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, cfg.gradTop);
+  grad.addColorStop(1, cfg.gradBottom);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Draw all lines
+  ctx.strokeStyle = cfg.logoColor;
+  ctx.lineWidth = cfg.strokeWidth * scale;
+  ctx.lineCap = 'round';
+
+  const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
+  allLines.forEach(l => {
+    ctx.beginPath();
+    ctx.moveTo(l.x1 * scale, l.y1 * scale);
+    ctx.lineTo(l.x2 * scale, l.y2 * scale);
+    ctx.stroke();
+  });
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function renderAll() {
+  document.getElementById('strokeLabel').textContent = document.getElementById('strokeWidth').value;
+  document.getElementById('radiusLabel').textContent = document.getElementById('cornerRadius').value;
+  ['main', 's60', 's40', 's29'].forEach(id => drawIcon(document.getElementById(id)));
+}
+
+function buildSVG() {
+  const cfg = getConfig();
+  const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
+  const lines = allLines.map(l =>
+    `  <line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${cfg.logoColor}" stroke-width="${cfg.strokeWidth}" stroke-linecap="round"/>`
+  ).join('\n');
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:${cfg.gradTop}"/>
+      <stop offset="100%" style="stop-color:${cfg.gradBottom}"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="${cfg.cornerRadius}" ry="${cfg.cornerRadius}" fill="url(#bg)"/>
+${lines}
+</svg>`;
+}
+
+function exportSVG() {
+  const blob = new Blob([buildSVG()], { type: 'image/svg+xml' });
+  download(blob, 'wayt-icon.svg');
+}
+
+function exportPNG(size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  drawIcon(canvas);
+  canvas.toBlob(blob => download(blob, `wayt-icon-${size}.png`), 'image/png');
+}
+
+function download(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Bind controls
+document.querySelectorAll('input').forEach(el => el.addEventListener('input', renderAll));
+renderAll();
+</script>
+</body>
+</html>

@@ -9,8 +9,6 @@ actor APIClient {
 
     static let shared = APIClient()
 
-    /// Base URL for all API requests.
-    private let baseURL = "https://ajwkls2g42.execute-api.ca-central-1.amazonaws.com/dev"
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
     private let session: URLSession
@@ -151,7 +149,7 @@ actor APIClient {
         path: String,
         queryItems: [URLQueryItem] = []
     ) async throws -> URLRequest {
-        guard var components = URLComponents(string: baseURL + path) else {
+        guard var components = URLComponents(string: AppConstants.apiBaseURL + path) else {
             throw APIError.invalidURL
         }
         if !queryItems.isEmpty {

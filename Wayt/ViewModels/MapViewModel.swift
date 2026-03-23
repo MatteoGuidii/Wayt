@@ -103,6 +103,13 @@ final class MapViewModel: ObservableObject {
     private var prefetchTask: Task<Void, Never>?
     private var followUpTask: Task<Void, Never>?
 
+    /// Approximate search radius in meters, accounting for longitude compression at higher latitudes.
+    private func searchRadius(for region: MKCoordinateRegion) -> Double {
+        let latMeters = region.span.latitudeDelta * 111_000
+        let lngMeters = region.span.longitudeDelta * 111_000 * cos(region.center.latitude * .pi / 180)
+        return max(latMeters, lngMeters)
+    }
+
     deinit {
         searchTask?.cancel()
         refreshTimer?.cancel()
@@ -125,6 +132,7 @@ final class MapViewModel: ObservableObject {
         let isInitialSearch = venues.isEmpty && lastSearchedRegion == nil
         searchTask?.cancel()
         expandTask?.cancel()
+        followUpTask?.cancel()
         isExpandingSearch = false
         lastExpandedRegion = nil
         searchTask = Task {
@@ -137,7 +145,7 @@ final class MapViewModel: ObservableObject {
             isSearching = true
             showSearchThisArea = false
 
-            let radius = region.span.latitudeDelta * 111_000
+            let radius = searchRadius(for: region)
             Log.map.debug("Searching region: (\(region.center.latitude), \(region.center.longitude)) span: \(region.span.latitudeDelta)")
 
             do {
@@ -275,7 +283,7 @@ final class MapViewModel: ObservableObject {
             // before the user taps "Search This Area"
             prefetchTask?.cancel()
             prefetchTask = Task {
-                let radius = region.span.latitudeDelta * 111_000
+                let radius = searchRadius(for: region)
                 await fusionService.prefetchArea(
                     lat: region.center.latitude,
                     lng: region.center.longitude,

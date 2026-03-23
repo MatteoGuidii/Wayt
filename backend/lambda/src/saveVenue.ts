@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { PutCommand } from "@aws-sdk/lib-dynamodb";
+import { ddb } from "./db";
 import {
   SAVED_VENUES_TABLE,
   SaveVenueBody,
@@ -10,8 +10,6 @@ import {
   getUserId,
 } from "./shared";
 import { createLogger } from "./logger";
-
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export async function handler(
   event: APIGatewayProxyEvent,
@@ -37,6 +35,10 @@ export async function handler(
 
     if (!venueId || !venueName || !categoryRaw || lat == null || lng == null) {
       return badRequest("Missing required fields: venueId, venueName, categoryRaw, lat, lng");
+    }
+
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return badRequest("Invalid coordinates: lat must be -90..90, lng must be -180..180");
     }
 
     log.info("Saving venue", { venueId });

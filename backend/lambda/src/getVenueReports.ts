@@ -1,10 +1,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { REPORTS_TABLE, success, badRequest, serverError } from "./shared";
+import { QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { ddb, REPORTS_TABLE } from "./db";
+import { success, badRequest, serverError } from "./shared";
 import { createLogger } from "./logger";
-
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export async function handler(
   event: APIGatewayProxyEvent,

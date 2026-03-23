@@ -32,7 +32,8 @@ struct VenueCluster: Identifiable {
     /// Average busyness level across all venues in the cluster.
     /// Returns nil only when no venue has busyness data at all.
     var averageBusyness: BusynessLevel? {
-        let values = venues.compactMap { $0.busyness?.rawValue }
+        let openVenues = venues.filter { $0.isOpen != false }
+        let values = openVenues.compactMap { $0.busyness?.rawValue }
         guard !values.isEmpty else { return nil }
         let avg = Double(values.reduce(0, +)) / Double(values.count)
         return BusynessLevel(closestTo: avg)

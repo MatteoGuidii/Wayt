@@ -143,6 +143,15 @@ function computeConfidence(
   return "LOW";
 }
 
+/**
+ * Map a numeric Foursquare confidence (0.0-1.0) to ConfidenceLevel
+ * for inline-computed single-source estimates.
+ * Mirrors the single-source branch of computeConfidence().
+ */
+export function foursquareConfidenceLevel(numericConfidence: number): ConfidenceLevel {
+  return numericConfidence >= 0.6 ? "MEDIUM" : "LOW";
+}
+
 /** Produce an empty/default estimate when no signals are available. */
 export function emptyEstimate(venueId: string): FusedEstimate {
   return {

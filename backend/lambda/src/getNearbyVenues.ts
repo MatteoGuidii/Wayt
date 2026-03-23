@@ -4,7 +4,7 @@ import { queryNearbyFused, batchGetItems } from "./db";
 import { haversineDistance, success, badRequest, serverError } from "./shared";
 import { FusedEstimate } from "./signals/types";
 import { ComputeInput } from "./computeVenueBusyness";
-import { emptyEstimate } from "./signals/fusion";
+import { emptyEstimate, foursquareConfidenceLevel } from "./signals/fusion";
 import { computeTimeAwareBusyness } from "./signals/foursquare";
 import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod } from "./signals/google";
 import { createLogger } from "./logger";
@@ -88,6 +88,25 @@ export async function handler(
       });
     }
 
+    // Step 1b: Refresh isOpen/hoursToday for cached estimates using current time
+    // (cached fused estimates store a point-in-time snapshot that can go stale)
+    const cachedVenueIds = [...nearbyFused.keys()];
+    if (cachedVenueIds.length > 0) {
+      const googleDataMap = await batchGetItems(cachedVenueIds, "GDATA#CURRENT");
+      for (const [venueId, googleData] of googleDataMap) {
+        const existing = nearbyFused.get(venueId);
+        if (!existing) continue;
+        const cachedHours: CachedGoogleHours = {
+          businessStatus: (googleData.businessStatus as CachedGoogleHours["businessStatus"]) ?? null,
+          regularPeriods: (googleData.regularPeriods as GoogleOpenPeriod[]) ?? [],
+          cachedAt: googleData.cachedAt as string,
+        };
+        const openStatus = isOpenNow(cachedHours, nowMs, timezone);
+        existing.isOpen = openStatus.isOpen;
+        existing.hoursToday = openStatus.hoursToday;
+      }
+    }
+
     // Step 2: Fast inline path for warm venues (have cached Foursquare raw data)
     const missing = clientVenues.filter((v) => !nearbyFused.has(v.venueId));
     let inlineCount = 0;
@@ -128,7 +147,7 @@ export async function handler(
           nearbyFused.set(v.venueId, {
             venueId: v.venueId,
             busynessScore: Math.round(score * 1000) / 1000,
-            confidence: confidence >= 0.6 ? "MEDIUM" : "LOW",
+            confidence: foursquareConfidenceLevel(confidence),
             reportCount: 0,
             waitMinutes: null,
             sourceCount: 1,
@@ -231,11 +250,7 @@ function parseParams(event: APIGatewayProxyEvent): {
   const parsedRadius = parseInt(params.radius ?? "2000", 10);
   let clientVenues: ComputeInput[] = [];
   if (params.venues) {
-    try {
-      clientVenues = JSON.parse(params.venues) as ComputeInput[];
-    } catch {
-      // Invalid JSON — skip client venues
-    }
+    clientVenues = JSON.parse(params.venues) as ComputeInput[];
   }
   return {
     lat: parseFloat(params.lat ?? ""),

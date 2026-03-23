@@ -13,8 +13,8 @@ final class FusionService {
 
     private var nearbyCache: [String: FusedEstimateResponse] = [:]
     private var cacheTimestamp: Date = .distantPast
-    private var cachedLat: Double = 0
-    private var cachedLng: Double = 0
+    private var cachedLat: Double = .nan
+    private var cachedLng: Double = .nan
 
     private func isCacheValid(lat: Double, lng: Double) -> Bool {
         guard Date().timeIntervalSince(cacheTimestamp) < AppConstants.reportCacheTTL else {
