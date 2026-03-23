@@ -17,7 +17,9 @@
       "WebFetch(domain:developers.google.com)",
       "WebFetch(domain:outscraper.com)",
       "WebFetch(domain:issuetracker.google.com)",
-      "WebFetch(domain:nicolalazzari.ai)"
+      "WebFetch(domain:nicolalazzari.ai)",
+      "Bash(while read:*)",
+      "Bash(do basename:*)"
     ]
   }
 }
