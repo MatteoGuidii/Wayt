@@ -421,7 +421,7 @@ function findNextOpenTime(
   currentDay: number,
   currentMinutes: number
 ): string | null {
-  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   // Build a sorted list of all opening times as total-minutes-from-week-start
   const currentTotal = currentDay * 24 * 60 + currentMinutes;
@@ -451,8 +451,8 @@ function findNextOpenTime(
     return time;
   }
 
-  // Otherwise include the day name
-  return `${time} ${DAY_NAMES[bestPeriod.openDay]}`;
+  // Put the day name first so it's not missed
+  return `${DAY_NAMES[bestPeriod.openDay]} at ${time}`;
 }
 
 /** Format hour:minute as "11:00 AM" style. */
