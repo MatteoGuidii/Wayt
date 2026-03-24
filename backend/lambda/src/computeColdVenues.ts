@@ -81,7 +81,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
 
       // Fetch Google hours for matched venues (5 concurrent max)
       const matchedEntries = Array.from(matched.entries());
-      const googleHoursMap = new Map<string, { isOpen: boolean; hoursToday: string | null }>();
+      const googleHoursMap = new Map<string, { isOpen: boolean; hoursToday: string | null; businessStatus: string | null }>();
       const GOOGLE_CONCURRENCY = 5;
 
       for (let i = 0; i < matchedEntries.length; i += GOOGLE_CONCURRENCY) {
@@ -92,11 +92,12 @@ export async function handler(event: BackgroundEvent): Promise<void> {
             if (!venue) return null;
             const hours = await getGoogleHoursData(venueId, venue.venueName, venue.lat, venue.lng);
             if (!hours) return null;
-            return { venueId, status: isOpenNow(hours, nowMs, timezone) };
+            const status = isOpenNow(hours, nowMs, timezone);
+            return { venueId, ...status, businessStatus: hours.businessStatus ?? null };
           })
         );
         for (const r of results) {
-          if (r) googleHoursMap.set(r.venueId, r.status);
+          if (r) googleHoursMap.set(r.venueId, { isOpen: r.isOpen, hoursToday: r.hoursToday, businessStatus: r.businessStatus });
         }
       }
 
@@ -124,6 +125,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
           computedAt: new Date(nowMs).toISOString(),
           isOpen: openStatus?.isOpen ?? null,
           hoursToday: openStatus?.hoursToday ?? null,
+          businessStatus: openStatus?.businessStatus ?? null,
           lat,
           lng,
           venueName: venue?.venueName ?? "",

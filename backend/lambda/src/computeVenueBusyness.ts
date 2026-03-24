@@ -87,6 +87,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
     // Attach Google hours data to the fused estimate
     fused.isOpen = openStatus?.isOpen ?? null;
     fused.hoursToday = openStatus?.hoursToday ?? null;
+    fused.businessStatus = googleHours?.businessStatus ?? null;
 
     // When venue is closed, override busyness to zero
     if (openStatus?.isOpen === false) {

@@ -201,6 +201,22 @@ struct VenueTests {
         #expect(set2.count == 1)
     }
 
+    @Test("Same ID but different businessStatus are NOT equal")
+    func sameIDDifferentBusinessStatusNotEqual() {
+        let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
+        var v1 = TestFactories.makeVenue(name: "The Pub", coordinate: coord)
+        var v2 = TestFactories.makeVenue(name: "The Pub", coordinate: coord)
+        v1.businessStatus = "OPERATIONAL"
+        v2.businessStatus = "CLOSED_PERMANENTLY"
+        #expect(v1 != v2)
+    }
+
+    @Test("New venue has nil businessStatus")
+    func defaultBusinessStatusIsNil() {
+        let venue = TestFactories.makeVenue()
+        #expect(venue.businessStatus == nil)
+    }
+
     // MARK: - onChange Detection (the reason equality was updated)
 
     @Test("Array equality detects busyness changes for SwiftUI onChange")

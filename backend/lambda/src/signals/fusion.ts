@@ -164,5 +164,6 @@ export function emptyEstimate(venueId: string): FusedEstimate {
     sources: [],
     conflictDetected: false,
     computedAt: new Date().toISOString(),
+    businessStatus: null,
   };
 }

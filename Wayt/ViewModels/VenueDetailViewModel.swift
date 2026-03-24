@@ -33,7 +33,8 @@ final class VenueDetailViewModel: ObservableObject {
                 reportCount: venue.reportCount,
                 waitMinutes: venue.estimatedWaitMinutes,
                 isOpen: venue.isOpen,
-                hoursToday: venue.hoursToday
+                hoursToday: venue.hoursToday,
+                businessStatus: venue.businessStatus
             )
         } else {
             self.estimate = busynessEngine.estimateOffline()
@@ -138,7 +139,8 @@ final class VenueDetailViewModel: ObservableObject {
             reportCount: newReportCount,
             waitMinutes: waitMinutes ?? estimate.waitMinutes,
             isOpen: estimate.isOpen,
-            hoursToday: estimate.hoursToday
+            hoursToday: estimate.hoursToday,
+            businessStatus: estimate.businessStatus
         )
         reportSubmitted = true
 

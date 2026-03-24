@@ -154,4 +154,29 @@ struct BusynessEngineTests {
         #expect(estimate.reportCount == 5)
         #expect(estimate.waitMinutes == 15)
     }
+
+    @Test("estimate(from:) passes through businessStatus")
+    func estimatePassesThroughBusinessStatus() {
+        let response = FusedEstimateResponse(
+            busynessScore: 0.5,
+            confidence: "medium",
+            reportCount: 1,
+            waitMinutes: nil,
+            businessStatus: "CLOSED_PERMANENTLY"
+        )
+        let estimate = engine.estimate(from: response)
+        #expect(estimate.businessStatus == "CLOSED_PERMANENTLY")
+    }
+
+    @Test("estimate(from:) has nil businessStatus when not provided")
+    func estimateNilBusinessStatus() {
+        let response = FusedEstimateResponse(
+            busynessScore: 0.5,
+            confidence: "medium",
+            reportCount: 1,
+            waitMinutes: nil
+        )
+        let estimate = engine.estimate(from: response)
+        #expect(estimate.businessStatus == nil)
+    }
 }

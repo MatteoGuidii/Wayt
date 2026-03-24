@@ -85,6 +85,7 @@ export async function handler(
         computedAt: item.computedAt as string,
         isOpen: (item.isOpen as boolean | null) ?? null,
         hoursToday: (item.hoursToday as string | null) ?? null,
+        businessStatus: (item.businessStatus as FusedEstimate["businessStatus"]) ?? null,
       });
     }
 
@@ -104,6 +105,7 @@ export async function handler(
         const openStatus = isOpenNow(cachedHours, nowMs, timezone);
         existing.isOpen = openStatus.isOpen;
         existing.hoursToday = openStatus.hoursToday;
+        existing.businessStatus = cachedHours.businessStatus;
       }
     }
 
@@ -156,6 +158,7 @@ export async function handler(
             computedAt: new Date(nowMs).toISOString(),
             isOpen: openStatus?.isOpen ?? null,
             hoursToday: openStatus?.hoursToday ?? null,
+            businessStatus: googleData ? (googleData.businessStatus as FusedEstimate["businessStatus"]) ?? null : null,
           });
           inlineCount++;
         }

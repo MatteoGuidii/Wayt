@@ -47,6 +47,8 @@ export interface FusedEstimate {
   isOpen?: boolean | null;
   /** Today's operating hours for display (e.g. "11:00 AM – 10:00 PM"). null = unknown. */
   hoursToday?: string | null;
+  /** Google Places business status. null = unknown. */
+  businessStatus?: "OPERATIONAL" | "CLOSED_TEMPORARILY" | "CLOSED_PERMANENTLY" | null;
 }
 
 // -----------------------------------------------

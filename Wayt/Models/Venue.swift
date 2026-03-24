@@ -41,6 +41,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     var estimatedWaitMinutes: Int?
     var isOpen: Bool?
     var hoursToday: String?
+    var businessStatus: String?
 
     // MARK: - Name Normalization
 
@@ -83,6 +84,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
             && lhs.estimatedWaitMinutes == rhs.estimatedWaitMinutes
             && lhs.isOpen == rhs.isOpen
             && lhs.hoursToday == rhs.hoursToday
+            && lhs.businessStatus == rhs.businessStatus
     }
 
     func hash(into hasher: inout Hasher) {
@@ -93,6 +95,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         hasher.combine(estimatedWaitMinutes)
         hasher.combine(isOpen)
         hasher.combine(hoursToday)
+        hasher.combine(businessStatus)
     }
 }
 

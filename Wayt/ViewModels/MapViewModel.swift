@@ -539,9 +539,10 @@ final class MapViewModel: ObservableObject {
         guard !estimates.isEmpty else { return }
         for i in venues.indices {
             if let response = estimates[venues[i].id] {
-                // Always apply Google Places hours (independent of crowd reports)
+                // Always apply Google Places hours and status (independent of crowd reports)
                 venues[i].isOpen = response.isOpen ?? venues[i].isOpen
                 venues[i].hoursToday = response.hoursToday ?? venues[i].hoursToday
+                venues[i].businessStatus = response.businessStatus ?? venues[i].businessStatus
 
                 // Only apply busyness scores when real signal data exists
                 guard (response.sourceCount ?? 0) > 0 else { continue }
@@ -552,6 +553,9 @@ final class MapViewModel: ObservableObject {
                 venues[i].estimatedWaitMinutes = estimate.waitMinutes
             }
         }
+
+        // Remove permanently closed venues (ghost venues)
+        venues.removeAll { $0.businessStatus == "CLOSED_PERMANENTLY" }
     }
 
     /// Fetch report summaries from legacy API. Returns empty dict on failure.
@@ -587,6 +591,7 @@ final class MapViewModel: ObservableObject {
             v.estimatedWaitMinutes = existing.estimatedWaitMinutes
             v.isOpen = existing.isOpen
             v.hoursToday = existing.hoursToday
+            v.businessStatus = existing.businessStatus
             return v
         }
     }
@@ -605,6 +610,7 @@ final class MapViewModel: ObservableObject {
             v.estimatedWaitMinutes = estimate.waitMinutes
             v.isOpen = estimate.isOpen
             v.hoursToday = estimate.hoursToday
+            v.businessStatus = estimate.businessStatus
             return v
         }
     }
