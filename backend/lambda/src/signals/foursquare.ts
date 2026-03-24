@@ -28,14 +28,16 @@ const FSQ_HEADERS = {
 };
 
 interface FsqSearchResult {
-  fsq_id: string;
+  fsq_place_id: string;
   name: string;
   popularity?: number;
   rating?: number;
   distance?: number;
   hours_popular?: Array<{ day: number; open: string; close: string }>;
   stats?: { total_photos?: number; total_tips?: number; total_ratings?: number };
-  geocodes?: { main?: { latitude: number; longitude: number } };
+  /** Top-level coordinates returned by Foursquare search. */
+  latitude?: number;
+  longitude?: number;
 }
 
 interface FsqSearchResponse {
@@ -43,7 +45,7 @@ interface FsqSearchResponse {
 }
 
 interface FsqPlaceDetails {
-  fsq_id: string;
+  fsq_place_id: string;
   name: string;
   popularity?: number;
   rating?: number;
@@ -79,11 +81,15 @@ export async function fetchFoursquareSignal(
   try {
     // Step 1: Get raw Foursquare data (from 30-day cache or fresh API call)
     const data = await getFoursquareVenueData(venueId, venueName, lat, lng);
-    if (!data) return null;
+    if (!data) {
+      log.debug("No FSQ data available", { venueId });
+      return null;
+    }
 
     // Step 2: Compute time-aware score from cached data + current time
     const now = Date.now();
     const { score: busynessScore, confidence } = computeTimeAwareBusyness(data, now, timezone);
+    log.debug("Signal computed", { venueId, busynessScore: Math.round(busynessScore * 1000) / 1000, confidence: Math.round(confidence * 100) / 100 });
     const config = SOURCE_CONFIG.foursquare;
 
     const signal: VenueSignal = {
@@ -126,25 +132,37 @@ async function getFoursquareVenueData(
   lat: number,
   lng: number
 ): Promise<CachedFsqData | null> {
+  const log = createLogger("foursquare:data");
+
   // Check cache first
   const cached = await getItem(venueKey(venueId), FSQDATA_SK);
   if (cached) {
     const ttl = cached.ttl as number | undefined;
     if (!ttl || ttl >= Math.floor(Date.now() / 1000)) {
+      log.debug("FSQDATA cache hit", { venueId });
       return {
         popularity: (cached.popularity as number | null) ?? null,
         rating: (cached.rating as number | null) ?? null,
         hoursPopular: (cached.hoursPopular as CachedFsqData["hoursPopular"]) ?? [],
       };
     }
+    log.debug("FSQDATA cache expired", { venueId });
   }
 
   // Cache miss — fetch from Foursquare API
   const fsqId = await getCachedMapping(venueId) ?? await matchVenue(venueId, venueName, lat, lng);
-  if (!fsqId) return null;
+  if (!fsqId) {
+    log.debug("No Foursquare match", { venueId, venueName });
+    return null;
+  }
 
   const details = await fetchPlaceDetails(fsqId);
-  if (!details) return null;
+  if (!details) {
+    log.warn("fetchPlaceDetails returned null", { venueId, fsqId });
+    return null;
+  }
+
+  log.debug("Got place details", { venueId, fsqId, popularity: details.popularity, hoursCount: details.hours_popular?.length ?? 0 });
 
   const data: CachedFsqData = {
     popularity: details.popularity ?? null,
@@ -194,7 +212,18 @@ async function fetchWithRetry(
     const retryable = response.status === 429 || response.status >= 500;
     if (!retryable || attempt === maxRetries) {
       const retryLog = createLogger("foursquare");
-      retryLog.warn("API request failed", { label, status: response.status, attempt: attempt + 1 });
+      let body = "(empty)";
+      try {
+        const raw = await response.text();
+        if (raw) body = raw.slice(0, 300);
+      } catch { /* ignore */ }
+      retryLog.warn("API request failed", {
+        label,
+        url: url.slice(0, 200),
+        status: response.status,
+        attempt: attempt + 1,
+        responseBody: body,
+      });
       return null;
     }
 
@@ -259,7 +288,7 @@ async function matchVenue(
     return null;
   }
 
-  const fsqId = bestCandidate.fsq_id;
+  const fsqId = bestCandidate.fsq_place_id;
   log.debug("Matched venue", {
     venueId,
     venueName,
@@ -286,7 +315,7 @@ async function matchVenue(
 
 /** Fetch Foursquare place details including popularity. */
 async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null> {
-  const fields = "fsq_id,name,popularity,rating,stats,hours_popular";
+  const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular";
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/${fsqId}?fields=${fields}`,
     `Details for fsq_id=${fsqId}`
@@ -488,7 +517,12 @@ export async function batchMatchVenues(
   const fsqPlaces = await batchSearchArea(centerLat, centerLng, radius, log);
   if (fsqPlaces.length === 0) return results;
 
-  log.info("Batch search returned places", { count: fsqPlaces.length });
+  log.info("Batch search returned places", {
+    count: fsqPlaces.length,
+    sampleName: fsqPlaces[0]?.name,
+    sampleLat: fsqPlaces[0]?.latitude,
+    sampleDistance: fsqPlaces[0]?.distance,
+  });
 
   // Match each client venue against the Foursquare pool
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -500,8 +534,8 @@ export async function batchMatchVenues(
 
     for (const fsq of fsqPlaces) {
       // Compute distance between client venue and Foursquare result
-      const fsqLat = fsq.geocodes?.main?.latitude;
-      const fsqLng = fsq.geocodes?.main?.longitude;
+      const fsqLat = fsq.latitude;
+      const fsqLng = fsq.longitude;
       let distance: number;
 
       if (fsqLat != null && fsqLng != null) {
@@ -534,7 +568,7 @@ export async function batchMatchVenues(
     };
 
     results.set(venue.venueId, {
-      fsqId: bestResult.fsq_id,
+      fsqId: bestResult.fsq_place_id,
       fsqName: bestResult.name,
       matchScore: bestScore,
       data,
@@ -545,7 +579,7 @@ export async function batchMatchVenues(
       putItem({
         PK: venueKey(venue.venueId),
         SK: mappingSK("foursquare"),
-        fsqId: bestResult.fsq_id,
+        fsqId: bestResult.fsq_place_id,
         fsqName: bestResult.name,
         matchScore: bestScore,
         cachedAt: new Date().toISOString(),
@@ -585,7 +619,7 @@ async function batchSearchArea(
   radiusMeters: number,
   log: ReturnType<typeof createLogger>
 ): Promise<FsqSearchResult[]> {
-  const fields = "fsq_id,name,popularity,rating,distance,hours_popular,geocodes";
+  const fields = "fsq_place_id,name,popularity,rating,distance,hours_popular,latitude,longitude";
   const radiusStr = String(Math.round(radiusMeters));
   const ll = `${lat},${lng}`;
 
@@ -597,12 +631,12 @@ async function batchSearchArea(
     fetchAreaSearch({ ll, radius: radiusStr, limit: "50", fields }),
   ]);
 
-  // Deduplicate by fsq_id
+  // Deduplicate by fsq_place_id
   const seen = new Set<string>();
   const combined: FsqSearchResult[] = [];
   for (const place of [...categoryResults, ...broadResults]) {
-    if (!seen.has(place.fsq_id)) {
-      seen.add(place.fsq_id);
+    if (!seen.has(place.fsq_place_id)) {
+      seen.add(place.fsq_place_id);
       combined.push(place);
     }
   }

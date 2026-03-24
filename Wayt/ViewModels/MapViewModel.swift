@@ -204,11 +204,9 @@ final class MapViewModel: ObservableObject {
                                 radius: capturedRadius,
                                 venues: uncachedInfos
                             )
-                            // Apply only meaningful estimates (skip empty sourceCount: 0)
-                            let meaningful = computed.filter { (_, est) in (est.sourceCount ?? 0) > 0 }
-                            if !meaningful.isEmpty {
+                            if !computed.isEmpty {
                                 var updated = self.venues
-                                self.applyFusedEstimates(meaningful, to: &updated)
+                                self.applyFusedEstimates(computed, to: &updated)
                                 self.venues = updated
                                 self.recomputeClusters()
                             }
@@ -226,7 +224,7 @@ final class MapViewModel: ObservableObject {
                     lastSearchedRegion = region
                     recomputeClusters()
                 }
-                Log.map.info("Loaded \(results.count) venues with busyness")
+                Log.map.info("Loaded \(results.count) venues, \(self.filteredVenues.count) after filters, \(self.mapItems.count) map items")
             } catch {
                 guard !Task.isCancelled else { return }
                 Log.map.error("Search error: \(error.localizedDescription)")
@@ -499,13 +497,17 @@ final class MapViewModel: ObservableObject {
         guard !estimates.isEmpty else { return }
         for i in venues.indices {
             if let response = estimates[venues[i].id] {
+                // Always apply Google Places hours (independent of crowd reports)
+                venues[i].isOpen = response.isOpen ?? venues[i].isOpen
+                venues[i].hoursToday = response.hoursToday ?? venues[i].hoursToday
+
+                // Only apply busyness scores when real signal data exists
+                guard (response.sourceCount ?? 0) > 0 else { continue }
                 let estimate = busynessEngine.estimate(from: response)
                 venues[i].busyness = estimate.level
                 venues[i].busynessConfidence = estimate.confidence
                 venues[i].reportCount = estimate.reportCount
                 venues[i].estimatedWaitMinutes = estimate.waitMinutes
-                venues[i].isOpen = estimate.isOpen
-                venues[i].hoursToday = estimate.hoursToday
             }
         }
     }

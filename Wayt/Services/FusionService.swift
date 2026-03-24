@@ -128,11 +128,8 @@ final class FusionService {
             }
         }
 
-        // Merge only meaningful results into cache (skip empty estimates to avoid pollution)
-        let meaningful = indexed.filter { (_, v) in (v.sourceCount ?? 0) > 0 }
-        if !meaningful.isEmpty {
-            nearbyCache.merge(meaningful) { _, new in new }
-        }
+        // Cache all estimates — hours data is valid even for cold venues
+        nearbyCache.merge(indexed) { _, new in new }
 
         Log.fusion.info("Missing venues: got \(indexed.count) estimates")
         return indexed
