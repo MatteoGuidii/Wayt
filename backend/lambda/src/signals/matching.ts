@@ -25,7 +25,7 @@ export const NOISE_WORDS = new Set([
  */
 export function nameSimilarity(a: string, b: string): number {
   const tokenize = (s: string): Set<string> => {
-    const tokens = s.toLowerCase().replace(/[''`]/g, "").split(/[\s\-_,.:;!?&()/]+/).filter(Boolean);
+    const tokens = s.toLowerCase().replace(/['\u2019`]/g, "").split(/[\s\-_,.:;!?&()/]+/).filter(Boolean);
     return new Set(tokens.filter((t) => !NOISE_WORDS.has(t)));
   };
 

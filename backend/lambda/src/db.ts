@@ -211,6 +211,26 @@ export async function batchGetItems(
       const venueId = pk.substring(6); // Strip "VENUE#" prefix
       result.set(venueId, item);
     }
+
+    // Retry unprocessed keys with exponential backoff
+    let unprocessedKeys = response.UnprocessedKeys?.[SIGNALS_TABLE];
+    let retryCount = 0;
+    while (unprocessedKeys?.Keys && unprocessedKeys.Keys.length > 0 && retryCount < 3) {
+      retryCount++;
+      await new Promise((r) => setTimeout(r, 50 * Math.pow(2, retryCount)));
+      const retryResponse = await ddb.send(
+        new BatchGetCommand({ RequestItems: { [SIGNALS_TABLE]: unprocessedKeys } })
+      );
+      const retryItems = retryResponse.Responses?.[SIGNALS_TABLE] ?? [];
+      for (const item of retryItems) {
+        const ttl = item.ttl as number | undefined;
+        if (ttl && ttl < nowSeconds) continue;
+        const pk = item.PK as string;
+        const venueId = pk.substring(6);
+        result.set(venueId, item);
+      }
+      unprocessedKeys = retryResponse.UnprocessedKeys?.[SIGNALS_TABLE];
+    }
   }
 
   return result;
@@ -219,7 +239,7 @@ export async function batchGetItems(
 /**
  * Batch-write multiple items to DynamoDB.
  * Processes in chunks of 25 (DynamoDB BatchWriteItem limit).
- * Retries unprocessed items once.
+ * Retries unprocessed items with exponential backoff (max 3 attempts).
  */
 export async function batchPutItems(items: Record<string, unknown>[]): Promise<void> {
   if (items.length === 0) return;
@@ -236,12 +256,16 @@ export async function batchPutItems(items: Record<string, unknown>[]): Promise<v
 
     const result = await ddb.send(new BatchWriteCommand(request));
 
-    // Retry unprocessed items once
-    const unprocessed = result.UnprocessedItems?.[SIGNALS_TABLE];
-    if (unprocessed && unprocessed.length > 0) {
-      await ddb.send(
+    // Retry unprocessed items with exponential backoff
+    let unprocessed = result.UnprocessedItems?.[SIGNALS_TABLE];
+    let retryCount = 0;
+    while (unprocessed && unprocessed.length > 0 && retryCount < 3) {
+      retryCount++;
+      await new Promise((r) => setTimeout(r, 50 * Math.pow(2, retryCount)));
+      const retryResult = await ddb.send(
         new BatchWriteCommand({ RequestItems: { [SIGNALS_TABLE]: unprocessed } })
       );
+      unprocessed = retryResult.UnprocessedItems?.[SIGNALS_TABLE];
     }
   }
 }

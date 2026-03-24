@@ -402,8 +402,12 @@ function formatTodayHours(periods: GoogleOpenPeriod[], localDay: number): string
   const allPeriods = [...overnightPeriods, ...todayPeriods];
   if (allPeriods.length === 0) return "Closed";
 
-  // Format each period
-  const formatted = todayPeriods.map((p) => {
+  // Format each period (overnight periods show only closing time)
+  const formatted = allPeriods.map((p) => {
+    if (p.openDay !== localDay) {
+      const close = formatTime(p.closeHour, p.closeMinute);
+      return `Closes ${close}`;
+    }
     const open = formatTime(p.openHour, p.openMinute);
     const close = formatTime(p.closeHour, p.closeMinute);
     return `${open} – ${close}`;

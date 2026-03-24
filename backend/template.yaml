@@ -99,7 +99,7 @@ Resources:
             Path: /reports
             Method: GET
             Auth:
-              Authorizer: NONE
+              Authorizer: NONE  # Public: anonymous read access for nearby crowd reports
     Metadata:
       BuildMethod: makefile
 
@@ -119,7 +119,7 @@ Resources:
             Path: /venues/{venueId}/reports
             Method: GET
             Auth:
-              Authorizer: NONE
+              Authorizer: NONE  # Public: anonymous read access for venue-specific reports
     Metadata:
       BuildMethod: makefile
 
@@ -273,7 +273,7 @@ Resources:
             Path: /v1/venues/nearby
             Method: GET
             Auth:
-              Authorizer: NONE
+              Authorizer: NONE  # Public: anonymous venue discovery (read-only)
         PostNearbyVenues:
           Type: Api
           Properties:
@@ -281,7 +281,7 @@ Resources:
             Path: /v1/venues/nearby
             Method: POST
             Auth:
-              Authorizer: NONE
+              Authorizer: NONE  # Public: anonymous venue discovery with body payload (read-only)
     Metadata:
       BuildMethod: makefile
 
@@ -326,7 +326,7 @@ Resources:
             Path: /v1/venues/{venueId}/busyness
             Method: GET
             Auth:
-              Authorizer: NONE
+              Authorizer: NONE  # Public: anonymous single-venue busyness lookup
     Metadata:
       BuildMethod: makefile
 

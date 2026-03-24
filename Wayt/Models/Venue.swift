@@ -47,9 +47,11 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
 
     /// Normalize venue name for ID generation to prevent duplicates
     /// caused by apostrophe/quote variations (e.g. "McDonald's" vs "McDonalds").
+    private static let posixLocale = Locale(identifier: "en_US_POSIX")
+
     private static func normalizedName(_ name: String) -> String {
-        name.lowercased()
-            .folding(options: .diacriticInsensitive, locale: .current)
+        name.lowercased(with: posixLocale)
+            .folding(options: .diacriticInsensitive, locale: posixLocale)
             .replacingOccurrences(of: "'", with: "")
             .replacingOccurrences(of: "\u{2019}", with: "")  // right single quote
             .replacingOccurrences(of: "\"", with: "")

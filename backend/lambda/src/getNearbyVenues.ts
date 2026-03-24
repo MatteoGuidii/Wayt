@@ -253,7 +253,11 @@ function parseParams(event: APIGatewayProxyEvent): {
   const parsedRadius = parseInt(params.radius ?? "2000", 10);
   let clientVenues: ComputeInput[] = [];
   if (params.venues) {
-    clientVenues = JSON.parse(params.venues) as ComputeInput[];
+    try {
+      clientVenues = JSON.parse(params.venues) as ComputeInput[];
+    } catch {
+      clientVenues = [];
+    }
   }
   return {
     lat: parseFloat(params.lat ?? ""),

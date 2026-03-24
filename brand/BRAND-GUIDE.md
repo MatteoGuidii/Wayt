@@ -52,7 +52,7 @@ The icon consists of 3 elements:
 ### Primary — Background Gradient
 - **Direction:** vertical, top to bottom
 - **Top:** `#FFD600` (bright yellow)
-- **Bottom:** `#CC7A00` (deep ocra)
+- **Bottom:** `#CC7A00` (deep ochre)
 - CSS: `linear-gradient(180deg, #FFD600 0%, #CC7A00 100%)`
 
 ### Logo Mark
@@ -63,12 +63,12 @@ The icon consists of 3 elements:
 | Role | Hex | Name |
 |---|---|---|
 | Gradient Start | `#FFD600` | Bright Yellow |
-| Gradient End | `#CC7A00` | Deep Ocra |
+| Gradient End | `#CC7A00` | Deep Ochre |
 | Logo / Mark | `#FFFFFF` | White |
 
 ### Color Psychology
 - **Yellow:** Energy, optimism, warmth, attention — signals "go" and real-time awareness
-- **Ocra gradient:** Grounds the brightness, adds depth and sophistication
+- **Ochre gradient:** Grounds the brightness, adds depth and sophistication
 - **White logo:** Clean, readable, accessible on the warm background
 
 ---

@@ -55,6 +55,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
 
   let warmVenues = venues.filter((v) => warmIds.has(v.venueId));
   let coldVenues = venues.filter((v) => !warmIds.has(v.venueId));
+  const coldVenueMap = new Map(coldVenues.map((v) => [v.venueId, v]));
 
   log.info("Initial classification", {
     total: venues.length,
@@ -88,7 +89,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
         const batch = matchedEntries.slice(i, i + GOOGLE_CONCURRENCY);
         const results = await Promise.all(
           batch.map(async ([venueId]) => {
-            const venue = coldVenues.find((v) => v.venueId === venueId);
+            const venue = coldVenueMap.get(venueId);
             if (!venue) return null;
             const hours = await getGoogleHoursData(venueId, venue.venueName, venue.lat, venue.lng);
             if (!hours) return null;
@@ -104,7 +105,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
       for (const [venueId, match] of matched) {
         const openStatus = googleHoursMap.get(venueId) ?? null;
         const { score, confidence } = computeTimeAwareBusyness(match.data, nowMs, timezone, openStatus?.isOpen);
-        const venue = coldVenues.find((v) => v.venueId === venueId);
+        const venue = coldVenueMap.get(venueId);
         const lat = venue?.lat ?? 0;
         const lng = venue?.lng ?? 0;
         const geohash = encode(lat, lng);
