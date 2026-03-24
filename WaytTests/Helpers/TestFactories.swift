@@ -8,6 +8,7 @@ enum TestFactories {
     static func makeVenue(
         name: String = "Test Venue",
         busyness: BusynessLevel? = nil,
+        busynessConfidence: BusynessConfidence? = nil,
         coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
     ) -> Venue {
         let placemark = MKPlacemark(coordinate: coordinate)
@@ -15,6 +16,8 @@ enum TestFactories {
         mapItem.name = name
         var venue = Venue(mapItem: mapItem)
         venue.busyness = busyness
+        // Default to .medium confidence when busyness is provided (matches realistic data)
+        venue.busynessConfidence = busynessConfidence ?? (busyness != nil ? .medium : .none)
         return venue
     }
 

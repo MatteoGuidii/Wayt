@@ -25,6 +25,8 @@ final class ProfileViewModel: ObservableObject {
     private var hasLoadedFromCache = false
     /// True after the first successful API fetch — prevents duplicate loads.
     private(set) var hasLoadedFromAPI = false
+    /// Debounce task for syncProfile — avoids stale server counts overwriting optimistic increments.
+    private var syncTask: Task<Void, Never>?
 
     // MARK: - Cache Keys
 
@@ -46,7 +48,12 @@ final class ProfileViewModel: ObservableObject {
                 guard let self else { return }
                 self.totalReports += 1
                 self.cacheValue(self.totalReports, forKey: CacheKey.totalReports)
-                Task { await self.syncProfile() }
+                self.syncTask?.cancel()
+                self.syncTask = Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
+                    await self.syncProfile()
+                }
             }
             .store(in: &cancellables)
     }

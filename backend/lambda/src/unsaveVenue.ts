@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { ddb } from "./db";
 import {
   SAVED_VENUES_TABLE,
   success,
@@ -9,8 +9,6 @@ import {
   getUserId,
 } from "./shared";
 import { createLogger } from "./logger";
-
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export async function handler(
   event: APIGatewayProxyEvent,

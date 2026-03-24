@@ -21,14 +21,15 @@ final class DiscoverViewModel: ObservableObject {
     private var filterCancellable: AnyCancellable?
 
     private func observeFilter() {
-        filterCancellable = filterState?.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                // Delay one runloop tick so the published values are updated
-                DispatchQueue.main.async {
-                    self?.applyFilter()
-                }
-            }
+        guard let filterState else { return }
+        filterCancellable = Publishers.Merge(
+            filterState.$selectedCategory.map { _ in () },
+            filterState.$selectedBusynessLevel.map { _ in () }
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            self?.applyFilter()
+        }
     }
 
     // MARK: - Computed
@@ -101,19 +102,8 @@ final class DiscoverViewModel: ObservableObject {
     // MARK: - Filter
 
     private func applyFilter() {
-        let category = filterState?.selectedCategory
-        let busynessLevel = filterState?.selectedBusynessLevel
-
-        // Base set: apply category filter if active
-        var base = venues
-        if let category {
-            base = base.filter { $0.category == category }
-        }
-
-        // Apply busyness filter to the same base used for all derived arrays
-        if let busynessLevel {
-            base = base.filter { $0.busyness == busynessLevel }
-        }
+        // Apply shared filter logic (category + busyness)
+        let base = filterState?.apply(to: venues) ?? venues
 
         // Popular / buzzing: busyness >= 4 (busy + packed)
         popularVenues = base

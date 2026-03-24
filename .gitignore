@@ -39,3 +39,8 @@ backend/samconfig.toml
 *.pdf
 *.pptx
 *.xlsx
+
+# Mascot concepts
+mascot-concepts/
+
+icon-concepts/

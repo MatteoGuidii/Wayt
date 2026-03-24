@@ -17,7 +17,10 @@ struct BusynessEngine: Sendable {
             level: BusynessLevel(closestTo: levelValue),
             confidence: BusynessConfidence(fromServer: response.confidence),
             reportCount: response.reportCount,
-            waitMinutes: response.waitMinutes
+            waitMinutes: response.waitMinutes,
+            isOpen: response.isOpen,
+            hoursToday: response.hoursToday,
+            businessStatus: response.businessStatus
         )
         Log.engine.debug("Fused estimate: score=\(response.busynessScore) confidence=\(response.confidence, privacy: .public) sources=\(response.sourceCount ?? 0)")
         return result
@@ -39,7 +42,10 @@ struct BusynessEngine: Sendable {
                 level: .moderate,
                 confidence: .none,
                 reportCount: 0,
-                waitMinutes: nil
+                waitMinutes: nil,
+                isOpen: nil,
+                hoursToday: nil,
+                businessStatus: nil
             )
         }
 
@@ -54,7 +60,10 @@ struct BusynessEngine: Sendable {
             level: level,
             confidence: confidence,
             reportCount: validReports.count,
-            waitMinutes: avgWait
+            waitMinutes: avgWait,
+            isOpen: nil,
+            hoursToday: nil,
+            businessStatus: nil
         )
     }
 
@@ -101,6 +110,9 @@ struct BusynessEstimate: Sendable {
     let confidence: BusynessConfidence
     let reportCount: Int
     let waitMinutes: Int?
+    let isOpen: Bool?
+    let hoursToday: String?
+    let businessStatus: String?
 }
 
 // MARK: - Server Response Model
@@ -119,6 +131,11 @@ struct FusedEstimateResponse: Codable, Sendable {
     let conflictDetected: Bool?
     let computedAt: String?
 
+    // Google Places operating hours (optional)
+    let isOpen: Bool?
+    let hoursToday: String?
+    let businessStatus: String?
+
     // Minimal init for backward compat (used by tests and legacy code)
     init(
         busynessScore: Double,
@@ -129,7 +146,10 @@ struct FusedEstimateResponse: Codable, Sendable {
         sourceCount: Int? = nil,
         sources: [String]? = nil,
         conflictDetected: Bool? = nil,
-        computedAt: String? = nil
+        computedAt: String? = nil,
+        isOpen: Bool? = nil,
+        hoursToday: String? = nil,
+        businessStatus: String? = nil
     ) {
         self.busynessScore = busynessScore
         self.confidence = confidence
@@ -140,6 +160,9 @@ struct FusedEstimateResponse: Codable, Sendable {
         self.sources = sources
         self.conflictDetected = conflictDetected
         self.computedAt = computedAt
+        self.isOpen = isOpen
+        self.hoursToday = hoursToday
+        self.businessStatus = businessStatus
     }
 }
 

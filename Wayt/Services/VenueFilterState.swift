@@ -28,4 +28,16 @@ final class VenueFilterState: ObservableObject {
         selectedCategory = nil
         selectedBusynessLevel = nil
     }
+
+    /// Apply active filters to a venue list. Shared between Map and Discover.
+    func apply(to venues: [Venue]) -> [Venue] {
+        var result = venues
+        if let category = selectedCategory {
+            result = result.filter { $0.category == category }
+        }
+        if let level = selectedBusynessLevel {
+            result = result.filter { $0.busyness == level }
+        }
+        return result
+    }
 }

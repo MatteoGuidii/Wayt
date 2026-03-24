@@ -13,8 +13,8 @@ final class FusionService {
 
     private var nearbyCache: [String: FusedEstimateResponse] = [:]
     private var cacheTimestamp: Date = .distantPast
-    private var cachedLat: Double = 0
-    private var cachedLng: Double = 0
+    private var cachedLat: Double = .nan
+    private var cachedLng: Double = .nan
 
     private func isCacheValid(lat: Double, lng: Double) -> Bool {
         guard Date().timeIntervalSince(cacheTimestamp) < AppConstants.reportCacheTTL else {
@@ -128,11 +128,8 @@ final class FusionService {
             }
         }
 
-        // Merge only meaningful results into cache (skip empty estimates to avoid pollution)
-        let meaningful = indexed.filter { (_, v) in (v.sourceCount ?? 0) > 0 }
-        if !meaningful.isEmpty {
-            nearbyCache.merge(meaningful) { _, new in new }
-        }
+        // Cache all estimates — hours data is valid even for cold venues
+        nearbyCache.merge(indexed) { _, new in new }
 
         Log.fusion.info("Missing venues: got \(indexed.count) estimates")
         return indexed
@@ -226,6 +223,9 @@ struct DetailedFusedResponse: Codable, Sendable {
     let conflictDetected: Bool
     let computedAt: String
     let signals: [SignalDetail]?
+    let isOpen: Bool?
+    let hoursToday: String?
+    let businessStatus: String?
 
     /// Convert to a FusedEstimateResponse for the BusynessEngine.
     func toFusedEstimate() -> FusedEstimateResponse {
@@ -238,7 +238,10 @@ struct DetailedFusedResponse: Codable, Sendable {
             sourceCount: sourceCount,
             sources: sources,
             conflictDetected: conflictDetected,
-            computedAt: computedAt
+            computedAt: computedAt,
+            isOpen: isOpen,
+            hoursToday: hoursToday,
+            businessStatus: businessStatus
         )
     }
 }

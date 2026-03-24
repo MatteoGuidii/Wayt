@@ -139,7 +139,7 @@ struct MapScreen: View {
                 .onSubmit {
                     let region = locationService.userLocation != nil
                         ? locationService.region : visibleRegion
-                    viewModel.performTextSearch(in: region)
+                    viewModel.searchVenues(in: region)
                 }
 
             if !viewModel.searchText.isEmpty {

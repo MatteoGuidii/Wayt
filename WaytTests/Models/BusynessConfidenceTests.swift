@@ -330,4 +330,55 @@ struct FusedEstimateResponseCodableTests {
         #expect(decoded.conflictDetected == original.conflictDetected)
         #expect(decoded.computedAt == original.computedAt)
     }
+
+    @Test("Decodes response with businessStatus")
+    func decodesBusinessStatus() throws {
+        let json = """
+        {
+            "busynessScore": 0.0,
+            "confidence": "ESTIMATED",
+            "reportCount": 0,
+            "waitMinutes": null,
+            "isOpen": false,
+            "hoursToday": "Permanently closed",
+            "businessStatus": "CLOSED_PERMANENTLY"
+        }
+        """.data(using: .utf8)!
+        let response = try JSONDecoder().decode(FusedEstimateResponse.self, from: json)
+        #expect(response.businessStatus == "CLOSED_PERMANENTLY")
+        #expect(response.isOpen == false)
+        #expect(response.hoursToday == "Permanently closed")
+    }
+
+    @Test("Decodes response without businessStatus (backward compat)")
+    func decodesWithoutBusinessStatus() throws {
+        let json = """
+        {
+            "busynessScore": 0.5,
+            "confidence": "medium",
+            "reportCount": 1,
+            "waitMinutes": null
+        }
+        """.data(using: .utf8)!
+        let response = try JSONDecoder().decode(FusedEstimateResponse.self, from: json)
+        #expect(response.businessStatus == nil)
+    }
+
+    @Test("Round-trip preserves businessStatus")
+    func roundTripBusinessStatus() throws {
+        let original = FusedEstimateResponse(
+            busynessScore: 0.0,
+            confidence: "ESTIMATED",
+            reportCount: 0,
+            waitMinutes: nil,
+            isOpen: false,
+            hoursToday: "Permanently closed",
+            businessStatus: "CLOSED_PERMANENTLY"
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(FusedEstimateResponse.self, from: data)
+        #expect(decoded.businessStatus == original.businessStatus)
+        #expect(decoded.isOpen == original.isOpen)
+        #expect(decoded.hoursToday == original.hoursToday)
+    }
 }

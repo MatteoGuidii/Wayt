@@ -38,8 +38,24 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     var busyness: BusynessLevel?
     var busynessConfidence: BusynessConfidence = .none
     var reportCount: Int = 0
-    var lastReportedAt: Date?
     var estimatedWaitMinutes: Int?
+    var isOpen: Bool?
+    var hoursToday: String?
+    var businessStatus: String?
+
+    // MARK: - Name Normalization
+
+    /// Normalize venue name for ID generation to prevent duplicates
+    /// caused by apostrophe/quote variations (e.g. "McDonald's" vs "McDonalds").
+    private static let posixLocale = Locale(identifier: "en_US_POSIX")
+
+    private static func normalizedName(_ name: String) -> String {
+        name.lowercased(with: posixLocale)
+            .folding(options: .diacriticInsensitive, locale: posixLocale)
+            .replacingOccurrences(of: "'", with: "")
+            .replacingOccurrences(of: "\u{2019}", with: "")  // right single quote
+            .replacingOccurrences(of: "\"", with: "")
+    }
 
     // MARK: - Init from MKMapItem
 
@@ -50,7 +66,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         let lat = String(format: "%.5f", coord.latitude)
         let lng = String(format: "%.5f", coord.longitude)
 
-        self.id = "\(venueName.lowercased())_\(lat)_\(lng)"
+        self.id = "\(Self.normalizedName(venueName))_\(lat)_\(lng)"
         self.name = venueName
         self.coordinate = coord
         self.poiCategory = mapItem.pointOfInterestCategory
@@ -68,10 +84,20 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
             && lhs.busynessConfidence == rhs.busynessConfidence
             && lhs.reportCount == rhs.reportCount
             && lhs.estimatedWaitMinutes == rhs.estimatedWaitMinutes
+            && lhs.isOpen == rhs.isOpen
+            && lhs.hoursToday == rhs.hoursToday
+            && lhs.businessStatus == rhs.businessStatus
     }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(busyness)
+        hasher.combine(busynessConfidence)
+        hasher.combine(reportCount)
+        hasher.combine(estimatedWaitMinutes)
+        hasher.combine(isOpen)
+        hasher.combine(hoursToday)
+        hasher.combine(businessStatus)
     }
 }
 

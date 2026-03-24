@@ -6,6 +6,7 @@ import {
   DeleteCommand,
   GetCommand,
   BatchGetCommand,
+  BatchWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { neighborhood } from "./geohash";
 
@@ -41,10 +42,6 @@ export function fusedSK() {
 
 export function mappingSK(provider: string) {
   return `MAP#${provider}`;
-}
-
-export function activeAreaPK(geohash: string) {
-  return `AREA#${geohash}`;
 }
 
 // -----------------------------------------------
@@ -171,12 +168,104 @@ export async function batchCheckExists(
     for (const item of items) {
       const ttl = item.ttl as number | undefined;
       if (!ttl || ttl >= nowSeconds) {
-        // Extract venueId from PK (format: "VENUE#venueId")
         const pk = item.PK as string;
-        found.add(pk.replace("VENUE#", ""));
+        found.add(pk.substring(6)); // Strip "VENUE#" prefix
       }
     }
   }
 
   return found;
+}
+
+/**
+ * Batch-read items by venueId + SK. Returns a map of venueId → item.
+ * Only returns unexpired items. Processes in chunks of 100.
+ */
+export async function batchGetItems(
+  venueIds: string[],
+  sk: string
+): Promise<Map<string, Record<string, unknown>>> {
+  const result = new Map<string, Record<string, unknown>>();
+  if (venueIds.length === 0) return result;
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  for (let i = 0; i < venueIds.length; i += 100) {
+    const chunk = venueIds.slice(i, i + 100);
+    const keys = chunk.map((id) => ({ PK: venueKey(id), SK: sk }));
+
+    const response = await ddb.send(
+      new BatchGetCommand({
+        RequestItems: {
+          [SIGNALS_TABLE]: { Keys: keys },
+        },
+      })
+    );
+
+    const items = response.Responses?.[SIGNALS_TABLE] ?? [];
+    for (const item of items) {
+      const ttl = item.ttl as number | undefined;
+      if (ttl && ttl < nowSeconds) continue;
+
+      const pk = item.PK as string;
+      const venueId = pk.substring(6); // Strip "VENUE#" prefix
+      result.set(venueId, item);
+    }
+
+    // Retry unprocessed keys with exponential backoff
+    let unprocessedKeys = response.UnprocessedKeys?.[SIGNALS_TABLE];
+    let retryCount = 0;
+    while (unprocessedKeys?.Keys && unprocessedKeys.Keys.length > 0 && retryCount < 3) {
+      retryCount++;
+      await new Promise((r) => setTimeout(r, 50 * Math.pow(2, retryCount)));
+      const retryResponse = await ddb.send(
+        new BatchGetCommand({ RequestItems: { [SIGNALS_TABLE]: unprocessedKeys } })
+      );
+      const retryItems = retryResponse.Responses?.[SIGNALS_TABLE] ?? [];
+      for (const item of retryItems) {
+        const ttl = item.ttl as number | undefined;
+        if (ttl && ttl < nowSeconds) continue;
+        const pk = item.PK as string;
+        const venueId = pk.substring(6);
+        result.set(venueId, item);
+      }
+      unprocessedKeys = retryResponse.UnprocessedKeys?.[SIGNALS_TABLE];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Batch-write multiple items to DynamoDB.
+ * Processes in chunks of 25 (DynamoDB BatchWriteItem limit).
+ * Retries unprocessed items with exponential backoff (max 3 attempts).
+ */
+export async function batchPutItems(items: Record<string, unknown>[]): Promise<void> {
+  if (items.length === 0) return;
+
+  for (let i = 0; i < items.length; i += 25) {
+    const chunk = items.slice(i, i + 25);
+    const request = {
+      RequestItems: {
+        [SIGNALS_TABLE]: chunk.map((item) => ({
+          PutRequest: { Item: item },
+        })),
+      },
+    };
+
+    const result = await ddb.send(new BatchWriteCommand(request));
+
+    // Retry unprocessed items with exponential backoff
+    let unprocessed = result.UnprocessedItems?.[SIGNALS_TABLE];
+    let retryCount = 0;
+    while (unprocessed && unprocessed.length > 0 && retryCount < 3) {
+      retryCount++;
+      await new Promise((r) => setTimeout(r, 50 * Math.pow(2, retryCount)));
+      const retryResult = await ddb.send(
+        new BatchWriteCommand({ RequestItems: { [SIGNALS_TABLE]: unprocessed } })
+      );
+      unprocessed = retryResult.UnprocessedItems?.[SIGNALS_TABLE];
+    }
+  }
 }

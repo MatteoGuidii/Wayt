@@ -1,8 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { ddb, REPORTS_TABLE } from "./db";
 import {
-  REPORTS_TABLE,
   VenueReportSummary,
   ReportItem,
   success,
@@ -12,8 +11,6 @@ import {
 } from "./shared";
 import { neighborhood } from "./geohash";
 import { createLogger } from "./logger";
-
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 // Reports older than 2 hours are irrelevant
 const MAX_AGE_MS = 2 * 60 * 60 * 1000;

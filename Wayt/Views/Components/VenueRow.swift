@@ -54,6 +54,24 @@ struct VenueRow: View {
                         .foregroundStyle(WaytTheme.secondaryText)
                     }
                 }
+
+                // Hours row
+                if let isOpen = venue.isOpen {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(isOpen ? .green : .red)
+                            .frame(width: 7, height: 7)
+                        Text(isOpen ? "Open" : "Closed")
+                            .font(WaytTheme.captionFont)
+                            .foregroundStyle(isOpen ? .green : .red)
+                        if let hours = venue.hoursToday {
+                            Text("· \(hours)")
+                                .font(WaytTheme.captionLightFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                                .lineLimit(1)
+                        }
+                    }
+                }
             }
 
             Spacer()
@@ -61,7 +79,8 @@ struct VenueRow: View {
             BusynessBadge(
                 level: venue.busyness,
                 confidence: venue.busynessConfidence,
-                style: .compact
+                style: .compact,
+                isOpen: venue.isOpen
             )
         }
         .padding(12)
@@ -71,7 +90,7 @@ struct VenueRow: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.05), lineWidth: 1)
         )
-        .busynessGlow(venue.busyness?.color, radius: 6, y: 3)
+        .busynessGlow(venue.isOpen == false ? nil : venue.busyness?.color, radius: 6, y: 3)
     }
 
     // MARK: - Distance

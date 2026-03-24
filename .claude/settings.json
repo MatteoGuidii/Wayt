@@ -13,7 +13,14 @@
       "Bash(aws lambda:*)",
       "Bash(sam build:*)",
       "Bash(sam deploy:*)",
-      "Bash(gh repo:*)"
+      "Bash(gh repo:*)",
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:outscraper.com)",
+      "WebFetch(domain:issuetracker.google.com)",
+      "WebFetch(domain:nicolalazzari.ai)",
+      "Bash(while read:*)",
+      "Bash(do basename:*)",
+      "Read(//Users/matteo/backend/lambda/src/signals/**)"
     ]
   }
 }

@@ -279,13 +279,13 @@ struct MapViewModelTests {
         #expect(vm.selectedVenue == nil)
     }
 
-    // MARK: - performTextSearch
+    // MARK: - Text Search
 
     @Test("Empty text search does not crash")
     func emptyTextSearchSafe() {
         let vm = MapViewModel()
         vm.searchText = "   "
-        vm.performTextSearch(in: toronto)
+        vm.searchVenues(in: toronto)
         // Just verifying no crash
     }
 

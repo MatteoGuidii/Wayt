@@ -21,7 +21,20 @@ struct VenueCard: View {
 
                 Spacer()
 
-                if let busyness = venue.busyness {
+                if venue.isOpen == false {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.secondary)
+                            .frame(width: 7, height: 7)
+                        Text("Closed")
+                            .font(WaytTheme.microFont)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.gray.opacity(0.12))
+                    .clipShape(Capsule())
+                } else if let busyness = venue.busyness {
                     HStack(spacing: 4) {
                         Circle()
                             .fill(busyness.color)
@@ -41,6 +54,23 @@ struct VenueCard: View {
                 .font(WaytTheme.subheadFont)
                 .lineLimit(2)
 
+            if let isOpen = venue.isOpen {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(isOpen ? .green : .red)
+                        .frame(width: 6, height: 6)
+                    Text(isOpen ? "Open" : "Closed")
+                        .font(WaytTheme.badgeFont)
+                        .foregroundStyle(isOpen ? .green : .red)
+                    if let hours = venue.hoursToday {
+                        Text("· \(hours)")
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                }
+                .lineLimit(1)
+            }
+
             if let wait = venue.estimatedWaitMinutes, wait > 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "clock.fill")
@@ -53,13 +83,13 @@ struct VenueCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
-        .frame(width: 170, height: 120, alignment: .topLeading)
+        .frame(width: 170, height: 140, alignment: .topLeading)
         .background(
             ZStack {
                 WaytTheme.cardBackground
                 LinearGradient(
                     colors: [
-                        (venue.busyness?.color ?? .clear).opacity(0.04),
+                        (venue.isOpen == false ? .clear : (venue.busyness?.color ?? .clear)).opacity(0.04),
                         Color.clear
                     ],
                     startPoint: .topLeading,
@@ -72,6 +102,6 @@ struct VenueCard: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
-        .busynessGlow(venue.busyness?.color)
+        .busynessGlow(venue.isOpen == false ? nil : venue.busyness?.color)
     }
 }

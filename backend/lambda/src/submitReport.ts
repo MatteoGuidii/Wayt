@@ -1,8 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { ddb, REPORTS_TABLE, venueKey, fusedSK, deleteItem } from "./db";
 import {
-  REPORTS_TABLE,
   USERS_TABLE,
   REPORT_TTL_SECONDS,
   SubmitReportBody,
@@ -11,11 +10,8 @@ import {
   serverError,
   getUserId,
 } from "./shared";
-import { venueKey, fusedSK, deleteItem } from "./db";
 import { encode } from "./geohash";
 import { createLogger } from "./logger";
-
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export async function handler(
   event: APIGatewayProxyEvent,
@@ -36,6 +32,11 @@ export async function handler(
     if (!Number.isInteger(busynessLevel) || busynessLevel < 1 || busynessLevel > 5) {
       log.warn("Validation failed", { reason: "invalid busynessLevel", busynessLevel });
       return badRequest("busynessLevel must be an integer 1-5");
+    }
+
+    if (waitMinutes != null && (typeof waitMinutes !== "number" || waitMinutes < 0 || waitMinutes > 300)) {
+      log.warn("Validation failed", { reason: "invalid waitMinutes", waitMinutes });
+      return badRequest("waitMinutes must be a number between 0 and 300");
     }
 
     log.info("Submitting report", { venueId, busynessLevel });
@@ -101,7 +102,7 @@ export async function handler(
       log.warn("Fused cache invalidation failed (non-critical)");
     }
 
-    done({ statusCode: 201 });
+    done({ reportId, venueId });
     return created({ reportId, message: "Report submitted" });
   } catch (err) {
     log.error("Report submission failed", undefined, err);

@@ -31,25 +31,20 @@ final class MapViewModel: ObservableObject {
     private var filterCancellable: AnyCancellable?
 
     private func observeFilter() {
-        filterCancellable = filterState?.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.recomputeClusters()
-                }
-            }
+        guard let filterState else { return }
+        filterCancellable = Publishers.Merge(
+            filterState.$selectedCategory.map { _ in () },
+            filterState.$selectedBusynessLevel.map { _ in () }
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            self?.recomputeClusters()
+        }
     }
 
     /// Venues filtered by the shared category + busyness filters.
     var filteredVenues: [Venue] {
-        var result = venues
-        if let category = filterState?.selectedCategory {
-            result = result.filter { $0.category == category }
-        }
-        if let level = filterState?.selectedBusynessLevel {
-            result = result.filter { $0.busyness == level }
-        }
-        return result
+        filterState?.apply(to: venues) ?? venues
     }
 
     func toggleCategoryFilter(_ category: VenueCategory) {
@@ -103,6 +98,13 @@ final class MapViewModel: ObservableObject {
     private var prefetchTask: Task<Void, Never>?
     private var followUpTask: Task<Void, Never>?
 
+    /// Approximate search radius in meters, accounting for longitude compression at higher latitudes.
+    private func searchRadius(for region: MKCoordinateRegion) -> Double {
+        let latMeters = region.span.latitudeDelta * 111_000
+        let lngMeters = region.span.longitudeDelta * 111_000 * cos(region.center.latitude * .pi / 180)
+        return max(latMeters, lngMeters)
+    }
+
     deinit {
         searchTask?.cancel()
         refreshTimer?.cancel()
@@ -125,8 +127,13 @@ final class MapViewModel: ObservableObject {
         let isInitialSearch = venues.isEmpty && lastSearchedRegion == nil
         searchTask?.cancel()
         expandTask?.cancel()
+        followUpTask?.cancel()
         isExpandingSearch = false
         lastExpandedRegion = nil
+
+        // User-initiated search — reset rate limiter so queries aren't silently skipped
+        searchService.resetRateLimit()
+
         searchTask = Task {
             // Skip debounce on first launch for instant results
             if !isInitialSearch {
@@ -137,7 +144,7 @@ final class MapViewModel: ObservableObject {
             isSearching = true
             showSearchThisArea = false
 
-            let radius = region.span.latitudeDelta * 111_000
+            let radius = searchRadius(for: region)
             Log.map.debug("Searching region: (\(region.center.latitude), \(region.center.longitude)) span: \(region.span.latitudeDelta)")
 
             do {
@@ -196,11 +203,9 @@ final class MapViewModel: ObservableObject {
                                 radius: capturedRadius,
                                 venues: uncachedInfos
                             )
-                            // Apply only meaningful estimates (skip empty sourceCount: 0)
-                            let meaningful = computed.filter { (_, est) in (est.sourceCount ?? 0) > 0 }
-                            if !meaningful.isEmpty {
+                            if !computed.isEmpty {
                                 var updated = self.venues
-                                self.applyFusedEstimates(meaningful, to: &updated)
+                                self.applyFusedEstimates(computed, to: &updated)
                                 self.venues = updated
                                 self.recomputeClusters()
                             }
@@ -218,7 +223,7 @@ final class MapViewModel: ObservableObject {
                     lastSearchedRegion = region
                     recomputeClusters()
                 }
-                Log.map.info("Loaded \(results.count) venues with busyness")
+                Log.map.info("Loaded \(results.count) venues, \(self.filteredVenues.count) after filters, \(self.mapItems.count) map items")
             } catch {
                 guard !Task.isCancelled else { return }
                 Log.map.error("Search error: \(error.localizedDescription)")
@@ -228,13 +233,10 @@ final class MapViewModel: ObservableObject {
         }
     }
 
-    /// Text-based search
-    func performTextSearch(in region: MKCoordinateRegion) {
-        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else {
-            // Clear text → reload default venues
-            searchVenues(in: region)
-            return
-        }
+    /// Ensures an initial search has been triggered. Safe to call from any tab.
+    /// Uses the provided region only if no search has happened yet.
+    func ensureInitialSearch(region: MKCoordinateRegion) {
+        guard venues.isEmpty, lastSearchedRegion == nil, searchTask == nil else { return }
         searchVenues(in: region)
     }
 
@@ -275,7 +277,7 @@ final class MapViewModel: ObservableObject {
             // before the user taps "Search This Area"
             prefetchTask?.cancel()
             prefetchTask = Task {
-                let radius = region.span.latitudeDelta * 111_000
+                let radius = searchRadius(for: region)
                 await fusionService.prefetchArea(
                     lat: region.center.latitude,
                     lng: region.center.longitude,
@@ -324,21 +326,43 @@ final class MapViewModel: ObservableObject {
     /// Tracks the last expanded region so repeated taps keep widening.
     private var lastExpandedRegion: MKCoordinateRegion?
 
+    /// Maximum expand span (~35 km at equator) to avoid runaway API costs.
+    private static let maxExpandSpan: Double = 0.32
+
     func expandSearch() {
         guard !isExpandingSearch else { return }
         let base = lastExpandedRegion ?? lastSearchedRegion
         guard let base else { return }
+
+        let newLatDelta = min(base.span.latitudeDelta * 2, Self.maxExpandSpan)
+        let newLngDelta = min(base.span.longitudeDelta * 2, Self.maxExpandSpan)
+
+        // Stop if already at max
+        guard newLatDelta > base.span.latitudeDelta else { return }
+
         let expanded = MKCoordinateRegion(
             center: base.center,
             span: MKCoordinateSpan(
-                latitudeDelta: base.span.latitudeDelta * 2,
-                longitudeDelta: base.span.longitudeDelta * 2
+                latitudeDelta: newLatDelta,
+                longitudeDelta: newLngDelta
             )
         )
+
+        // User-initiated expand — reset rate limiter so queries aren't silently skipped
+        searchService.resetRateLimit()
 
         expandTask?.cancel()
         expandTask = Task {
             isExpandingSearch = true
+
+            let radius = searchRadius(for: expanded)
+
+            // Pre-fetch fusion data for expanded area so cached estimates are available
+            await fusionService.prefetchArea(
+                lat: expanded.center.latitude,
+                lng: expanded.center.longitude,
+                radius: radius
+            )
 
             let newResults = await searchService.searchAllTypes(region: expanded)
 
@@ -347,15 +371,39 @@ final class MapViewModel: ObservableObject {
                 return
             }
 
-            // Merge: keep existing venues, add new ones
+            // Merge: keep existing venues, add new ones with busyness data
             let existingIDs = Set(venues.map(\.id))
-            let additional = applyOfflineBusyness(
-                to: newResults.filter { !existingIDs.contains($0.id) }
-            )
+            var additional = newResults.filter { !existingIDs.contains($0.id) }
+            additional = applyCachedEstimates(to: additional)
+            additional = applyOfflineBusyness(to: additional)
 
             if !additional.isEmpty {
                 venues.append(contentsOf: additional)
                 recomputeClusters()
+
+                // Phase B: dispatch uncached expanded venues to backend
+                let uncached = additional.filter { $0.busynessConfidence == .none }
+                if !uncached.isEmpty {
+                    let uncachedInfos = uncached.map { VenueInfo(venue: $0) }
+                    Task {
+                        do {
+                            let computed = try await fusionService.fetchMissingEstimates(
+                                lat: expanded.center.latitude,
+                                lng: expanded.center.longitude,
+                                radius: radius,
+                                venues: uncachedInfos
+                            )
+                            if !computed.isEmpty {
+                                var updated = self.venues
+                                self.applyFusedEstimates(computed, to: &updated)
+                                self.venues = updated
+                                self.recomputeClusters()
+                            }
+                        } catch {
+                            Log.map.notice("Expand dispatch failed: \(error.localizedDescription)")
+                        }
+                    }
+                }
             }
 
             lastExpandedRegion = expanded
@@ -391,7 +439,8 @@ final class MapViewModel: ObservableObject {
     /// Exits early if all venues already have real data or the user navigated away.
     private func scheduleProgressiveRefreshes(region: MKCoordinateRegion) {
         // Cumulative delays from dispatch time; sleep the delta between each.
-        let cumulativeDelays = [5, 15, 45]
+        // +2s catches batch-matched quick estimates, +5s catches warm venues, +12s final sweep.
+        let cumulativeDelays = [2, 5, 12]
         followUpTask?.cancel()
         followUpTask = Task {
             var previous = 0
@@ -401,8 +450,8 @@ final class MapViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 guard !venues.isEmpty else { return }
 
-                // Stop if all venues already have real busyness data
-                let needsRefresh = venues.contains { $0.busynessConfidence == .none || $0.busynessConfidence == .estimated }
+                // Stop if all venues have at least some busyness data (quick-estimate or better)
+                let needsRefresh = venues.contains { $0.busynessConfidence == .none }
                 guard needsRefresh else {
                     Log.map.debug("Progressive refresh: all venues have real data, stopping")
                     return
@@ -460,7 +509,7 @@ final class MapViewModel: ObservableObject {
         on venues: inout [Venue],
         region: MKCoordinateRegion
     ) async {
-        let radius = region.span.latitudeDelta * 111_000
+        let radius = searchRadius(for: region)
 
         // Try fusion service first
         do {
@@ -490,6 +539,13 @@ final class MapViewModel: ObservableObject {
         guard !estimates.isEmpty else { return }
         for i in venues.indices {
             if let response = estimates[venues[i].id] {
+                // Always apply Google Places hours and status (independent of crowd reports)
+                venues[i].isOpen = response.isOpen ?? venues[i].isOpen
+                venues[i].hoursToday = response.hoursToday ?? venues[i].hoursToday
+                venues[i].businessStatus = response.businessStatus ?? venues[i].businessStatus
+
+                // Only apply busyness scores when real signal data exists
+                guard (response.sourceCount ?? 0) > 0 else { continue }
                 let estimate = busynessEngine.estimate(from: response)
                 venues[i].busyness = estimate.level
                 venues[i].busynessConfidence = estimate.confidence
@@ -497,6 +553,9 @@ final class MapViewModel: ObservableObject {
                 venues[i].estimatedWaitMinutes = estimate.waitMinutes
             }
         }
+
+        // Remove permanently closed venues (ghost venues)
+        venues.removeAll { $0.businessStatus == "CLOSED_PERMANENTLY" }
     }
 
     /// Fetch report summaries from legacy API. Returns empty dict on failure.
@@ -507,7 +566,7 @@ final class MapViewModel: ObservableObject {
             return try await ReportService.shared.fetchNearbyReports(
                 latitude: region.center.latitude,
                 longitude: region.center.longitude,
-                radiusMeters: region.span.latitudeDelta * 111_000
+                radiusMeters: searchRadius(for: region)
             )
         } catch {
             Log.map.notice("Reports unavailable: \(error.localizedDescription)")
@@ -530,6 +589,9 @@ final class MapViewModel: ObservableObject {
             v.busynessConfidence = existing.busynessConfidence
             v.reportCount = existing.reportCount
             v.estimatedWaitMinutes = existing.estimatedWaitMinutes
+            v.isOpen = existing.isOpen
+            v.hoursToday = existing.hoursToday
+            v.businessStatus = existing.businessStatus
             return v
         }
     }
@@ -546,6 +608,9 @@ final class MapViewModel: ObservableObject {
             v.busynessConfidence = estimate.confidence
             v.reportCount = estimate.reportCount
             v.estimatedWaitMinutes = estimate.waitMinutes
+            v.isOpen = estimate.isOpen
+            v.hoursToday = estimate.hoursToday
+            v.businessStatus = estimate.businessStatus
             return v
         }
     }
@@ -572,7 +637,6 @@ final class MapViewModel: ObservableObject {
                 let level = BusynessLevel(closestTo: summary.avgBusyness)
                 venues[i].busyness = level
                 venues[i].reportCount = summary.reportCount
-                venues[i].lastReportedAt = summary.lastReportedAt
                 venues[i].estimatedWaitMinutes = summary.avgWaitMinutes
                 venues[i].busynessConfidence = summary.reportCount >= AppConstants.highConfidenceReportCount
                     ? .high : .low

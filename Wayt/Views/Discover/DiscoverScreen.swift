@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct DiscoverScreen: View {
@@ -37,6 +38,13 @@ struct DiscoverScreen: View {
         }
         .task {
             viewModel.filterState = filterState
+            // Trigger initial search if Map hasn't been visited yet
+            if mapViewModel.venues.isEmpty {
+                let region = locationService.userLocation != nil
+                    ? locationService.region
+                    : MKCoordinateRegion.defaultRegion
+                mapViewModel.ensureInitialSearch(region: region)
+            }
             // Seed with existing map data
             if !mapViewModel.venues.isEmpty {
                 viewModel.updateVenues(mapViewModel.venues, userLocation: locationService.userLocation)

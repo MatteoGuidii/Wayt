@@ -1,8 +1,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { ddb } from "./db";
 import {
   USERS_TABLE,
   PROFILE_IMAGES_BUCKET,
@@ -12,8 +12,6 @@ import {
   getUserId,
 } from "./shared";
 import { createLogger } from "./logger";
-
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3 = new S3Client({});
 
 export async function handler(
@@ -61,13 +59,27 @@ export async function handler(
       });
     }
 
-    // New user — return default profile
-    return success({
+    // New user — create record so joinedAt is consistent across calls
+    const now = new Date().toISOString();
+    const newProfile = {
       userId,
       username: userId.slice(0, 8),
-      displayName: null,
       totalReports: 0,
-      joinedAt: new Date().toISOString(),
+      joinedAt: now,
+    };
+    await ddb.send(
+      new PutCommand({
+        TableName: USERS_TABLE,
+        Item: newProfile,
+        ConditionExpression: "attribute_not_exists(userId)",
+      })
+    ).catch(() => {
+      // Ignore ConditionalCheckFailedException — another request created it first
+    });
+
+    return success({
+      ...newProfile,
+      displayName: null,
       profileImageUrl: null,
     });
   } catch (err) {
