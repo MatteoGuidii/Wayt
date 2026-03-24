@@ -29,11 +29,14 @@ struct VenueCluster: Identifiable {
 
     var count: Int { venues.count }
 
-    /// Average busyness level across all venues in the cluster.
-    /// Returns nil only when no venue has busyness data at all.
+    /// Average busyness level across venues that would show a colored marker.
+    /// Excludes closed venues and those with no confidence data, matching
+    /// the individual marker color logic in VenueMarkerView.
     var averageBusyness: BusynessLevel? {
-        let openVenues = venues.filter { $0.isOpen != false }
-        let values = openVenues.compactMap { $0.busyness?.rawValue }
+        let coloredVenues = venues.filter {
+            $0.isOpen != false && $0.busynessConfidence != .none
+        }
+        let values = coloredVenues.compactMap { $0.busyness?.rawValue }
         guard !values.isEmpty else { return nil }
         let avg = Double(values.reduce(0, +)) / Double(values.count)
         return BusynessLevel(closestTo: avg)

@@ -159,6 +159,40 @@ final class VenueSearchService {
         return false
     }
 
+    // MARK: - Non-Venue Filtering
+
+    /// Keywords in a lowercased name that indicate a non-venue (home business, event, service).
+    private static let nonVenueKeywords: [String] = [
+        "beauty bar", "nail bar", "lash bar", "brow bar", "hair bar",
+        "salon", "spa ", "nails", "lashes", "esthetics", "aesthetics",
+        "tattoo", "piercing", "tanning",
+        "monthly social", "weekly social", "dance social",
+        "dance class", "fitness class", "yoga class",
+        "with live band", "with dj",
+        "meetup", "meet up", "networking event",
+        "photo studio", "photography", "videography",
+        "tutoring", "daycare", "dog grooming", "pet grooming",
+        "cleaning service", "moving company", "plumbing", "roofing",
+        "accounting", "consulting", "insurance",
+    ]
+
+    /// Name patterns that suggest an event listing rather than a permanent venue.
+    /// Long names with dashes/pipes often indicate event descriptions, not venue names.
+    private static func isNonVenue(_ name: String) -> Bool {
+        // Check non-venue keywords
+        for keyword in nonVenueKeywords {
+            if name.contains(keyword) { return true }
+        }
+
+        // Very long names (>60 chars) with separators are typically event listings
+        // e.g. "Vamos a Bailar - Latin Dance - Monthly Social with LIVE Band..."
+        if name.count > 60, name.contains(" - ") || name.contains(" | ") {
+            return true
+        }
+
+        return false
+    }
+
     // MARK: - Search
 
     /// Search venues by natural language query within a map region.
@@ -192,9 +226,10 @@ final class VenueSearchService {
             guard let name = item.name?.lowercased() else { return nil }
 
             // Filter excluded fast-food chains (prefix match, not substring)
-            if Self.isExcludedChain(name) {
-                return nil
-            }
+            if Self.isExcludedChain(name) { return nil }
+
+            // Filter home businesses, events, and non-venue services
+            if Self.isNonVenue(name) { return nil }
 
             // Filter excluded categories
             if let category = item.pointOfInterestCategory,
@@ -310,6 +345,9 @@ final class VenueSearchService {
             guard let name = item.name?.lowercased() else { return nil }
 
             if Self.isExcludedChain(name) { return nil }
+
+            // Filter home businesses, events, and non-venue services
+            if Self.isNonVenue(name) { return nil }
 
             if let poi = item.pointOfInterestCategory,
                Self.excludedCategories.contains(poi) {
