@@ -554,8 +554,11 @@ final class MapViewModel: ObservableObject {
             }
         }
 
-        // Remove permanently closed venues (ghost venues)
-        venues.removeAll { $0.businessStatus == "CLOSED_PERMANENTLY" }
+        // Remove permanently or temporarily closed venues (ghost venues)
+        venues.removeAll {
+            $0.businessStatus == "CLOSED_PERMANENTLY"
+                || $0.businessStatus == "CLOSED_TEMPORARILY"
+        }
     }
 
     /// Fetch report summaries from legacy API. Returns empty dict on failure.

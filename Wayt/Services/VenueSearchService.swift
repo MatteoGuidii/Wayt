@@ -24,8 +24,10 @@ final class VenueSearchService {
 
     /// Timestamps of recent MapKit requests (sliding window). Static so all instances share the budget.
     private static var requestTimestamps: [Date] = []
-    /// Apple enforces 50 requests / 60 seconds. Stay well under that.
-    private static let maxRequestsPerWindow = 45
+    /// Apple enforces 50 requests / 60 seconds across ALL MapKit server calls,
+    /// including internal batch-spatial-lookup requests triggered by map annotation rendering.
+    /// Reserve ~15 slots for those internal requests.
+    private static let maxRequestsPerWindow = 35
     private static let windowDuration: TimeInterval = 60
 
     /// Returns true if we can safely make another request. Prunes stale timestamps.
@@ -174,6 +176,7 @@ final class VenueSearchService {
         "tutoring", "daycare", "dog grooming", "pet grooming",
         "cleaning service", "moving company", "plumbing", "roofing",
         "accounting", "consulting", "insurance",
+        "catering",
     ]
 
     /// Name patterns that suggest an event listing rather than a permanent venue.
@@ -440,21 +443,36 @@ final class VenueSearchService {
         var seen = Set<String>()
         var accumulated: [Venue] = []
 
-        // All queries run in a single concurrent group for maximum speed
+        // Stagger queries in small batches to avoid exceeding Apple's shared
+        // 50 req/60s budget (which includes internal map annotation lookups).
         let categories: [MKPointOfInterestCategory] = [
             .restaurant, .cafe, .nightlife, .bakery, .brewery, .winery
         ]
         let keywords = ["restaurant", "bar", "lounge", "brunch", "pub", "diner"]
-        Log.search.debug("Starting \(categories.count) category + \(keywords.count) keyword searches in parallel")
+        Log.search.debug("Starting \(categories.count) category + \(keywords.count) keyword searches in staggered batches")
 
+        // Batch 1: category searches (6 concurrent)
         await withTaskGroup(of: [Venue].self) { group in
-            // Category-based searches
             for category in categories {
                 group.addTask {
                     await self.searchCategoryWithTimeout(category: category, region: region)
                 }
             }
-            // Keyword searches — run concurrently with categories
+
+            for await batch in group {
+                for venue in batch where !seen.contains(venue.id) {
+                    seen.insert(venue.id)
+                    accumulated.append(venue)
+                }
+                onBatch?(accumulated)
+            }
+        }
+
+        // Brief pause to let MapKit's internal batch-spatial-lookups settle
+        try? await Task.sleep(for: .milliseconds(300))
+
+        // Batch 2: keyword searches (6 concurrent)
+        await withTaskGroup(of: [Venue].self) { group in
             for keyword in keywords {
                 group.addTask {
                     await self.searchWithTimeout(query: keyword, region: region)
