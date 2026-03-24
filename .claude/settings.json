@@ -19,7 +19,8 @@
       "WebFetch(domain:issuetracker.google.com)",
       "WebFetch(domain:nicolalazzari.ai)",
       "Bash(while read:*)",
-      "Bash(do basename:*)"
+      "Bash(do basename:*)",
+      "Read(//Users/matteo/backend/lambda/src/signals/**)"
     ]
   }
 }

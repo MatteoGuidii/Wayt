@@ -164,34 +164,40 @@ struct VenueTests {
 
     // MARK: - Hashable
 
-    @Test("Hash is based on ID — same ID venues hash equally")
+    @Test("Identical venues hash equally")
     func sameIDSameHash() {
         let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
         let v1 = TestFactories.makeVenue(name: "The Pub", busyness: .quiet, coordinate: coord)
-        let v2 = TestFactories.makeVenue(name: "The Pub", busyness: .packed, coordinate: coord)
+        let v2 = TestFactories.makeVenue(name: "The Pub", busyness: .quiet, coordinate: coord)
         #expect(v1.hashValue == v2.hashValue)
     }
 
-    @Test("Venues with same ID but different busyness can coexist in Set via equality")
+    @Test("Venues with different busyness have different hashes and are not equal")
+    func differentBusynessDifferentHash() {
+        let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
+        let v1 = TestFactories.makeVenue(name: "The Pub", busyness: .quiet, coordinate: coord)
+        let v2 = TestFactories.makeVenue(name: "The Pub", busyness: .packed, coordinate: coord)
+        #expect(v1 != v2)
+        #expect(v1.hashValue != v2.hashValue)
+    }
+
+    @Test("Set deduplicates identical venues, keeps different busyness variants")
     func setDeduplicationRespectsEquality() {
         let coord = CLLocationCoordinate2D(latitude: 43.65107, longitude: -79.34723)
         let v1 = TestFactories.makeVenue(name: "The Pub", busyness: .quiet, coordinate: coord)
-        var v2 = TestFactories.makeVenue(name: "The Pub", busyness: .packed, coordinate: coord)
+        let v2 = TestFactories.makeVenue(name: "The Pub", busyness: .packed, coordinate: coord)
 
-        // Same hash but different equality → Set may store both (hash collision bucket)
-        // But in practice, Set uses both hash AND == for dedup.
-        // Since v1 != v2 (different busyness), Set should keep both.
+        // Different busyness → different hash + different equality → Set keeps both
         var set = Set<Venue>()
         set.insert(v1)
         set.insert(v2)
-        // Both should be in the set since they are not equal
         #expect(set.count == 2)
 
-        // But if busyness matches, they are equal and should dedup
-        v2.busyness = .quiet
+        // Same busyness → equal → Set deduplicates
+        let v3 = TestFactories.makeVenue(name: "The Pub", busyness: .quiet, coordinate: coord)
         var set2 = Set<Venue>()
         set2.insert(v1)
-        set2.insert(v2)
+        set2.insert(v3)
         #expect(set2.count == 1)
     }
 
