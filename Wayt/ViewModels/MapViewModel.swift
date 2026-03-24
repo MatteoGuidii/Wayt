@@ -135,6 +135,10 @@ final class MapViewModel: ObservableObject {
         followUpTask?.cancel()
         isExpandingSearch = false
         lastExpandedRegion = nil
+
+        // User-initiated search — reset rate limiter so queries aren't silently skipped
+        searchService.resetRateLimit()
+
         searchTask = Task {
             // Skip debounce on first launch for instant results
             if !isInitialSearch {
@@ -341,6 +345,9 @@ final class MapViewModel: ObservableObject {
                 longitudeDelta: base.span.longitudeDelta * 2
             )
         )
+
+        // User-initiated expand — reset rate limiter so queries aren't silently skipped
+        searchService.resetRateLimit()
 
         expandTask?.cancel()
         expandTask = Task {

@@ -25,7 +25,7 @@ final class VenueSearchService {
     /// Timestamps of recent MapKit requests (sliding window). Static so all instances share the budget.
     private static var requestTimestamps: [Date] = []
     /// Apple enforces 50 requests / 60 seconds. Stay well under that.
-    private static let maxRequestsPerWindow = 40
+    private static let maxRequestsPerWindow = 45
     private static let windowDuration: TimeInterval = 60
 
     /// Returns true if we can safely make another request. Prunes stale timestamps.
@@ -37,6 +37,12 @@ final class VenueSearchService {
 
     private func recordRequest() {
         Self.requestTimestamps.append(Date())
+    }
+
+    /// Reset the rate limiter. Call when the user performs an explicit action
+    /// (e.g. "Search This Area") so MapKit queries are never silently skipped.
+    func resetRateLimit() {
+        Self.requestTimestamps.removeAll()
     }
 
     // MARK: - Query Normalization & Cache
