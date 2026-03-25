@@ -29,6 +29,11 @@ const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY ?? "";
 const GOOGLE_BASE = "https://places.googleapis.com/v1";
 const MAPPING_TTL_DAYS = 30;
 const DATA_TTL_DAYS = 30;
+/** TTL for caching a failed Google match attempt (hours).
+ * 2h avoids hammering Google on every live-refresh cycle (~60 retries)
+ * while being short enough that users get hours within the same session
+ * if Google's data or our coordinates improve. */
+const FAILED_MATCH_TTL_HOURS = 2;
 
 // -----------------------------------------------
 // Types
@@ -116,10 +121,27 @@ export async function getGoogleHoursData(
     }
 
     // Cache miss — resolve Google Place ID
-    const googlePlaceId = await getCachedGoogleMapping(venueId)
-      ?? await matchGoogleVenue(venueId, venueName, lat, lng);
+    const cachedMapping = await getCachedGoogleMapping(venueId);
+
+    // If we recently failed to match this venue, don't retry until TTL expires
+    if (cachedMapping === NO_MATCH_SENTINEL) {
+      log.debug("Skipping Google match — cached failure", { venueId });
+      return null;
+    }
+
+    const googlePlaceId = cachedMapping ?? await matchGoogleVenue(venueId, venueName, lat, lng);
     if (!googlePlaceId) {
       log.debug("No Google Place ID resolved", { venueId, venueName });
+      // Cache the failure so we don't re-attempt on every request
+      const now = Math.floor(Date.now() / 1000);
+      await putItem({
+        PK: venueKey(venueId),
+        SK: mappingSK("google"),
+        googlePlaceId: NO_MATCH_SENTINEL,
+        venueName,
+        cachedAt: new Date().toISOString(),
+        ttl: now + FAILED_MATCH_TTL_HOURS * 3_600,
+      });
       return null;
     }
 
@@ -237,7 +259,11 @@ export function isOpenNow(
 // Venue matching
 // -----------------------------------------------
 
-/** Check for a cached Google Place ID mapping. */
+/** Sentinel value stored as googlePlaceId when matching fails. */
+const NO_MATCH_SENTINEL = "__NO_MATCH__";
+
+/** Check for a cached Google Place ID mapping.
+ * Returns the place ID, NO_MATCH_SENTINEL for cached failures, or null for cache miss. */
 async function getCachedGoogleMapping(venueId: string): Promise<string | null> {
   const item = await getItem(venueKey(venueId), mappingSK("google"));
   if (!item) return null;
@@ -250,7 +276,9 @@ async function getCachedGoogleMapping(venueId: string): Promise<string | null> {
 
 /**
  * Match a venue to a Google Place ID using Text Search.
- * Uses Basic field mask (id, displayName, location) to minimize cost.
+ * Single call with location-qualified query ("name near lat,lng") for best
+ * accuracy. Proximity bonus for venues within 50m handles minor name
+ * differences (e.g., "Unholy Donuts" vs "Unholy Donut").
  */
 async function matchGoogleVenue(
   venueId: string,
@@ -260,8 +288,12 @@ async function matchGoogleVenue(
 ): Promise<string | null> {
   const log = createLogger("google:match");
 
+  // Bake coordinates into the query — Google resolves "name near lat,lng"
+  // far better than name-only + locationBias alone
+  const textQuery = `${venueName} near ${lat.toFixed(4)},${lng.toFixed(4)}`;
+
   const body = {
-    textQuery: venueName,
+    textQuery,
     locationBias: {
       circle: {
         center: { latitude: lat, longitude: lng },
@@ -289,9 +321,8 @@ async function matchGoogleVenue(
     } catch { /* ignore */ }
     log.warn("Google Text Search failed", {
       status: response.status,
+      venueId,
       venueName,
-      lat,
-      lng,
       responseBody: errBody,
     });
     return null;
@@ -299,9 +330,12 @@ async function matchGoogleVenue(
 
   const data = (await response.json()) as GoogleSearchResult;
   const candidates = data.places ?? [];
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) {
+    log.debug("No Google candidates returned", { venueId, venueName });
+    return null;
+  }
 
-  // Score candidates using shared matching logic
+  // Score candidates — compare against original venueName (not the location-qualified query)
   let bestCandidate: (typeof candidates)[0] | null = null;
   let bestScore = -1;
 
@@ -317,7 +351,11 @@ async function matchGoogleVenue(
 
     const distanceScore = Math.max(0, 1.0 - distance / MATCH_MAX_DISTANCE_M);
     const nameScore = nameSimilarity(venueName, candidateName);
-    const score = 0.4 * distanceScore + 0.6 * nameScore;
+
+    // Proximity bonus: venues within 50m are very likely the correct match
+    // even if name similarity is low (abbreviations, transliterations, etc.)
+    const proximityBonus = distance < 50 ? 0.15 : 0;
+    const score = 0.4 * distanceScore + 0.6 * nameScore + proximityBonus;
 
     if (score > bestScore) {
       bestScore = score;

@@ -138,40 +138,20 @@ final class VenueSearchService {
         .foodMarket
     ]
 
-    /// Known fast-food chains to filter out
-    private static let excludedNames: Set<String> = [
-        "mcdonald's", "burger king", "wendy's", "taco bell",
-        "kfc", "subway", "chick-fil-a", "popeyes",
-        "dunkin'", "domino's", "pizza hut", "papa john's"
-    ]
-
-    /// Returns true if the lowercased venue name matches an excluded chain.
-    /// Uses prefix matching so "Subway" and "McDonald's King St" are excluded,
-    /// but "Subway Sushi Bar" passes through.
-    private static func isExcludedChain(_ name: String) -> Bool {
-        if excludedNames.contains(name) { return true }
-        for chain in excludedNames {
-            if name.hasPrefix(chain) {
-                let remainder = name.dropFirst(chain.count)
-                if remainder.isEmpty || remainder.first?.isLetter == false {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
     // MARK: - Non-Venue Filtering
 
     /// Keywords in a lowercased name that indicate a non-venue (home business, event, service).
     private static let nonVenueKeywords: [String] = [
+        // Beauty / personal care
         "beauty bar", "nail bar", "lash bar", "brow bar", "hair bar",
         "salon", "spa ", "nails", "lashes", "esthetics", "aesthetics",
         "tattoo", "piercing", "tanning",
+        // Events / classes
         "monthly social", "weekly social", "dance social",
         "dance class", "fitness class", "yoga class",
         "with live band", "with dj",
         "meetup", "meet up", "networking event",
+        // Services
         "photo studio", "photography", "videography",
         "tutoring", "daycare", "dog grooming", "pet grooming",
         "cleaning service", "moving company", "plumbing", "roofing",
@@ -181,6 +161,19 @@ final class VenueSearchService {
         "bartender", "bartending",
         "event planner", "event planning", "event rental",
         "food truck",
+        // Medical / health — compound terms only to avoid false positives
+        // (e.g., "The Clinic Bar" or "Remedy Café" are legit venues)
+        "medical centre", "medical center", "medical clinic",
+        "dental office", "dental clinic", "dental centre", "dental center",
+        "dentist office", "dentistry",
+        "concussion", "physiotherapy", "chiropractic", "chiropractor",
+        "optometry", "optometrist", "ophthalmology",
+        "veterinary", "vet clinic", "animal hospital",
+        "walk-in clinic", "urgent care", "family medicine",
+        "family health", "health centre", "health center",
+        "hearing centre", "hearing center", "hearing aid",
+        "orthopedic", "orthopaedic", "radiology", "x-ray",
+        "pharmacy", "drugstore",
     ]
 
     /// Name patterns that suggest an event listing rather than a permanent venue.
@@ -231,9 +224,6 @@ final class VenueSearchService {
 
         let venues = response.mapItems.compactMap { item -> Venue? in
             guard let name = item.name?.lowercased() else { return nil }
-
-            // Filter excluded fast-food chains (prefix match, not substring)
-            if Self.isExcludedChain(name) { return nil }
 
             // Filter home businesses, events, and non-venue services
             if Self.isNonVenue(name) { return nil }
@@ -350,8 +340,6 @@ final class VenueSearchService {
 
         let venues = response.mapItems.compactMap { item -> Venue? in
             guard let name = item.name?.lowercased() else { return nil }
-
-            if Self.isExcludedChain(name) { return nil }
 
             // Filter home businesses, events, and non-venue services
             if Self.isNonVenue(name) { return nil }

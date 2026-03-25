@@ -102,10 +102,14 @@ struct VenueRow: View {
             longitude: venue.coordinate.longitude
         )
         let meters = userLocation.distance(from: venueLocation)
-        if meters < 1000 {
-            return "\(Int(meters))m"
+        let walkMinutes = Int(ceil(meters / AppConstants.walkingSpeedMetersPerMinute))
+
+        if walkMinutes <= 1 {
+            return "1 min walk"
+        } else if walkMinutes < 60 {
+            return "\(walkMinutes) min walk"
         } else {
-            return String(format: "%.1fkm", meters / 1000)
+            return String(format: "%.1f km", meters / 1000)
         }
     }
 }

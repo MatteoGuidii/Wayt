@@ -231,6 +231,7 @@ final class MapViewModel: ObservableObject {
                 if !results.isEmpty {
                     venues = results
                     lastSearchedRegion = region
+                    lastExpandedRegion = nil
                     recomputeClusters()
                 }
                 Log.map.info("Loaded \(results.count) venues, \(self.filteredVenues.count) after filters, \(self.mapItems.count) map items")
@@ -336,19 +337,27 @@ final class MapViewModel: ObservableObject {
     /// Tracks the last expanded region so repeated taps keep widening.
     private var lastExpandedRegion: MKCoordinateRegion?
 
-    /// Maximum expand span (~35 km at equator) to avoid runaway API costs.
-    private static let maxExpandSpan: Double = 0.32
+    /// Whether the expand radius has reached the walking cap.
+    var isAtMaxExpand: Bool {
+        guard let region = lastExpandedRegion ?? lastSearchedRegion else { return false }
+        let maxLatSpan = (AppConstants.maxWalkingRadius * 2) / 111_000
+        return region.span.latitudeDelta >= maxLatSpan - 0.0001
+    }
 
     func expandSearch() {
         guard !isExpandingSearch else { return }
         let base = lastExpandedRegion ?? lastSearchedRegion
         guard let base else { return }
 
-        let newLatDelta = min(base.span.latitudeDelta * 2, Self.maxExpandSpan)
-        let newLngDelta = min(base.span.longitudeDelta * 2, Self.maxExpandSpan)
+        // Additive increment (~400m per tap) capped at walking radius (~2.5km)
+        let incrementDeg = AppConstants.expandIncrement / 111_000
+        let maxLatSpan = (AppConstants.maxWalkingRadius * 2) / 111_000
+        let maxLngSpan = maxLatSpan / cos(base.center.latitude * .pi / 180)
+        let newLatDelta = min(base.span.latitudeDelta + incrementDeg, maxLatSpan)
+        let newLngDelta = min(base.span.longitudeDelta + incrementDeg, maxLngSpan)
 
         // Stop if already at max
-        guard newLatDelta > base.span.latitudeDelta else { return }
+        guard newLatDelta > base.span.latitudeDelta + 0.0001 else { return }
 
         let expanded = MKCoordinateRegion(
             center: base.center,

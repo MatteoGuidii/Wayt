@@ -49,6 +49,17 @@ nonisolated enum AppConstants {
     /// Maximum distance from a venue to allow submitting a report (meters)
     static let reportProximityRadius: CLLocationDistance = 200
 
+    // MARK: - Walking
+
+    /// Additive radius increment per expand tap (meters). ~5 min walk.
+    static let expandIncrement: CLLocationDistance = 400
+
+    /// Maximum search radius for expand (meters). ~30 min walk.
+    static let maxWalkingRadius: CLLocationDistance = 2_500
+
+    /// Average walking speed (meters per minute) for walk time estimates.
+    static let walkingSpeedMetersPerMinute: Double = 80
+
     // MARK: - Cache
 
     /// In-memory fusion cache TTL (seconds).

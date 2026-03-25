@@ -554,26 +554,28 @@ struct DiscoverScreen: View {
     }
 
     private var seeMoreButton: some View {
-        Button {
+        let atMax = mapViewModel.isAtMaxExpand
+        return Button {
             mapViewModel.expandSearch()
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "plus.magnifyingglass")
+                Image(systemName: atMax ? "figure.walk" : "plus.magnifyingglass")
                     .font(WaytTheme.footnoteFont)
-                Text("See more venues")
+                Text(atMax ? "Showing all walkable venues" : "See more venues")
                     .font(WaytTheme.subheadFont)
             }
-            .foregroundStyle(WaytTheme.mapsBlue)
+            .foregroundStyle(atMax ? WaytTheme.secondaryText : WaytTheme.mapsBlue)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(WaytTheme.mapsBlue.opacity(0.08))
+            .background((atMax ? Color.secondary : WaytTheme.mapsBlue).opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(WaytTheme.mapsBlue.opacity(0.2), lineWidth: 1)
+                    .stroke((atMax ? Color.secondary : WaytTheme.mapsBlue).opacity(0.2), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
+        .disabled(atMax)
         .padding(.horizontal, 16)
         .padding(.top, 4)
     }
