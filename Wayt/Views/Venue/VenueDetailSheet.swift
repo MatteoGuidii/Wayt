@@ -58,6 +58,8 @@ struct VenueDetailSheet: View {
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var locationService: LocationService
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
+    @EnvironmentObject private var tabSelection: TabSelection
+    @EnvironmentObject private var mapViewModel: MapViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showAuthGate = false
     @State private var lookAroundScene: MKLookAroundScene?
@@ -344,6 +346,24 @@ struct VenueDetailSheet: View {
                 ])
             }
 
+            if tabSelection.selectedTab != .map {
+                actionButton(icon: "map.fill", label: "See on Map") {
+                    dismiss()
+                    if !mapViewModel.venues.contains(where: { $0.id == venue.id }) {
+                        mapViewModel.venues.append(venue)
+                    }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        mapViewModel.cameraPosition = .camera(MapCamera(
+                            centerCoordinate: venue.coordinate,
+                            distance: 800,
+                            heading: 0,
+                            pitch: 0
+                        ))
+                    }
+                    tabSelection.selectedTab = .map
+                }
+            }
+
             if let url = venue.url {
                 actionButton(icon: "safari.fill", label: "Website") {
                     UIApplication.shared.open(url)
@@ -376,6 +396,8 @@ struct VenueDetailSheet: View {
                     .font(WaytTheme.headlineFont)
                 Text(label)
                     .font(WaytTheme.badgeFont)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
