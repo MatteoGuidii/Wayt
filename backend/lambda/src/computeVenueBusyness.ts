@@ -73,11 +73,27 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
       }
     }
 
-    log.debug("Signal status", { venueId, cached: cachedSignals.length, stale: staleSourceIds });
+    log.debug("Signal status", {
+      venueId,
+      cachedCount: cachedSignals.length,
+      cachedSources: cachedSignals.map((s) => s.sourceId),
+      staleSources: staleSourceIds,
+      freshCount: freshSignals.length - cachedSignals.length,
+    });
 
     // Step 2b: Fetch Google hours for open/closed status (parallel with signals)
     const googleHours = await getGoogleHoursData(venueId, venueName, lat, lng);
     const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
+
+    if (googleHours) {
+      log.debug("Google hours resolved", {
+        venueId,
+        businessStatus: googleHours.businessStatus,
+        isOpen: openStatus?.isOpen,
+        hoursToday: openStatus?.hoursToday,
+        periodCount: googleHours.regularPeriods.length,
+      });
+    }
 
     // Step 3: Fuse all available signals
     const fused = freshSignals.length > 0
@@ -91,10 +107,22 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 
     // When venue is closed, override busyness to zero
     if (openStatus?.isOpen === false) {
+      log.debug("Busyness overridden to 0 — venue closed", {
+        venueId,
+        originalScore: fused.busynessScore,
+        hoursToday: openStatus.hoursToday,
+      });
       fused.busynessScore = 0.0;
     }
 
-    log.info("Fused estimate computed", { venueId, score: fused.busynessScore, confidence: fused.confidence, sources: fused.sources, isOpen: fused.isOpen });
+    log.info("Fused estimate computed", {
+      venueId,
+      score: fused.busynessScore,
+      confidence: fused.confidence,
+      sources: fused.sources,
+      isOpen: fused.isOpen,
+      hoursToday: fused.hoursToday,
+    });
 
     // Step 5: Cache the fused result with geohash for spatial queries.
     // Only cache if we have real signals — don't persist empty estimates

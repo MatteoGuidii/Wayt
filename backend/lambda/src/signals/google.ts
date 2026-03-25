@@ -105,18 +105,23 @@ export async function getGoogleHoursData(
     if (cached) {
       const ttl = cached.ttl as number | undefined;
       if (!ttl || ttl >= Math.floor(Date.now() / 1000)) {
+        log.debug("GDATA cache hit", { venueId });
         return {
           businessStatus: (cached.businessStatus as CachedGoogleHours["businessStatus"]) ?? null,
           regularPeriods: (cached.regularPeriods as GoogleOpenPeriod[]) ?? [],
           cachedAt: cached.cachedAt as string,
         };
       }
+      log.debug("GDATA cache expired", { venueId });
     }
 
     // Cache miss — resolve Google Place ID
     const googlePlaceId = await getCachedGoogleMapping(venueId)
       ?? await matchGoogleVenue(venueId, venueName, lat, lng);
-    if (!googlePlaceId) return null;
+    if (!googlePlaceId) {
+      log.debug("No Google Place ID resolved", { venueId, venueName });
+      return null;
+    }
 
     // Fetch hours from Google Places API
     const details = await fetchGooglePlaceDetails(googlePlaceId);
@@ -277,7 +282,18 @@ async function matchGoogleVenue(
   });
 
   if (!response.ok) {
-    log.warn("Google Text Search failed", { status: response.status, venueName });
+    let errBody = "(empty)";
+    try {
+      const raw = await response.text();
+      if (raw) errBody = raw.slice(0, 300);
+    } catch { /* ignore */ }
+    log.warn("Google Text Search failed", {
+      status: response.status,
+      venueName,
+      lat,
+      lng,
+      responseBody: errBody,
+    });
     return null;
   }
 
@@ -361,11 +377,26 @@ async function fetchGooglePlaceDetails(placeId: string): Promise<GooglePlaceDeta
   });
 
   if (!response.ok) {
-    log.warn("Google Place Details failed", { placeId, status: response.status });
+    let body = "(empty)";
+    try {
+      const raw = await response.text();
+      if (raw) body = raw.slice(0, 300);
+    } catch { /* ignore */ }
+    log.warn("Google Place Details failed", {
+      placeId,
+      status: response.status,
+      responseBody: body,
+    });
     return null;
   }
 
-  return (await response.json()) as GooglePlaceDetails;
+  const data = (await response.json()) as GooglePlaceDetails;
+  log.debug("Google Place Details fetched", {
+    placeId,
+    businessStatus: data.businessStatus ?? "unknown",
+    periodCount: data.regularOpeningHours?.periods?.length ?? 0,
+  });
+  return data;
 }
 
 // -----------------------------------------------

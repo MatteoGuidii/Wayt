@@ -187,7 +187,7 @@ export async function handler(
             })
           );
         } catch (err) {
-          log.warn("Failed to dispatch missing venues", { count: missing.length });
+          log.error("Failed to dispatch missing venues", { count: missing.length }, err);
         }
       }
 
@@ -201,6 +201,12 @@ export async function handler(
           realEstimates.length > 0
             ? realEstimates.reduce((sum, e) => sum + e.busynessScore, 0) / realEstimates.length
             : 0.5;
+
+        log.debug("Cold venues using area-average score", {
+          coldCount: coldVenues.length,
+          areaAvgScore: Math.round(areaAvgScore * 1000) / 1000,
+          realEstimateCount: realEstimates.length,
+        });
 
         for (const v of coldVenues) {
           nearbyFused.set(v.venueId, {

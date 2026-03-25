@@ -1,4 +1,5 @@
 import { VenueSignal, FusedEstimate, ConfidenceLevel } from "./types";
+import { createLogger } from "../logger";
 
 /** Threshold: sources diverging by more than this are in conflict. */
 const CONFLICT_THRESHOLD = 0.3;
@@ -19,11 +20,22 @@ const OUTLIER_PENALTY = 0.5;
  * 5. Map to confidence level based on source count and agreement
  */
 export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEstimate {
+  const log = createLogger("fusion");
+
   if (signals.length === 0) {
     return emptyEstimate("");
   }
 
   const venueId = signals[0].venueId;
+
+  log.debug("Fusing signals", {
+    venueId,
+    signalCount: signals.length,
+    sources: signals.map((s) => s.sourceId),
+    scoreRange: signals.length >= 2
+      ? `${Math.min(...signals.map((s) => s.busynessScore)).toFixed(3)}–${Math.max(...signals.map((s) => s.busynessScore)).toFixed(3)}`
+      : signals[0].busynessScore.toFixed(3),
+  });
 
   // Step 1: Compute effective weights with freshness decay
   const weighted = signals.map((s) => {
@@ -45,17 +57,27 @@ export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEsti
     const sorted = [...scores].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
 
+    const penalizedSources: string[] = [];
     for (const w of weighted) {
       const distance = Math.abs(w.signal.busynessScore - median);
       // If this signal is the outlier (furthest from median), reduce its weight
       if (distance > CONFLICT_THRESHOLD / 2) {
         w.effectiveWeight *= OUTLIER_PENALTY;
+        penalizedSources.push(w.signal.sourceId);
       }
     }
+
+    log.info("Conflict detected", {
+      venueId,
+      spread: (maxScore - minScore).toFixed(3),
+      median: median.toFixed(3),
+      penalizedSources,
+    });
   }
 
   // Step 3: Corroboration bonus (future-ready for 3+ sources)
   if (weighted.length >= 3) {
+    const corroboratedSources: string[] = [];
     // Group signals that agree within the corroboration range
     for (let i = 0; i < weighted.length; i++) {
       let agreeing = 0;
@@ -68,7 +90,12 @@ export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEsti
       // If 2+ other signals agree with this one (total 3+), apply bonus
       if (agreeing >= 2) {
         weighted[i].effectiveWeight *= CORROBORATION_BONUS;
+        corroboratedSources.push(weighted[i].signal.sourceId);
       }
+    }
+
+    if (corroboratedSources.length > 0) {
+      log.debug("Corroboration bonus applied", { venueId, corroboratedSources });
     }
   }
 
@@ -89,6 +116,14 @@ export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEsti
 
   // Step 5: Confidence mapping
   const confidence = computeConfidence(weighted, conflictDetected);
+
+  log.debug("Fusion result", {
+    venueId,
+    busynessScore: Math.round(busynessScore * 1000) / 1000,
+    confidence,
+    totalEffectiveWeight: Math.round(totalWeight * 1000) / 1000,
+    conflictDetected,
+  });
 
   return {
     venueId,
@@ -154,6 +189,10 @@ export function foursquareConfidenceLevel(numericConfidence: number): Confidence
 
 /** Produce an empty/default estimate when no signals are available. */
 export function emptyEstimate(venueId: string): FusedEstimate {
+  if (venueId) {
+    const log = createLogger("fusion");
+    log.debug("Empty estimate — no signals available", { venueId });
+  }
   return {
     venueId,
     busynessScore: 0.5,

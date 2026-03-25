@@ -222,6 +222,7 @@ async function fetchWithRetry(
         url: url.slice(0, 200),
         status: response.status,
         attempt: attempt + 1,
+        maxRetries: maxRetries + 1,
         responseBody: body,
       });
       return null;
@@ -229,6 +230,13 @@ async function fetchWithRetry(
 
     // Exponential backoff: 200ms, 400ms, 800ms
     const delayMs = 200 * Math.pow(2, attempt);
+    const retryLog = createLogger("foursquare");
+    retryLog.debug("Retrying API request", {
+      label,
+      status: response.status,
+      attempt: attempt + 1,
+      delayMs,
+    });
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   return null;
@@ -315,6 +323,7 @@ async function matchVenue(
 
 /** Fetch Foursquare place details including popularity. */
 async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null> {
+  const log = createLogger("foursquare:data");
   const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular";
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/${fsqId}?fields=${fields}`,
@@ -322,7 +331,15 @@ async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null>
   );
   if (!response) return null;
 
-  return (await response.json()) as FsqPlaceDetails;
+  const data = (await response.json()) as FsqPlaceDetails;
+  log.debug("Place details fetched", {
+    fsqId,
+    name: data.name,
+    hasPopularity: data.popularity != null,
+    popularity: data.popularity,
+    hoursPopularCount: data.hours_popular?.length ?? 0,
+  });
+  return data;
 }
 
 // -----------------------------------------------
@@ -432,6 +449,19 @@ export function computeTimeAwareBusyness(
 
   // Confidence: higher when we're near a known peak or clearly in a trough
   const confidence = computeTemporalConfidence(temporalShape, todayWindows.length);
+
+  const log = createLogger("foursquare");
+  log.debug("Temporal busyness computed", {
+    popularity: popularity.toFixed(3),
+    dayMultiplier: dayMult,
+    currentDay,
+    currentMinutes,
+    windowCount: todayWindows.length,
+    gaussianSum: gaussianSum.toFixed(3),
+    temporalShape: temporalShape.toFixed(3),
+    score: score.toFixed(3),
+    confidence: confidence.toFixed(3),
+  });
 
   return { score, confidence };
 }
@@ -653,12 +683,20 @@ async function batchSearchArea(
 async function fetchAreaSearch(
   params: Record<string, string>
 ): Promise<FsqSearchResult[]> {
+  const log = createLogger("foursquare:batch");
   const searchParams = new URLSearchParams(params);
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/search?${searchParams}`,
     `Area search`
   );
-  if (!response) return [];
+  if (!response) {
+    log.warn("Area search returned no response", {
+      ll: params.ll,
+      radius: params.radius,
+      categories: params.categories ?? "none",
+    });
+    return [];
+  }
 
   const data = (await response.json()) as FsqSearchResponse;
   return data.results ?? [];
