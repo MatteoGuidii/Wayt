@@ -11,15 +11,11 @@ Globals:
       Variables:
         REPORTS_TABLE: !Ref VenueReportsTable
         USERS_TABLE: !Ref UserProfilesTable
-        PROFILE_IMAGES_BUCKET: !Ref ProfileImagesBucket
+        PROFILE_IMAGES_BUCKET: !Sub "wayt-profile-images-${AWS::AccountId}-${Stage}"
         SAVED_VENUES_TABLE: !Ref SavedVenuesTable
         SIGNALS_TABLE: !Ref WaytSignalsTable
 
 Parameters:
-  CognitoUserPoolArn:
-    Type: String
-    Description: ARN of your Cognito User Pool (from Amplify)
-
   Stage:
     Type: String
     Default: dev
@@ -52,7 +48,7 @@ Resources:
         DefaultAuthorizer: CognitoAuthorizer
         Authorizers:
           CognitoAuthorizer:
-            UserPoolArn: !Ref CognitoUserPoolArn
+            UserPoolArn: !GetAtt WaytUserPool.Arn
       Cors:
         AllowMethods: "'GET,POST,PUT,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization'"
@@ -134,7 +130,7 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: s3:GetObject
-              Resource: !Sub "${ProfileImagesBucket.Arn}/profiles/*"
+              Resource: !Sub "arn:aws:s3:::wayt-profile-images-${AWS::AccountId}-${Stage}/profiles/*"
       Events:
         GetProfile:
           Type: Api
@@ -174,7 +170,7 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: s3:PutObject
-              Resource: !Sub "${ProfileImagesBucket.Arn}/profiles/*"
+              Resource: !Sub "arn:aws:s3:::wayt-profile-images-${AWS::AccountId}-${Stage}/profiles/*"
       Events:
         GetUploadUrl:
           Type: Api
@@ -331,12 +327,116 @@ Resources:
       BuildMethod: makefile
 
   # -----------------------------------------------
+  # Cognito
+  # -----------------------------------------------
+  WaytUserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: !Sub "wayt-userpool-${Stage}"
+      UsernameAttributes:
+        - email
+        - phone_number
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: false
+          RequireNumbers: false
+          RequireSymbols: false
+          RequireUppercase: false
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+
+  WaytUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "wayt-app-client-${Stage}"
+      UserPoolId: !Ref WaytUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+
+  WaytIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Sub "wayt_identity_pool_${Stage}"
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref WaytUserPoolClient
+          ProviderName: !GetAtt WaytUserPool.ProviderName
+
+  WaytIdentityPoolAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref WaytIdentityPool
+              "ForAnyValue:StringLike":
+                "cognito-identity.amazonaws.com:amr": authenticated
+      Policies:
+        - PolicyName: CognitoAuthorizedPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-sync:*
+                  - cognito-identity:*
+                Resource: "*"
+
+  WaytIdentityPoolUnauthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref WaytIdentityPool
+              "ForAnyValue:StringLike":
+                "cognito-identity.amazonaws.com:amr": unauthenticated
+
+  WaytIdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref WaytIdentityPool
+      Roles:
+        authenticated: !GetAtt WaytIdentityPoolAuthRole.Arn
+        unauthenticated: !GetAtt WaytIdentityPoolUnauthRole.Arn
+
+  # -----------------------------------------------
   # DynamoDB Tables
   # -----------------------------------------------
   VenueReportsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub "VenueReports-${Stage}"
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: venueId
@@ -365,8 +465,12 @@ Resources:
 
   UserProfilesTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub "UserProfiles-${Stage}"
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: userId
@@ -377,8 +481,12 @@ Resources:
 
   SavedVenuesTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub "SavedVenues-${Stage}"
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: userId
@@ -396,8 +504,12 @@ Resources:
   # -----------------------------------------------
   WaytSignalsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub "WaytSignals-${Stage}"
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: PK
@@ -426,25 +538,6 @@ Resources:
         AttributeName: ttl
         Enabled: true
 
-  # -----------------------------------------------
-  # S3 Buckets
-  # -----------------------------------------------
-  ProfileImagesBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    Properties:
-      BucketName: !Sub "wayt-profile-images-${AWS::AccountId}-${Stage}"
-      CorsConfiguration:
-        CorsRules:
-          - AllowedHeaders: ["*"]
-            AllowedMethods: [PUT]
-            AllowedOrigins: ["*"]
-            MaxAge: 300
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
 
 Outputs:
   ApiUrl:
@@ -455,10 +548,16 @@ Outputs:
   UserProfilesTableName:
     Value: !Ref UserProfilesTable
   ProfileImagesBucketName:
-    Value: !Ref ProfileImagesBucket
+    Value: !Sub "wayt-profile-images-${AWS::AccountId}-${Stage}"
   SavedVenuesTableName:
     Value: !Ref SavedVenuesTable
   WaytSignalsTableName:
     Value: !Ref WaytSignalsTable
   Stage:
     Value: !Ref Stage
+  UserPoolId:
+    Value: !Ref WaytUserPool
+  UserPoolClientId:
+    Value: !Ref WaytUserPoolClient
+  IdentityPoolId:
+    Value: !Ref WaytIdentityPool

@@ -14,9 +14,9 @@ nonisolated enum AppConstants {
     // MARK: - API
 
     /// Base URL for the deployed API Gateway endpoint
-    static let apiBaseURL = "https://ajwkls2g42.execute-api.ca-central-1.amazonaws.com/dev"
+    static let apiBaseURL = "https://ndfwnjyukl.execute-api.ca-central-1.amazonaws.com/dev"
 
-    // MARK: - Search
+    // MARK: - Search 
 
     /// Default search radius in meters
     static let defaultSearchRadius: CLLocationDistance = 800
