@@ -29,6 +29,7 @@ final class MapViewModel: ObservableObject {
     }
 
     private var filterCancellable: AnyCancellable?
+    private var reportCancellable: AnyCancellable?
 
     private func observeFilter() {
         guard let filterState else { return }
@@ -84,6 +85,16 @@ final class MapViewModel: ObservableObject {
         } else {
             mapItems = filteredVenues.map { .single($0) }
         }
+    }
+
+    // MARK: - Init
+
+    init() {
+        reportCancellable = NotificationCenter.default.publisher(for: .reportSubmitted)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshAfterReport()
+            }
     }
 
     // MARK: - Internal State

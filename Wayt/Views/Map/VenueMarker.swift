@@ -31,8 +31,8 @@ struct VenueMarkerView: View {
                         .offset(y: -1)
                 }
 
-                // Saved bookmark badge (top-left of circle)
-                if isSaved {
+                // Saved bookmark badge (top-left of circle, hidden when wait time is shown)
+                if isSaved && (venue.estimatedWaitMinutes ?? 0) <= 0 {
                     Image(systemName: "bookmark.fill")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)

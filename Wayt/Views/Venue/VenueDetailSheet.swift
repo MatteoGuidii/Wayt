@@ -389,7 +389,15 @@ struct VenueDetailSheet: View {
 
     private var reportButton: some View {
         VStack(spacing: 6) {
-            if viewModel.isWithinReportRange {
+            if viewModel.estimate.isOpen == false {
+                Label("Venue is closed", systemImage: "door.left.hand.closed")
+                    .font(WaytTheme.bodyBoldFont)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(.systemGray4))
+                    .foregroundStyle(WaytTheme.secondaryText)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else if viewModel.isWithinReportRange {
                 Button {
                     if authState.isSignedIn {
                         viewModel.showReportSheet = true
