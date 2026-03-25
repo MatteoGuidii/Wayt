@@ -159,13 +159,15 @@ final class MapViewModel: ObservableObject {
             Log.map.debug("Searching region: (\(region.center.latitude), \(region.center.longitude)) span: \(region.span.latitudeDelta)")
 
             do {
-                // Phase A: Fire area pre-fetch concurrently with MapKit discovery.
-                // The pre-fetch populates the fusion cache so onBatch can color venues instantly.
-                async let prefetch: Void = fusionService.prefetchArea(
-                    lat: region.center.latitude,
-                    lng: region.center.longitude,
-                    radius: radius
-                )
+                // Phase A: Fire area pre-fetch in background — populates the fusion
+                // cache so progressive refreshes can color venues without blocking.
+                Task { [fusionService] in
+                    await fusionService.prefetchArea(
+                        lat: region.center.latitude,
+                        lng: region.center.longitude,
+                        radius: radius
+                    )
+                }
 
                 var results: [Venue]
                 if searchText.isEmpty {
@@ -182,9 +184,6 @@ final class MapViewModel: ObservableObject {
                         region: region
                     )
                 }
-
-                // Ensure pre-fetch completed before checking for uncached venues
-                await prefetch
 
                 guard !Task.isCancelled else { return }
 
@@ -451,7 +450,7 @@ final class MapViewModel: ObservableObject {
     private func scheduleProgressiveRefreshes(region: MKCoordinateRegion) {
         // Cumulative delays from dispatch time; sleep the delta between each.
         // +2s catches batch-matched quick estimates, +5s catches warm venues, +12s final sweep.
-        let cumulativeDelays = [2, 5, 12]
+        let cumulativeDelays = [1, 3, 8]
         followUpTask?.cancel()
         followUpTask = Task {
             var previous = 0

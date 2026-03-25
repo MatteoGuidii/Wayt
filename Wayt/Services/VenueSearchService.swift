@@ -176,7 +176,11 @@ final class VenueSearchService {
         "tutoring", "daycare", "dog grooming", "pet grooming",
         "cleaning service", "moving company", "plumbing", "roofing",
         "accounting", "consulting", "insurance",
-        "catering",
+        "catering", "caterer",
+        "mobile bar", "traveling", "travelling",
+        "bartender", "bartending",
+        "event planner", "event planning", "event rental",
+        "food truck",
     ]
 
     /// Name patterns that suggest an event listing rather than a permanent venue.
@@ -467,9 +471,6 @@ final class VenueSearchService {
                 onBatch?(accumulated)
             }
         }
-
-        // Brief pause to let MapKit's internal batch-spatial-lookups settle
-        try? await Task.sleep(for: .milliseconds(300))
 
         // Batch 2: keyword searches (6 concurrent)
         await withTaskGroup(of: [Venue].self) { group in

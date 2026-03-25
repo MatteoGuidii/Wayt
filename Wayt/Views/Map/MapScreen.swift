@@ -105,7 +105,9 @@ struct MapScreen: View {
                 .presentationDetents([.large])
         }
         .task {
-            locationService.requestPermission()
+            // Fire permission request without blocking — the .onChange below
+            // handles re-searching once location becomes available.
+            Task { locationService.requestPermission() }
 
             // Search immediately — use GPS region if available, otherwise visible region
             if viewModel.venues.isEmpty {
