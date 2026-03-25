@@ -8,7 +8,10 @@ struct MapScreen: View {
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var filterState: VenueFilterState
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var visibleRegion: MKCoordinateRegion = .defaultRegion
+    @State private var needsRecenterOnResume = false
+    @State private var locationBeforeBackground: CLLocation?
     @State private var mapHeading: Double = 0
     @State private var mapPitch: Double = 0
     @State private var is3D: Bool = false
@@ -117,8 +120,32 @@ struct MapScreen: View {
             }
         }
         .onChange(of: locationService.userLocation) { _, newLocation in
-            guard newLocation != nil, viewModel.venues.isEmpty else { return }
-            viewModel.searchVenues(in: locationService.region)
+            if newLocation != nil, viewModel.venues.isEmpty {
+                viewModel.searchVenues(in: locationService.region)
+            }
+            // Recenter camera after app resume when fresh location arrives
+            if needsRecenterOnResume, let newLoc = newLocation {
+                needsRecenterOnResume = false
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    viewModel.cameraPosition = .userLocation(fallback: .automatic)
+                }
+                // Re-search if user moved significantly (>200m) while app was backgrounded
+                if let oldLoc = locationBeforeBackground,
+                   newLoc.distance(from: oldLoc) > 200 {
+                    viewModel.searchVenues(in: locationService.region)
+                }
+                locationBeforeBackground = nil
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background:
+                locationBeforeBackground = locationService.userLocation
+            case .active:
+                needsRecenterOnResume = true
+            default:
+                break
+            }
         }
         .onChange(of: authState.dismissSheets) { _, shouldDismiss in
             if shouldDismiss {

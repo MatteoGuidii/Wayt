@@ -24,6 +24,7 @@ struct WaytApp: App {
                     switch newPhase {
                     case .active:
                         locationService.startUpdating()
+                        locationService.requestFreshLocation()
                     case .background:
                         locationService.stopUpdating()
                     default:
