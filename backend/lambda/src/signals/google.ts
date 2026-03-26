@@ -24,6 +24,7 @@ import {
   MATCH_MIN_SCORE,
   getLocalTime,
 } from "./matching";
+import { googleBreaker } from "./circuitBreaker";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY ?? "";
 const GOOGLE_BASE = "https://places.googleapis.com/v1";
@@ -303,17 +304,38 @@ async function matchGoogleVenue(
     maxResultCount: 5,
   };
 
-  const response = await fetch(`${GOOGLE_BASE}/places:searchText`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": GOOGLE_API_KEY,
-      "X-Goog-FieldMask": "places.id,places.displayName,places.location",
-    },
-    body: JSON.stringify(body),
-  });
+  if (!googleBreaker.allowRequest()) {
+    log.warn("Circuit breaker OPEN — skipping Google match", { venueId });
+    return null;
+  }
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4_000);
+    response = await fetch(`${GOOGLE_BASE}/places:searchText`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": "places.id,places.displayName,places.location",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+  } catch (err) {
+    googleBreaker.recordFailure();
+    log.warn("Google Text Search error (network/timeout)", {
+      venueId,
+      venueName,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 
   if (!response.ok) {
+    googleBreaker.recordFailure();
     let errBody = "(empty)";
     try {
       const raw = await response.text();
@@ -327,6 +349,8 @@ async function matchGoogleVenue(
     });
     return null;
   }
+
+  googleBreaker.recordSuccess();
 
   const data = (await response.json()) as GoogleSearchResult;
   const candidates = data.places ?? [];
@@ -407,14 +431,34 @@ async function matchGoogleVenue(
 async function fetchGooglePlaceDetails(placeId: string): Promise<GooglePlaceDetails | null> {
   const log = createLogger("google:details");
 
-  const response = await fetch(`${GOOGLE_BASE}/places/${placeId}`, {
-    headers: {
-      "X-Goog-Api-Key": GOOGLE_API_KEY,
-      "X-Goog-FieldMask": "businessStatus,regularOpeningHours",
-    },
-  });
+  if (!googleBreaker.allowRequest()) {
+    log.warn("Circuit breaker OPEN — skipping Google details", { placeId });
+    return null;
+  }
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4_000);
+    response = await fetch(`${GOOGLE_BASE}/places/${placeId}`, {
+      headers: {
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": "businessStatus,regularOpeningHours",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+  } catch (err) {
+    googleBreaker.recordFailure();
+    log.warn("Google Place Details error (network/timeout)", {
+      placeId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 
   if (!response.ok) {
+    googleBreaker.recordFailure();
     let body = "(empty)";
     try {
       const raw = await response.text();
@@ -428,6 +472,7 @@ async function fetchGooglePlaceDetails(placeId: string): Promise<GooglePlaceDeta
     return null;
   }
 
+  googleBreaker.recordSuccess();
   const data = (await response.json()) as GooglePlaceDetails;
   log.debug("Google Place Details fetched", {
     placeId,

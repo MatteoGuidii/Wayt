@@ -14,6 +14,7 @@ import {
   MATCH_MIN_SCORE,
   getLocalTime,
 } from "./matching";
+import { foursquareBreaker } from "./circuitBreaker";
 
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY ?? "";
 const FSQ_BASE = "https://places-api.foursquare.com";
@@ -198,46 +199,80 @@ async function getCachedMapping(venueId: string): Promise<string | null> {
   return (item.fsqId as string) ?? null;
 }
 
-/** Fetch with retry and exponential backoff for 429/5xx responses. */
+/** Per-request timeout in milliseconds. Prevents a single stalled request from blocking the Lambda. */
+const FETCH_TIMEOUT_MS = 4_000;
+
+/** Fetch with retry, exponential backoff, circuit breaker, and per-request timeout. */
 async function fetchWithRetry(
   url: string,
   label: string,
   maxRetries = 3
 ): Promise<Response | null> {
+  if (!foursquareBreaker.allowRequest()) {
+    const log = createLogger("foursquare");
+    log.warn("Circuit breaker OPEN — skipping request", { label });
+    return null;
+  }
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const response = await fetch(url, { headers: FSQ_HEADERS });
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const response = await fetch(url, { headers: FSQ_HEADERS, signal: controller.signal });
+      clearTimeout(timeout);
 
-    if (response.ok) return response;
+      if (response.ok) {
+        foursquareBreaker.recordSuccess();
+        return response;
+      }
 
-    const retryable = response.status === 429 || response.status >= 500;
-    if (!retryable || attempt === maxRetries) {
+      const retryable = response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === maxRetries) {
+        foursquareBreaker.recordFailure();
+        const retryLog = createLogger("foursquare");
+        let body = "(empty)";
+        try {
+          const raw = await response.text();
+          if (raw) body = raw.slice(0, 300);
+        } catch { /* ignore */ }
+        retryLog.warn("API request failed", {
+          label,
+          url: url.slice(0, 200),
+          status: response.status,
+          attempt: attempt + 1,
+          maxRetries: maxRetries + 1,
+          responseBody: body,
+          circuitState: foursquareBreaker.getState(),
+        });
+        return null;
+      }
+
+      // Exponential backoff with jitter: 200-300ms, 400-500ms, 800-900ms
+      const delayMs = 200 * Math.pow(2, attempt) + Math.random() * 100;
       const retryLog = createLogger("foursquare");
-      let body = "(empty)";
-      try {
-        const raw = await response.text();
-        if (raw) body = raw.slice(0, 300);
-      } catch { /* ignore */ }
-      retryLog.warn("API request failed", {
+      retryLog.debug("Retrying API request", {
         label,
-        url: url.slice(0, 200),
         status: response.status,
         attempt: attempt + 1,
-        maxRetries: maxRetries + 1,
-        responseBody: body,
+        delayMs: Math.round(delayMs),
       });
-      return null;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    } catch (err) {
+      // Network error or timeout
+      foursquareBreaker.recordFailure();
+      if (attempt === maxRetries) {
+        const log = createLogger("foursquare");
+        log.warn("API request error (network/timeout)", {
+          label,
+          attempt: attempt + 1,
+          error: err instanceof Error ? err.message : String(err),
+          circuitState: foursquareBreaker.getState(),
+        });
+        return null;
+      }
+      const delayMs = 200 * Math.pow(2, attempt) + Math.random() * 100;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-
-    // Exponential backoff: 200ms, 400ms, 800ms
-    const delayMs = 200 * Math.pow(2, attempt);
-    const retryLog = createLogger("foursquare");
-    retryLog.debug("Retrying API request", {
-      label,
-      status: response.status,
-      attempt: attempt + 1,
-      delayMs,
-    });
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   return null;
 }

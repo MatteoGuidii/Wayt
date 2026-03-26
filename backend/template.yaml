@@ -49,6 +49,11 @@ Resources:
         Authorizers:
           CognitoAuthorizer:
             UserPoolArn: !GetAtt WaytUserPool.Arn
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingBurstLimit: 2000
+          ThrottlingRateLimit: 1000
       Cors:
         AllowMethods: "'GET,POST,PUT,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization'"
@@ -247,6 +252,7 @@ Resources:
       CodeUri: lambda/
       Handler: dist/getNearbyVenues.handler
       Timeout: 15
+      MemorySize: 512
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
@@ -286,7 +292,8 @@ Resources:
     Properties:
       CodeUri: lambda/
       Handler: dist/computeColdVenues.handler
-      Timeout: 60
+      Timeout: 120
+      MemorySize: 512
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
@@ -305,6 +312,7 @@ Resources:
       CodeUri: lambda/
       Handler: dist/getVenueBusyness.handler
       Timeout: 15
+      MemorySize: 512
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey

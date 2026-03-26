@@ -32,24 +32,26 @@ final class DiscoverViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Computed
+    // MARK: - Cached Derived State
 
-    /// Count of nearby venues per busyness level (1–5) for the vibe pulse
-    var vibePulse: [Int: Int] {
-        var counts: [Int: Int] = [:]
-        for level in 1...5 { counts[level] = 0 }
+    /// Count of nearby venues per busyness level (1–5) for the vibe pulse.
+    /// Stored property — recomputed only when venues change, not on every view render.
+    @Published private(set) var vibePulse: [Int: Int] = [1: 0, 2: 0, 3: 0, 4: 0, 5: 0]
+
+    /// Count of venues per category.
+    /// Stored property — recomputed only when venues change, not on every view render.
+    @Published private(set) var categoryCounts: [VenueCategory: Int] = [:]
+
+    /// Recompute cached derived state from the current venues array.
+    private func recomputeDerivedState() {
+        var pulse: [Int: Int] = [1: 0, 2: 0, 3: 0, 4: 0, 5: 0]
         for venue in venues {
             if let level = venue.busyness?.rawValue {
-                counts[level, default: 0] += 1
+                pulse[level, default: 0] += 1
             }
         }
-        return counts
-    }
-
-    /// Count of venues per category
-    var categoryCounts: [VenueCategory: Int] {
-        Dictionary(grouping: venues, by: \.category)
-            .mapValues(\.count)
+        vibePulse = pulse
+        categoryCounts = Dictionary(grouping: venues, by: \.category).mapValues(\.count)
     }
 
     /// Dominant busyness level in the area
@@ -85,17 +87,44 @@ final class DiscoverViewModel: ObservableObject {
 
     // MARK: - Update Venues (from MapViewModel)
 
+    /// Last known location used for sorting — skip re-sort if user hasn't moved significantly.
+    private var lastSortLocation: CLLocation?
+    /// Venue IDs at the time of last sort — detect content changes without relying on first-element check.
+    private var lastSortedVenueIDs: Set<String> = []
+
     /// Receives venues from the shared MapViewModel and sorts by distance.
+    /// Skips the O(n log n) sort if venue set is unchanged AND user hasn't moved more than 50m.
     func updateVenues(_ newVenues: [Venue], userLocation: CLLocation?) {
-        var sorted = newVenues
-        if let location = userLocation {
+        let newIDs = Set(newVenues.map(\.id))
+        let venuesChanged = newIDs != lastSortedVenueIDs
+
+        let needsSort: Bool = {
+            guard let location = userLocation else { return false }
+            if venuesChanged { return true }
+            guard let lastLoc = lastSortLocation else { return true }
+            return location.distance(from: lastLoc) > 50
+        }()
+
+        if needsSort, let location = userLocation {
+            var sorted = newVenues
             sorted.sort { a, b in
                 let locA = CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude)
                 let locB = CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude)
                 return location.distance(from: locA) < location.distance(from: locB)
             }
+            venues = sorted
+            lastSortLocation = location
+            lastSortedVenueIDs = newIDs
+        } else if venuesChanged {
+            // Venue set changed but no location — use unsorted order
+            venues = newVenues
+            lastSortedVenueIDs = newIDs
+        } else {
+            // Same venue set, user hasn't moved — merge updated data while preserving sort order
+            let updatedLookup = Dictionary(newVenues.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            venues = venues.map { updatedLookup[$0.id] ?? $0 }
         }
-        venues = sorted
+        recomputeDerivedState()
         applyFilter()
     }
 

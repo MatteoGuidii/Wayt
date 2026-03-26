@@ -11,7 +11,12 @@ final class FusionService {
 
     // MARK: - Cache
 
+    /// Maximum number of cached venue estimates before LRU eviction kicks in.
+    private static let maxCacheEntries = 500
+
     private var nearbyCache: [String: FusedEstimateResponse] = [:]
+    /// Tracks access order for LRU eviction (most recently used at the end).
+    private var cacheAccessOrder: [String] = []
     private var cacheTimestamp: Date = .distantPast
     private var cachedLat: Double = .nan
     private var cachedLng: Double = .nan
@@ -24,6 +29,17 @@ final class FusionService {
         let latDelta = abs(lat - cachedLat)
         let lngDelta = abs(lng - cachedLng)
         return latDelta < 0.005 && lngDelta < 0.005
+    }
+
+    /// Evict oldest entries when cache exceeds the size limit.
+    private func evictIfNeeded() {
+        guard nearbyCache.count > Self.maxCacheEntries else { return }
+        let excess = nearbyCache.count - Self.maxCacheEntries
+        let toRemove = cacheAccessOrder.prefix(excess)
+        for key in toRemove {
+            nearbyCache.removeValue(forKey: key)
+        }
+        cacheAccessOrder.removeFirst(min(excess, cacheAccessOrder.count))
     }
 
     // MARK: - Area Pre-fetch
@@ -86,6 +102,10 @@ final class FusionService {
         // Merge into existing cache rather than replacing — preserves pre-fetched data
         if !indexed.isEmpty {
             nearbyCache.merge(indexed) { _, new in new }
+            // Update access order for LRU
+            cacheAccessOrder.removeAll { indexed.keys.contains($0) }
+            cacheAccessOrder.append(contentsOf: indexed.keys)
+            evictIfNeeded()
             cacheTimestamp = Date()
             cachedLat = lat
             cachedLng = lng
@@ -130,6 +150,9 @@ final class FusionService {
 
         // Cache all estimates — hours data is valid even for cold venues
         nearbyCache.merge(indexed) { _, new in new }
+        cacheAccessOrder.removeAll { indexed.keys.contains($0) }
+        cacheAccessOrder.append(contentsOf: indexed.keys)
+        evictIfNeeded()
 
         Log.fusion.info("Missing venues: got \(indexed.count) estimates")
         return indexed
@@ -165,10 +188,14 @@ final class FusionService {
         guard Date().timeIntervalSince(cacheTimestamp) < AppConstants.reportCacheTTL else {
             return nil
         }
-        if nearbyCache[venueId] != nil {
-            Log.fusion.debug("Fusion cache hit for \(venueId, privacy: .public)")
+        guard let result = nearbyCache[venueId] else { return nil }
+        Log.fusion.debug("Fusion cache hit for \(venueId, privacy: .public)")
+        // Move to end of access order for LRU correctness
+        if let idx = cacheAccessOrder.firstIndex(of: venueId) {
+            cacheAccessOrder.remove(at: idx)
         }
-        return nearbyCache[venueId]
+        cacheAccessOrder.append(venueId)
+        return result
     }
 
     // MARK: - Cache Control
@@ -176,14 +203,17 @@ final class FusionService {
     func invalidateCache() {
         Log.fusion.debug("Fusion cache invalidated")
         nearbyCache = [:]
+        cacheAccessOrder = []
         cacheTimestamp = .distantPast
     }
 
-    /// Invalidate the cached estimate for a single venue and force a fresh fetch.
-    /// Resets the cache timestamp so the next `fetchNearbyEstimates` call hits the backend,
-    /// while preserving cached data for all other venues (merged back on response).
+    /// Invalidate the cached estimate for a single venue and force a re-fetch.
+    /// Removes the venue's entry and resets the cache timestamp so the next
+    /// `fetchNearbyEstimates` call hits the backend (existing cached data for
+    /// other venues is preserved via merge on response).
     func invalidateCacheForVenue(_ venueId: String) {
         nearbyCache.removeValue(forKey: venueId)
+        cacheAccessOrder.removeAll { $0 == venueId }
         cacheTimestamp = .distantPast
         Log.fusion.debug("Invalidated cache for venue: \(venueId, privacy: .public)")
     }

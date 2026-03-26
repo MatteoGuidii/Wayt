@@ -162,10 +162,21 @@ export async function handler(event: BackgroundEvent): Promise<void> {
   }
 
   // Phase 3: Remaining cold venues — individual Foursquare API calls as fallback
+  // Cap processing to avoid Lambda timeout; remaining venues will be picked up
+  // on the next progressive refresh cycle.
+  const MAX_COLD_PER_INVOCATION = 50;
   let coldProcessed = 0;
   if (coldVenues.length > 0) {
-    coldProcessed = await processPool(coldVenues, timezone, COLD_CONCURRENCY, log);
-    log.info("Cold phase complete", { processed: coldProcessed, total: coldVenues.length });
+    const processable = coldVenues.slice(0, MAX_COLD_PER_INVOCATION);
+    const deferred = coldVenues.length - processable.length;
+    if (deferred > 0) {
+      log.warn("Cold venues capped to prevent timeout", {
+        processing: processable.length,
+        deferred,
+      });
+    }
+    coldProcessed = await processPool(processable, timezone, COLD_CONCURRENCY, log);
+    log.info("Cold phase complete", { processed: coldProcessed, total: processable.length });
   }
 
   log.info("Background compute done", {

@@ -93,13 +93,15 @@ export async function handler(
 
     log.info("Report written", { reportId, venueId });
 
-    // Invalidate cached fused estimate so next query recomputes with fresh data.
-    // user_reports signals are never cached in SIGNALS_TABLE (always re-aggregated
-    // from REPORTS_TABLE), so deleting FUSED#CURRENT is sufficient.
+    // Invalidate cached fused estimate and aggregated report signal so next query
+    // recomputes with the fresh report included.
     try {
-      await deleteItem(venueKey(venueId), fusedSK());
+      await Promise.all([
+        deleteItem(venueKey(venueId), fusedSK()),
+        deleteItem(venueKey(venueId), "SIGNAL#user_reports_agg"),
+      ]);
     } catch {
-      log.warn("Fused cache invalidation failed (non-critical)");
+      log.warn("Cache invalidation failed (non-critical)");
     }
 
     done({ reportId, venueId });

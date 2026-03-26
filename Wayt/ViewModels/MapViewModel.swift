@@ -175,7 +175,7 @@ final class MapViewModel: ObservableObject {
                     // Progressive loading: show venues as each query type completes
                     results = await searchService.searchAllTypes(region: region) { [weak self] partial in
                         guard let self, !Task.isCancelled else { return }
-                        self.venues = self.applyOfflineBusyness(to: self.applyCachedEstimates(to: self.carryOverExistingBusyness(to: partial)))
+                        self.venues = self.applyAllBusynessData(to: partial)
                         self.recomputeClusters(debounce: true)
                         self.isSearching = false // stop spinner on first batch
                     }
@@ -190,10 +190,8 @@ final class MapViewModel: ObservableObject {
 
                 Log.map.info("Found \(results.count) venues")
 
-                // Apply cached estimates from pre-fetch + carry-over + offline fallback
-                results = carryOverExistingBusyness(to: results)
-                results = applyCachedEstimates(to: results)
-                results = applyOfflineBusyness(to: results)
+                // Apply all busyness data in a single pass (carry-over + cached + offline fallback)
+                results = applyAllBusynessData(to: results)
 
                 // Phase B: Dispatch uncached venues to backend (non-blocking).
                 // The backend returns instantly and computes in the background.
@@ -396,6 +394,12 @@ final class MapViewModel: ObservableObject {
             var additional = newResults.filter { !existingIDs.contains($0.id) }
             additional = applyCachedEstimates(to: additional)
             additional = applyOfflineBusyness(to: additional)
+
+            // Cap total venues to prevent unbounded memory growth
+            let capacity = AppConstants.maxVisibleVenues - venues.count
+            if additional.count > capacity {
+                additional = Array(additional.prefix(max(0, capacity)))
+            }
 
             if !additional.isEmpty {
                 venues.append(contentsOf: additional)
@@ -614,30 +618,51 @@ final class MapViewModel: ObservableObject {
         }
     }
 
-    /// Apply offline busyness estimates to venues that have no report data.
-    /// Uses the BusynessEngine offline fallback (neutral moderate / no confidence).
-    /// Carry over busyness data from the currently-displayed venues so markers
-    /// never flash grey when the same venue reappears from a fresh MapKit search.
-    private func carryOverExistingBusyness(to newVenues: [Venue]) -> [Venue] {
-        guard !venues.isEmpty else { return newVenues }
-        let lookup = Dictionary(venues.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    /// Single-pass busyness pipeline: applies existing carry-over, cached fusion estimates,
+    /// and offline fallback in one iteration instead of three separate array copies.
+    private func applyAllBusynessData(to newVenues: [Venue]) -> [Venue] {
+        let existingLookup: [String: Venue]? = venues.isEmpty ? nil : Dictionary(
+            venues.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
+        )
+
         return newVenues.map { venue in
-            guard venue.busyness == nil, let existing = lookup[venue.id],
-                  existing.busyness != nil else { return venue }
+            guard venue.busyness == nil else { return venue }
             var v = venue
-            v.busyness = existing.busyness
-            v.busynessConfidence = existing.busynessConfidence
-            v.reportCount = existing.reportCount
-            v.estimatedWaitMinutes = existing.estimatedWaitMinutes
-            v.isOpen = existing.isOpen
-            v.hoursToday = existing.hoursToday
-            v.businessStatus = existing.businessStatus
+
+            // Priority 1: Carry over from existing displayed venues (prevents grey flash)
+            if let existing = existingLookup?[venue.id], existing.busyness != nil {
+                v.busyness = existing.busyness
+                v.busynessConfidence = existing.busynessConfidence
+                v.reportCount = existing.reportCount
+                v.estimatedWaitMinutes = existing.estimatedWaitMinutes
+                v.isOpen = existing.isOpen
+                v.hoursToday = existing.hoursToday
+                v.businessStatus = existing.businessStatus
+                return v
+            }
+
+            // Priority 2: Apply cached fusion estimates
+            if let cached = fusionService.cachedEstimate(for: venue.id) {
+                let estimate = busynessEngine.estimate(from: cached)
+                v.busyness = estimate.level
+                v.busynessConfidence = estimate.confidence
+                v.reportCount = estimate.reportCount
+                v.estimatedWaitMinutes = estimate.waitMinutes
+                v.isOpen = estimate.isOpen
+                v.hoursToday = estimate.hoursToday
+                v.businessStatus = estimate.businessStatus
+                return v
+            }
+
+            // Priority 3: Offline fallback (neutral moderate / no confidence)
+            let estimate = busynessEngine.estimateOffline()
+            v.busyness = estimate.level
+            v.busynessConfidence = estimate.confidence
             return v
         }
     }
 
-    /// Apply cached fusion estimates to venues before the network call completes.
-    /// Eliminates the grey flash for venues we already have data for.
+    // Keep individual methods for backward compatibility in expandSearch path
     private func applyCachedEstimates(to venues: [Venue]) -> [Venue] {
         venues.map { venue in
             guard venue.busyness == nil else { return venue }

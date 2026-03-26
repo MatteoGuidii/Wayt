@@ -29,6 +29,8 @@ async function queryCell(geohash: string, cutoff: number): Promise<ReportItem[]>
         ":gh": geohash,
         ":cutoff": cutoff,
       },
+      Limit: 1000,
+      ScanIndexForward: false,
     })
   );
   return (result.Items ?? []) as ReportItem[];

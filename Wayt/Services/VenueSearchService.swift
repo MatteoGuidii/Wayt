@@ -53,11 +53,23 @@ final class VenueSearchService {
         query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    /// Tracks the oldest cache entry timestamp to avoid scanning all entries.
+    private var oldestCacheTimestamp: Date = .distantFuture
+
     private func pruneCacheIfNeeded() {
+        // Fast path: skip if cache is small and no entries are stale
         let now = Date()
+        guard queryCache.count > Self.maxCacheEntries
+              || now.timeIntervalSince(oldestCacheTimestamp) >= Self.cacheTTL else {
+            return
+        }
+
+        // Remove expired entries
         queryCache = queryCache.filter { _, value in
             now.timeIntervalSince(value.timestamp) < Self.cacheTTL
         }
+
+        // If still over limit, remove oldest entries
         if queryCache.count > Self.maxCacheEntries {
             let sortedKeys = queryCache.keys.sorted { lhs, rhs in
                 (queryCache[lhs]?.timestamp ?? .distantPast) < (queryCache[rhs]?.timestamp ?? .distantPast)
@@ -66,6 +78,9 @@ final class VenueSearchService {
                 queryCache.removeValue(forKey: key)
             }
         }
+
+        // Update oldest timestamp tracker
+        oldestCacheTimestamp = queryCache.values.map(\.timestamp).min() ?? .distantFuture
     }
 
     private func cacheKey(for query: String, region: MKCoordinateRegion) -> String {
@@ -176,12 +191,22 @@ final class VenueSearchService {
         "pharmacy", "drugstore",
     ]
 
+    /// Pre-compiled regex combining all non-venue keywords for O(n) matching instead of O(n*m).
+    private static let nonVenueRegex: NSRegularExpression? = {
+        let escaped = nonVenueKeywords.map { NSRegularExpression.escapedPattern(for: $0) }
+        let pattern = escaped.joined(separator: "|")
+        return try? NSRegularExpression(pattern: pattern, options: [])
+    }()
+
     /// Name patterns that suggest an event listing rather than a permanent venue.
     /// Long names with dashes/pipes often indicate event descriptions, not venue names.
     private static func isNonVenue(_ name: String) -> Bool {
-        // Check non-venue keywords
-        for keyword in nonVenueKeywords {
-            if name.contains(keyword) { return true }
+        // Check non-venue keywords using pre-compiled regex (single pass)
+        if let regex = nonVenueRegex {
+            let range = NSRange(name.startIndex..., in: name)
+            if regex.firstMatch(in: name, range: range) != nil {
+                return true
+            }
         }
 
         // Very long names (>60 chars) with separators are typically event listings
@@ -479,15 +504,15 @@ final class VenueSearchService {
 
         Log.search.info("All searches complete: \(accumulated.count) total unique venues")
 
-        // Precompute distances, sort, and cap at limit — closest venues first
-        let distances = accumulated.map { venue in
-            center.distance(from: CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude))
+        // Sort by distance and cap at limit — closest venues first
+        accumulated.sort { a, b in
+            let distA = center.distance(from: CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude))
+            let distB = center.distance(from: CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude))
+            return distA < distB
         }
-        let sortedIndices = distances.enumerated()
-            .sorted { $0.element < $1.element }
-            .prefix(AppConstants.maxVisibleVenues)
-            .map(\.offset)
-        accumulated = sortedIndices.map { accumulated[$0] }
+        if accumulated.count > AppConstants.maxVisibleVenues {
+            accumulated = Array(accumulated.prefix(AppConstants.maxVisibleVenues))
+        }
 
         Log.search.info("Multi-type search complete: \(accumulated.count) venues after distance cap")
         return accumulated
