@@ -92,8 +92,9 @@ final class MapViewModel: ObservableObject {
     init() {
         reportCancellable = NotificationCenter.default.publisher(for: .reportSubmitted)
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.refreshAfterReport()
+            .sink { [weak self] notification in
+                let venueId = notification.object as? String
+                self?.refreshAfterReport(venueId: venueId)
             }
     }
 
@@ -438,10 +439,14 @@ final class MapViewModel: ObservableObject {
     }
 
     /// Refresh busyness data after a report was submitted.
-    /// Invalidates caches and re-applies busyness data to existing venues.
-    func refreshAfterReport() {
+    /// Selectively invalidates the reported venue's cache and re-applies busyness data.
+    func refreshAfterReport(venueId: String? = nil) {
         ReportService.shared.invalidateCache()
-        fusionService.invalidateCache()
+        if let venueId {
+            fusionService.invalidateCacheForVenue(venueId)
+        } else {
+            fusionService.invalidateCache()
+        }
         guard let region = lastSearchedRegion else { return }
         Task {
             var updated = venues
@@ -454,12 +459,14 @@ final class MapViewModel: ObservableObject {
     // MARK: - Progressive Follow-Up Refreshes
 
     /// Schedule progressive follow-up refreshes after dispatching venues to background compute.
-    /// Fires at 5s (warm phase), 15s (early cold), 45s (bulk cold).
-    /// Exits early if all venues already have real data or the user navigated away.
+    /// Only fetches data for venues still missing busyness (`.none` confidence),
+    /// avoiding redundant re-sends of already-colored venues.
+    /// Timing aligned to backend processing phases:
+    /// +3s catches Phase 1 batch-matched quick estimates,
+    /// +7s catches Phase 2 warm venues, +14s final sweep for cold venues.
     private func scheduleProgressiveRefreshes(region: MKCoordinateRegion) {
-        // Cumulative delays from dispatch time; sleep the delta between each.
-        // +2s catches batch-matched quick estimates, +5s catches warm venues, +12s final sweep.
-        let cumulativeDelays = [1, 3, 8]
+        let cumulativeDelays = [3, 7, 14]
+        let radius = searchRadius(for: region)
         followUpTask?.cancel()
         followUpTask = Task {
             var previous = 0
@@ -469,20 +476,31 @@ final class MapViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 guard !venues.isEmpty else { return }
 
-                // Stop if all venues have at least some busyness data (quick-estimate or better)
-                let needsRefresh = venues.contains { $0.busynessConfidence == .none }
-                guard needsRefresh else {
+                // Only fetch venues still missing busyness data
+                let uncached = venues.filter { $0.busynessConfidence == .none }
+                guard !uncached.isEmpty else {
                     Log.map.debug("Progressive refresh: all venues have real data, stopping")
                     return
                 }
 
-                Log.map.debug("Progressive refresh at +\(cumulative)s: fetching background results")
-                fusionService.invalidateCache()
-
-                var updated = venues
-                await overlayBusynessData(on: &updated, region: region)
-                venues = updated
-                recomputeClusters()
+                Log.map.debug("Progressive refresh at +\(cumulative)s: \(uncached.count) venues still need data")
+                let uncachedInfos = uncached.map { VenueInfo(venue: $0) }
+                do {
+                    let computed = try await fusionService.fetchMissingEstimates(
+                        lat: region.center.latitude,
+                        lng: region.center.longitude,
+                        radius: radius,
+                        venues: uncachedInfos
+                    )
+                    if !computed.isEmpty {
+                        var updated = venues
+                        applyFusedEstimates(computed, to: &updated)
+                        venues = updated
+                        recomputeClusters()
+                    }
+                } catch {
+                    Log.map.notice("Progressive refresh failed: \(error.localizedDescription)")
+                }
             }
             Log.map.debug("Progressive refreshes complete")
         }

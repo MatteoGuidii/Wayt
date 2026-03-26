@@ -638,10 +638,10 @@ export async function batchMatchVenues(
 }
 
 /**
- * Search Foursquare for venues in an area using 2 parallel queries for broader coverage.
- * Query 1: category-filtered (dining/drinking) — precise matches.
- * Query 2: no category filter — catches miscategorized or niche venues.
- * Returns up to 100 deduplicated results with popularity and hours_popular.
+ * Search Foursquare for venues in an area.
+ * For small areas (≤1500m radius): 2 parallel queries (category + broad) — up to 100 results.
+ * For larger areas: splits into 4 quadrants with category queries + 1 broad center query,
+ * increasing coverage to ~250 deduplicated results and reducing Phase 3 cold venue fallback.
  */
 async function batchSearchArea(
   lat: number,
@@ -650,30 +650,66 @@ async function batchSearchArea(
   log: ReturnType<typeof createLogger>
 ): Promise<FsqSearchResult[]> {
   const fields = "fsq_place_id,name,popularity,rating,distance,hours_popular,latitude,longitude";
-  const radiusStr = String(Math.round(radiusMeters));
-  const ll = `${lat},${lng}`;
 
-  // Two parallel searches for broader coverage (max 100 results total)
-  const [categoryResults, broadResults] = await Promise.all([
-    // Search 1: Dining & drinking category (precise)
-    fetchAreaSearch({ ll, radius: radiusStr, categories: FSQ_DINING_CATEGORIES, limit: "50", fields }),
-    // Search 2: No category filter (catches miscategorized venues)
-    fetchAreaSearch({ ll, radius: radiusStr, limit: "50", fields }),
-  ]);
+  const searches: Promise<FsqSearchResult[]>[] = [];
+
+  if (radiusMeters <= 1500) {
+    // Small area: 2 parallel searches (original strategy)
+    const radiusStr = String(Math.round(radiusMeters));
+    const ll = `${lat},${lng}`;
+    searches.push(
+      fetchAreaSearch({ ll, radius: radiusStr, categories: FSQ_DINING_CATEGORIES, limit: "50", fields }),
+      fetchAreaSearch({ ll, radius: radiusStr, limit: "50", fields }),
+    );
+  } else {
+    // Large area: split into quadrants for category search + 1 broad center search.
+    // Each quadrant covers half the radius, offsetting center by ~40% of the radius.
+    const offset = radiusMeters * 0.4;
+    const latOffset = offset / 111_320; // ~111km per degree latitude
+    const lngOffset = offset / (111_320 * Math.cos(lat * Math.PI / 180));
+    const quadrantRadius = String(Math.round(radiusMeters * 0.55));
+
+    const quadrants = [
+      { lat: lat + latOffset, lng: lng + lngOffset },
+      { lat: lat + latOffset, lng: lng - lngOffset },
+      { lat: lat - latOffset, lng: lng + lngOffset },
+      { lat: lat - latOffset, lng: lng - lngOffset },
+    ];
+
+    // 4 quadrant category searches + 1 broad center search (5 parallel calls)
+    for (const q of quadrants) {
+      searches.push(
+        fetchAreaSearch({
+          ll: `${q.lat},${q.lng}`,
+          radius: quadrantRadius,
+          categories: FSQ_DINING_CATEGORIES,
+          limit: "50",
+          fields,
+        }),
+      );
+    }
+    searches.push(
+      fetchAreaSearch({ ll: `${lat},${lng}`, radius: String(Math.round(radiusMeters)), limit: "50", fields }),
+    );
+  }
+
+  const results = await Promise.all(searches);
 
   // Deduplicate by fsq_place_id
   const seen = new Set<string>();
   const combined: FsqSearchResult[] = [];
-  for (const place of [...categoryResults, ...broadResults]) {
-    if (!seen.has(place.fsq_place_id)) {
-      seen.add(place.fsq_place_id);
-      combined.push(place);
+  for (const batch of results) {
+    for (const place of batch) {
+      if (!seen.has(place.fsq_place_id)) {
+        seen.add(place.fsq_place_id);
+        combined.push(place);
+      }
     }
   }
 
   log.debug("Area search results", {
-    category: categoryResults.length,
-    broad: broadResults.length,
+    queries: results.length,
+    totalRaw: results.reduce((sum, r) => sum + r.length, 0),
     deduplicated: combined.length,
   });
   return combined;

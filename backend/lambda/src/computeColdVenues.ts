@@ -37,8 +37,9 @@ const QUICK_ESTIMATE_TTL_SECONDS = 2 * 60 * 60;
 
 /** High concurrency for warm venues (no external API calls). */
 const WARM_CONCURRENCY = 20;
-/** Concurrency for remaining cold venues — individual Foursquare API calls. */
-const COLD_CONCURRENCY = 40;
+/** Concurrency for remaining cold venues — individual Foursquare API calls.
+ *  Kept at 15 to avoid Foursquare 429 rate limit cascades with exponential backoff. */
+const COLD_CONCURRENCY = 15;
 
 export async function handler(event: BackgroundEvent): Promise<void> {
   const log = createLogger("computeBackground");

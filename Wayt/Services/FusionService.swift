@@ -178,6 +178,15 @@ final class FusionService {
         nearbyCache = [:]
         cacheTimestamp = .distantPast
     }
+
+    /// Invalidate the cached estimate for a single venue and force a fresh fetch.
+    /// Resets the cache timestamp so the next `fetchNearbyEstimates` call hits the backend,
+    /// while preserving cached data for all other venues (merged back on response).
+    func invalidateCacheForVenue(_ venueId: String) {
+        nearbyCache.removeValue(forKey: venueId)
+        cacheTimestamp = .distantPast
+        Log.fusion.debug("Invalidated cache for venue: \(venueId, privacy: .public)")
+    }
 }
 
 // MARK: - Request / Response Types
