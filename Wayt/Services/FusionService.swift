@@ -265,6 +265,7 @@ struct DetailedFusedResponse: Codable, Sendable {
     let isOpen: Bool?
     let hoursToday: String?
     let businessStatus: String?
+    let venueDetails: VenueDetailsFull?
 
     /// Convert to a FusedEstimateResponse for the BusynessEngine.
     func toFusedEstimate() -> FusedEstimateResponse {
@@ -280,7 +281,8 @@ struct DetailedFusedResponse: Codable, Sendable {
             computedAt: computedAt,
             isOpen: isOpen,
             hoursToday: hoursToday,
-            businessStatus: businessStatus
+            businessStatus: businessStatus,
+            venueDetails: venueDetails?.toSummary()
         )
     }
 }

@@ -54,6 +54,29 @@ struct VenueCard: View {
                 .font(WaytTheme.subheadFont)
                 .lineLimit(2)
 
+            if venue.rating != nil || venue.priceLevel != nil {
+                HStack(spacing: 4) {
+                    if let rating = venue.rating {
+                        Image(systemName: "star.fill")
+                            .font(WaytTheme.nanoFont)
+                            .foregroundStyle(.yellow)
+                        Text(String(format: "%.1f", rating))
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                    if let price = PriceLevel.format(venue.priceLevel) {
+                        if venue.rating != nil {
+                            Text("·")
+                                .font(WaytTheme.badgeFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                        }
+                        Text(price)
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                }
+            }
+
             if let isOpen = venue.isOpen {
                 HStack(spacing: 4) {
                     Circle()
@@ -83,7 +106,7 @@ struct VenueCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
-        .frame(width: 170, height: 140, alignment: .topLeading)
+        .frame(width: 170, height: 155, alignment: .topLeading)
         .background(
             ZStack {
                 WaytTheme.cardBackground

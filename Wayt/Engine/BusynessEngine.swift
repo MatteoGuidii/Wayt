@@ -20,7 +20,8 @@ struct BusynessEngine: Sendable {
             waitMinutes: response.waitMinutes,
             isOpen: response.isOpen,
             hoursToday: response.hoursToday,
-            businessStatus: response.businessStatus
+            businessStatus: response.businessStatus,
+            venueDetails: response.venueDetails
         )
         Log.engine.debug("Fused estimate: score=\(response.busynessScore) confidence=\(response.confidence, privacy: .public) sources=\(response.sourceCount ?? 0)")
         return result
@@ -45,7 +46,8 @@ struct BusynessEngine: Sendable {
                 waitMinutes: nil,
                 isOpen: nil,
                 hoursToday: nil,
-                businessStatus: nil
+                businessStatus: nil,
+                venueDetails: nil
             )
         }
 
@@ -63,7 +65,8 @@ struct BusynessEngine: Sendable {
             waitMinutes: avgWait,
             isOpen: nil,
             hoursToday: nil,
-            businessStatus: nil
+            businessStatus: nil,
+            venueDetails: nil
         )
     }
 
@@ -113,6 +116,7 @@ struct BusynessEstimate: Sendable {
     let isOpen: Bool?
     let hoursToday: String?
     let businessStatus: String?
+    let venueDetails: VenueDetailsSummary?
 }
 
 // MARK: - Server Response Model
@@ -136,6 +140,9 @@ struct FusedEstimateResponse: Codable, Sendable {
     let hoursToday: String?
     let businessStatus: String?
 
+    // Google venue details (optional)
+    let venueDetails: VenueDetailsSummary?
+
     // Minimal init for backward compat (used by tests and legacy code)
     init(
         busynessScore: Double,
@@ -149,7 +156,8 @@ struct FusedEstimateResponse: Codable, Sendable {
         computedAt: String? = nil,
         isOpen: Bool? = nil,
         hoursToday: String? = nil,
-        businessStatus: String? = nil
+        businessStatus: String? = nil,
+        venueDetails: VenueDetailsSummary? = nil
     ) {
         self.busynessScore = busynessScore
         self.confidence = confidence
@@ -163,6 +171,7 @@ struct FusedEstimateResponse: Codable, Sendable {
         self.isOpen = isOpen
         self.hoursToday = hoursToday
         self.businessStatus = businessStatus
+        self.venueDetails = venueDetails
     }
 }
 

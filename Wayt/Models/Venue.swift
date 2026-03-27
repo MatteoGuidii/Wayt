@@ -43,6 +43,13 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     var hoursToday: String?
     var businessStatus: String?
 
+    // MARK: - Venue Details (from Google via backend)
+
+    var rating: Double?
+    var userRatingCount: Int?
+    var priceLevel: String?
+    var primaryTypeDisplayName: String?
+
     // MARK: - Name Normalization
 
     /// Normalize venue name for ID generation to prevent duplicates
@@ -87,6 +94,10 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
             && lhs.isOpen == rhs.isOpen
             && lhs.hoursToday == rhs.hoursToday
             && lhs.businessStatus == rhs.businessStatus
+            && lhs.rating == rhs.rating
+            && lhs.userRatingCount == rhs.userRatingCount
+            && lhs.priceLevel == rhs.priceLevel
+            && lhs.primaryTypeDisplayName == rhs.primaryTypeDisplayName
     }
 
     func hash(into hasher: inout Hasher) {
@@ -98,6 +109,10 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         hasher.combine(isOpen)
         hasher.combine(hoursToday)
         hasher.combine(businessStatus)
+        hasher.combine(rating)
+        hasher.combine(userRatingCount)
+        hasher.combine(priceLevel)
+        hasher.combine(primaryTypeDisplayName)
     }
 }
 

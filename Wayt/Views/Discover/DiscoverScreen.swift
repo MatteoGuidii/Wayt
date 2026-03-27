@@ -419,7 +419,28 @@ struct DiscoverScreen: View {
                 .lineLimit(2)
                 .foregroundStyle(.primary)
 
-            if let busyness = venue.busyness {
+            if venue.rating != nil || venue.priceLevel != nil {
+                HStack(spacing: 4) {
+                    if let rating = venue.rating {
+                        Image(systemName: "star.fill")
+                            .font(WaytTheme.nanoFont)
+                            .foregroundStyle(.yellow)
+                        Text(String(format: "%.1f", rating))
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                    if let price = PriceLevel.format(venue.priceLevel) {
+                        if venue.rating != nil {
+                            Text("·")
+                                .font(WaytTheme.badgeFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                        }
+                        Text(price)
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                }
+            } else if let busyness = venue.busyness {
                 Text(busyness.description)
                     .font(WaytTheme.badgeFont)
                     .foregroundStyle(WaytTheme.secondaryText)

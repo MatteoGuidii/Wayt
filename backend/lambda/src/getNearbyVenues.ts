@@ -6,7 +6,7 @@ import { FusedEstimate } from "./signals/types";
 import { ComputeInput } from "./computeVenueBusyness";
 import { emptyEstimate, foursquareConfidenceLevel } from "./signals/fusion";
 import { computeTimeAwareBusyness } from "./signals/foursquare";
-import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod } from "./signals/google";
+import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod, ensureVenueDetails } from "./signals/google";
 import { createLogger } from "./logger";
 
 /** Max allowed search radius (10 km). */
@@ -120,6 +120,32 @@ export async function handler(
           userRatingCount: (detailsData.userRatingCount as number) ?? null,
           priceLevel: (detailsData.priceLevel as string) ?? null,
         };
+      }
+
+      // Backfill GDETAILS for venues with cached hours but no details yet.
+      // Runs in parallel, capped at 10 per request to limit Google API cost.
+      // After backfill, details are cached in DynamoDB and included in this response.
+      const needsBackfill = cachedVenueIds.filter(
+        (id) => googleDataMap.has(id) && !googleDetailsMap.has(id)
+      );
+      if (needsBackfill.length > 0) {
+        log.info("Backfilling venue details", { count: needsBackfill.length });
+        const backfilled = await Promise.all(
+          needsBackfill.slice(0, 10).map((id) => ensureVenueDetails(id).catch(() => null))
+        );
+        for (let i = 0; i < backfilled.length; i++) {
+          const details = backfilled[i];
+          if (!details) continue;
+          const existing = nearbyFused.get(needsBackfill[i]);
+          if (!existing) continue;
+          existing.venueDetails = {
+            primaryType: details.primaryType,
+            primaryTypeDisplayName: details.primaryTypeDisplayName,
+            rating: details.rating,
+            userRatingCount: details.userRatingCount,
+            priceLevel: details.priceLevel,
+          };
+        }
       }
     }
 

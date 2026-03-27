@@ -87,6 +87,7 @@ struct VenueDetailSheet: View {
                     lookAroundSection
                     hoursSection
                     busynessSection
+                    googleReviewsSection
                     actionsSection
                     reportButton
                     recentReportsSection
@@ -169,9 +170,36 @@ struct VenueDetailSheet: View {
                         .font(WaytTheme.headlineFont)
                         .lineLimit(2)
 
-                    Text(venue.category.displayName)
+                    Text(venue.primaryTypeDisplayName ?? venue.category.displayName)
                         .font(WaytTheme.captionFont)
                         .foregroundStyle(WaytTheme.secondaryText)
+
+                    if venue.rating != nil || venue.priceLevel != nil {
+                        HStack(spacing: 6) {
+                            if let rating = venue.rating {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundStyle(.yellow)
+                                    Text(String(format: "%.1f", rating))
+                                    if let count = venue.userRatingCount, count > 0 {
+                                        Text("(\(count))")
+                                            .foregroundStyle(WaytTheme.secondaryText)
+                                    }
+                                }
+                                .font(WaytTheme.captionFont)
+                            }
+                            if let price = PriceLevel.format(venue.priceLevel) {
+                                if venue.rating != nil {
+                                    Circle()
+                                        .fill(Color.secondary.opacity(0.5))
+                                        .frame(width: 3, height: 3)
+                                }
+                                Text(price)
+                                    .font(WaytTheme.captionFont)
+                                    .foregroundStyle(WaytTheme.secondaryText)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -179,6 +207,13 @@ struct VenueDetailSheet: View {
                 Label(address, systemImage: "mappin")
                     .font(WaytTheme.captionFont)
                     .foregroundStyle(WaytTheme.secondaryText)
+            }
+
+            if let summary = viewModel.venueDetailsFull?.editorialSummary, !summary.isEmpty {
+                Text(summary)
+                    .font(WaytTheme.captionLightFont)
+                    .foregroundStyle(WaytTheme.secondaryText)
+                    .lineLimit(3)
             }
         }
     }
@@ -324,6 +359,50 @@ struct VenueDetailSheet: View {
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .waytCard()
+            }
+        }
+    }
+
+    // MARK: - Google Reviews
+
+    @ViewBuilder
+    private var googleReviewsSection: some View {
+        if let reviews = viewModel.venueDetailsFull?.reviews, !reviews.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Reviews")
+                    .font(WaytTheme.subtitleFont)
+
+                ForEach(reviews.prefix(5)) { review in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            HStack(spacing: 2) {
+                                ForEach(1...5, id: \.self) { i in
+                                    Image(systemName: i <= review.rating ? "star.fill" : "star")
+                                        .font(WaytTheme.nanoFont)
+                                        .foregroundStyle(i <= review.rating ? .yellow : Color.gray.opacity(0.3))
+                                }
+                            }
+
+                            Spacer()
+
+                            Text(review.relativePublishTime)
+                                .font(WaytTheme.badgeFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                        }
+
+                        if !review.text.isEmpty {
+                            Text(review.text)
+                                .font(WaytTheme.captionLightFont)
+                                .lineLimit(4)
+                        }
+
+                        Text("— \(review.authorName)")
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                    .padding(12)
+                    .waytCard()
+                }
             }
         }
     }

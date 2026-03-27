@@ -14,6 +14,7 @@ final class VenueDetailViewModel: ObservableObject {
     @Published var showReportSheet: Bool = false
     @Published var reportSubmitted: Bool = false
     @Published var isWithinReportRange: Bool = false
+    @Published var venueDetailsFull: VenueDetailsFull?
 
     // MARK: - Private
 
@@ -34,7 +35,8 @@ final class VenueDetailViewModel: ObservableObject {
                 waitMinutes: venue.estimatedWaitMinutes,
                 isOpen: venue.isOpen,
                 hoursToday: venue.hoursToday,
-                businessStatus: venue.businessStatus
+                businessStatus: venue.businessStatus,
+                venueDetails: nil
             )
         } else {
             self.estimate = busynessEngine.estimateOffline()
@@ -85,6 +87,7 @@ final class VenueDetailViewModel: ObservableObject {
                 lat: venue.coordinate.latitude,
                 lng: venue.coordinate.longitude
             )
+            venueDetailsFull = response.venueDetails
             return busynessEngine.estimate(from: response.toFusedEstimate())
         } catch {
             Log.fusion.notice("Fusion unavailable for detail: \(error.localizedDescription)")
@@ -140,7 +143,8 @@ final class VenueDetailViewModel: ObservableObject {
             waitMinutes: waitMinutes ?? estimate.waitMinutes,
             isOpen: estimate.isOpen,
             hoursToday: estimate.hoursToday,
-            businessStatus: estimate.businessStatus
+            businessStatus: estimate.businessStatus,
+            venueDetails: estimate.venueDetails
         )
         reportSubmitted = true
 

@@ -585,6 +585,14 @@ final class MapViewModel: ObservableObject {
                 venues[i].hoursToday = response.hoursToday ?? venues[i].hoursToday
                 venues[i].businessStatus = response.businessStatus ?? venues[i].businessStatus
 
+                // Always apply venue details (independent of crowd reports)
+                if let details = response.venueDetails {
+                    venues[i].rating = details.rating ?? venues[i].rating
+                    venues[i].userRatingCount = details.userRatingCount ?? venues[i].userRatingCount
+                    venues[i].priceLevel = details.priceLevel ?? venues[i].priceLevel
+                    venues[i].primaryTypeDisplayName = details.primaryTypeDisplayName ?? venues[i].primaryTypeDisplayName
+                }
+
                 // Only apply busyness scores when real signal data exists
                 guard (response.sourceCount ?? 0) > 0 else { continue }
                 let estimate = busynessEngine.estimate(from: response)
@@ -638,6 +646,10 @@ final class MapViewModel: ObservableObject {
                 v.isOpen = existing.isOpen
                 v.hoursToday = existing.hoursToday
                 v.businessStatus = existing.businessStatus
+                v.rating = existing.rating
+                v.userRatingCount = existing.userRatingCount
+                v.priceLevel = existing.priceLevel
+                v.primaryTypeDisplayName = existing.primaryTypeDisplayName
                 return v
             }
 
@@ -651,6 +663,12 @@ final class MapViewModel: ObservableObject {
                 v.isOpen = estimate.isOpen
                 v.hoursToday = estimate.hoursToday
                 v.businessStatus = estimate.businessStatus
+                if let details = cached.venueDetails {
+                    v.rating = details.rating
+                    v.userRatingCount = details.userRatingCount
+                    v.priceLevel = details.priceLevel
+                    v.primaryTypeDisplayName = details.primaryTypeDisplayName
+                }
                 return v
             }
 
@@ -676,6 +694,12 @@ final class MapViewModel: ObservableObject {
             v.isOpen = estimate.isOpen
             v.hoursToday = estimate.hoursToday
             v.businessStatus = estimate.businessStatus
+            if let details = cached.venueDetails {
+                v.rating = details.rating
+                v.userRatingCount = details.userRatingCount
+                v.priceLevel = details.priceLevel
+                v.primaryTypeDisplayName = details.primaryTypeDisplayName
+            }
             return v
         }
     }

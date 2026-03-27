@@ -28,9 +28,33 @@ struct VenueRow: View {
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
-                    Text(venue.category.shortName)
+                    Text(venue.primaryTypeDisplayName ?? venue.category.shortName)
                         .font(WaytTheme.captionLightFont)
                         .foregroundStyle(WaytTheme.secondaryText)
+                        .lineLimit(1)
+
+                    if let rating = venue.rating {
+                        Circle()
+                            .fill(Color.secondary.opacity(0.5))
+                            .frame(width: 3, height: 3)
+                        HStack(spacing: 2) {
+                            Image(systemName: "star.fill")
+                                .font(WaytTheme.nanoFont)
+                                .foregroundStyle(.yellow)
+                            Text(String(format: "%.1f", rating))
+                                .font(WaytTheme.captionLightFont)
+                        }
+                        .foregroundStyle(WaytTheme.secondaryText)
+                    }
+
+                    if let price = PriceLevel.format(venue.priceLevel) {
+                        Circle()
+                            .fill(Color.secondary.opacity(0.5))
+                            .frame(width: 3, height: 3)
+                        Text(price)
+                            .font(WaytTheme.captionLightFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
 
                     if let distance = formattedDistance {
                         Circle()

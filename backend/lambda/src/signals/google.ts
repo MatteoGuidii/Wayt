@@ -240,6 +240,64 @@ export async function getGoogleHoursData(
 }
 
 /**
+ * Ensure venue details (categories, rating, reviews, price) exist in DynamoDB.
+ * Reads from cache first; on miss, resolves the Google Place ID from the cached
+ * mapping and fetches details from the Google Places API. Used to backfill
+ * GDETAILS#CURRENT for venues that had hours cached before details were added.
+ *
+ * Returns null if no Google mapping exists or API fetch fails.
+ * Safe to call concurrently — worst case is a duplicate write.
+ */
+export async function ensureVenueDetails(venueId: string): Promise<CachedVenueDetails | null> {
+  const log = createLogger("google:backfill");
+
+  // Check if already cached
+  const existing = await getGoogleVenueDetails(venueId);
+  if (existing) return existing;
+
+  // Read cached Google mapping to get the Place ID
+  const mapping = await getItem(venueKey(venueId), mappingSK("google"));
+  if (!mapping) return null;
+  const googlePlaceId = mapping.googlePlaceId as string;
+  if (!googlePlaceId || googlePlaceId === NO_MATCH_SENTINEL) return null;
+
+  // Fetch details from Google Places API
+  const details = await fetchGooglePlaceDetails(googlePlaceId);
+  if (!details) return null;
+
+  const cachedAt = new Date().toISOString();
+  const venueDetails: CachedVenueDetails = {
+    types: details.types ?? [],
+    primaryType: details.primaryType ?? null,
+    primaryTypeDisplayName: details.primaryTypeDisplayName?.text ?? null,
+    rating: details.rating ?? null,
+    userRatingCount: details.userRatingCount ?? null,
+    priceLevel: details.priceLevel ?? null,
+    reviews: (details.reviews ?? []).map((r) => ({
+      authorName: r.authorAttribution?.displayName ?? "Anonymous",
+      rating: r.rating ?? 0,
+      text: r.text?.text ?? "",
+      relativePublishTime: r.relativePublishTimeDescription ?? "",
+      publishTime: r.publishTime ?? "",
+    })),
+    editorialSummary: details.editorialSummary?.text ?? null,
+    cachedAt,
+  };
+
+  // Cache for 30 days
+  const ttl = Math.floor(Date.now() / 1000) + DATA_TTL_DAYS * 86_400;
+  await putItem({
+    PK: venueKey(venueId),
+    SK: GDETAILS_SK,
+    ...venueDetails,
+    ttl,
+  });
+
+  log.debug("Backfilled venue details", { venueId });
+  return venueDetails;
+}
+
+/**
  * Read cached venue details (categories, rating, reviews, price) from DynamoDB.
  * Pure cache reader — never triggers Google API calls. Details are populated
  * as a side effect of getGoogleHoursData() when it fetches from the API.
