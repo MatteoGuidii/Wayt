@@ -89,11 +89,13 @@ export async function handler(
       });
     }
 
-    // Step 1b: Refresh isOpen/hoursToday for cached estimates using current time
-    // (cached fused estimates store a point-in-time snapshot that can go stale)
+    // Step 1b: Refresh isOpen/hoursToday and attach venue details for cached estimates
     const cachedVenueIds = [...nearbyFused.keys()];
     if (cachedVenueIds.length > 0) {
-      const googleDataMap = await batchGetItems(cachedVenueIds, "GDATA#CURRENT");
+      const [googleDataMap, googleDetailsMap] = await Promise.all([
+        batchGetItems(cachedVenueIds, "GDATA#CURRENT"),
+        batchGetItems(cachedVenueIds, "GDETAILS#CURRENT"),
+      ]);
       for (const [venueId, googleData] of googleDataMap) {
         const existing = nearbyFused.get(venueId);
         if (!existing) continue;
@@ -107,6 +109,18 @@ export async function handler(
         existing.hoursToday = openStatus.hoursToday;
         existing.businessStatus = cachedHours.businessStatus;
       }
+      // Attach venue details summary
+      for (const [venueId, detailsData] of googleDetailsMap) {
+        const existing = nearbyFused.get(venueId);
+        if (!existing) continue;
+        existing.venueDetails = {
+          primaryType: (detailsData.primaryType as string) ?? null,
+          primaryTypeDisplayName: (detailsData.primaryTypeDisplayName as string) ?? null,
+          rating: (detailsData.rating as number) ?? null,
+          userRatingCount: (detailsData.userRatingCount as number) ?? null,
+          priceLevel: (detailsData.priceLevel as string) ?? null,
+        };
+      }
     }
 
     // Step 2: Fast inline path for warm venues (have cached Foursquare raw data)
@@ -117,10 +131,11 @@ export async function handler(
     if (missing.length > 0) {
       const missingIds = missing.map((v) => v.venueId);
 
-      // Batch-read FSQDATA#CURRENT and GDATA#CURRENT for all missing venues
-      const [fsqDataMap, googleDataMap] = await Promise.all([
+      // Batch-read FSQDATA#CURRENT, GDATA#CURRENT, and GDETAILS#CURRENT for all missing venues
+      const [fsqDataMap, googleDataMap, missingDetailsMap] = await Promise.all([
         batchGetItems(missingIds, "FSQDATA#CURRENT"),
         batchGetItems(missingIds, "GDATA#CURRENT"),
+        batchGetItems(missingIds, "GDETAILS#CURRENT"),
       ]);
 
       // Compute scores inline for warm venues (pure math, no DynamoDB writes)
@@ -160,6 +175,17 @@ export async function handler(
             hoursToday: openStatus?.hoursToday ?? null,
             businessStatus: googleData ? (googleData.businessStatus as FusedEstimate["businessStatus"]) ?? null : null,
           });
+          // Attach venue details summary if cached
+          const detailsData = missingDetailsMap.get(v.venueId);
+          if (detailsData) {
+            nearbyFused.get(v.venueId)!.venueDetails = {
+              primaryType: (detailsData.primaryType as string) ?? null,
+              primaryTypeDisplayName: (detailsData.primaryTypeDisplayName as string) ?? null,
+              rating: (detailsData.rating as number) ?? null,
+              userRatingCount: (detailsData.userRatingCount as number) ?? null,
+              priceLevel: (detailsData.priceLevel as string) ?? null,
+            };
+          }
           inlineCount++;
         }
       }

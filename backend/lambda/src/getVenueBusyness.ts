@@ -2,7 +2,8 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda
 import { venueKey, fusedSK, getItem, queryByPK } from "./db";
 import { success, badRequest, serverError } from "./shared";
 import { computeVenueBusyness } from "./computeVenueBusyness";
-import { FusedEstimate, SignalSource } from "./signals/types";
+import { FusedEstimate, VenueDetailsFull } from "./signals/types";
+import { getGoogleVenueDetails } from "./signals/google";
 import { createLogger } from "./logger";
 
 /**
@@ -86,9 +87,23 @@ export async function handler(
         };
       });
 
+    // Fetch full venue details (including reviews) for single-venue response
+    const cachedDetails = await getGoogleVenueDetails(venueId);
+    const venueDetails: VenueDetailsFull | null = cachedDetails ? {
+      primaryType: cachedDetails.primaryType,
+      primaryTypeDisplayName: cachedDetails.primaryTypeDisplayName,
+      rating: cachedDetails.rating,
+      userRatingCount: cachedDetails.userRatingCount,
+      priceLevel: cachedDetails.priceLevel,
+      types: cachedDetails.types,
+      reviews: cachedDetails.reviews,
+      editorialSummary: cachedDetails.editorialSummary,
+    } : null;
+
     done({ venueId, score: fused.busynessScore, confidence: fused.confidence, sourceCount: fused.sourceCount });
     return success({
       ...fused,
+      venueDetails,
       signals,
     });
   } catch (err) {

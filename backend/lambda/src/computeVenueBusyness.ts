@@ -82,7 +82,8 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
     });
 
     // Step 2b: Fetch Google hours for open/closed status (parallel with signals)
-    const googleHours = await getGoogleHoursData(venueId, venueName, lat, lng);
+    const googleResult = await getGoogleHoursData(venueId, venueName, lat, lng);
+    const googleHours = googleResult?.hours ?? null;
     const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
 
     if (googleHours) {
@@ -104,6 +105,18 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
     fused.isOpen = openStatus?.isOpen ?? null;
     fused.hoursToday = openStatus?.hoursToday ?? null;
     fused.businessStatus = googleHours?.businessStatus ?? null;
+
+    // Attach venue details summary (returned in-memory from the same API call)
+    const googleVenueDetails = googleResult?.venueDetails ?? null;
+    if (googleVenueDetails) {
+      fused.venueDetails = {
+        primaryType: googleVenueDetails.primaryType,
+        primaryTypeDisplayName: googleVenueDetails.primaryTypeDisplayName,
+        rating: googleVenueDetails.rating,
+        userRatingCount: googleVenueDetails.userRatingCount,
+        priceLevel: googleVenueDetails.priceLevel,
+      };
+    }
 
     // When venue is closed, override busyness to zero
     if (openStatus?.isOpen === false) {

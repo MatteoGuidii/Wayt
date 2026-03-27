@@ -1,13 +1,14 @@
 /**
- * Google Places API integration for accurate operating hours.
+ * Google Places API integration for operating hours, categories, ratings,
+ * reviews, and pricing.
  *
  * Supplements Foursquare (busyness signals) with Google's regularOpeningHours
- * to provide reliable open/closed status. Foursquare's hours_popular represents
- * peak times, not operating hours — Google fills this gap.
+ * to provide reliable open/closed status, and adds venue metadata (types,
+ * rating, reviews, priceLevel, editorialSummary) for richer venue detail.
  *
- * Caching strategy: 30-day TTL on both venue mapping and hours data.
- * At $20/1K Place Details requests (Enterprise tier), this keeps costs
- * to ~$0.02/venue/month.
+ * Caching strategy: 30-day TTL on venue mapping, hours data, and venue details.
+ * At $25/1K Place Details requests (Enterprise+Atmosphere tier), this keeps
+ * costs to ~$0.025/venue/month.
  */
 
 import {
@@ -24,6 +25,7 @@ import {
   MATCH_MIN_SCORE,
   getLocalTime,
 } from "./matching";
+import { CachedVenueDetails } from "./types";
 import { googleBreaker } from "./circuitBreaker";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY ?? "";
@@ -83,6 +85,20 @@ interface GooglePlaceDetails {
       close?: { day: number; hour: number; minute: number };
     }>;
   };
+  types?: string[];
+  primaryType?: string;
+  primaryTypeDisplayName?: { text: string; languageCode?: string };
+  rating?: number;
+  userRatingCount?: number;
+  priceLevel?: string;
+  reviews?: Array<{
+    authorAttribution?: { displayName?: string };
+    rating?: number;
+    text?: { text: string };
+    relativePublishTimeDescription?: string;
+    publishTime?: string;
+  }>;
+  editorialSummary?: { text: string };
 }
 
 // -----------------------------------------------
@@ -90,17 +106,26 @@ interface GooglePlaceDetails {
 // -----------------------------------------------
 
 const GDATA_SK = "GDATA#CURRENT";
+const GDETAILS_SK = "GDETAILS#CURRENT";
+
+/** Return type for getGoogleHoursData — hours plus any venue details fetched in the same API call. */
+export interface GoogleHoursResult {
+  hours: CachedGoogleHours;
+  venueDetails: CachedVenueDetails | null;
+}
 
 /**
  * Get cached Google hours data for a venue, fetching from API on cache miss.
- * Returns null if no API key, no match found, or venue is permanently closed.
+ * Returns hours and venue details (categories, rating, reviews, price) when
+ * fetched from the API. On cache hit, venueDetails is null (callers should
+ * use getGoogleVenueDetails() or batch-read GDETAILS#CURRENT separately).
  */
 export async function getGoogleHoursData(
   venueId: string,
   venueName: string,
   lat: number,
   lng: number
-): Promise<CachedGoogleHours | null> {
+): Promise<GoogleHoursResult | null> {
   if (!GOOGLE_API_KEY) return null;
 
   const log = createLogger("google");
@@ -113,9 +138,12 @@ export async function getGoogleHoursData(
       if (!ttl || ttl >= Math.floor(Date.now() / 1000)) {
         log.debug("GDATA cache hit", { venueId });
         return {
-          businessStatus: (cached.businessStatus as CachedGoogleHours["businessStatus"]) ?? null,
-          regularPeriods: (cached.regularPeriods as GoogleOpenPeriod[]) ?? [],
-          cachedAt: cached.cachedAt as string,
+          hours: {
+            businessStatus: (cached.businessStatus as CachedGoogleHours["businessStatus"]) ?? null,
+            regularPeriods: (cached.regularPeriods as GoogleOpenPeriod[]) ?? [],
+            cachedAt: cached.cachedAt as string,
+          },
+          venueDetails: null,
         };
       }
       log.debug("GDATA cache expired", { venueId });
@@ -146,9 +174,11 @@ export async function getGoogleHoursData(
       return null;
     }
 
-    // Fetch hours from Google Places API
+    // Fetch hours + details from Google Places API (single call, expanded field mask)
     const details = await fetchGooglePlaceDetails(googlePlaceId);
     if (!details) return null;
+
+    const cachedAt = new Date().toISOString();
 
     const data: CachedGoogleHours = {
       businessStatus: normalizeBusinessStatus(details.businessStatus),
@@ -160,23 +190,78 @@ export async function getGoogleHoursData(
         closeHour: p.close?.hour ?? 23,
         closeMinute: p.close?.minute ?? 59,
       })),
-      cachedAt: new Date().toISOString(),
+      cachedAt,
     };
 
-    // Cache for 30 days
+    // Extract venue details (categories, rating, reviews, price)
+    const venueDetails: CachedVenueDetails = {
+      types: details.types ?? [],
+      primaryType: details.primaryType ?? null,
+      primaryTypeDisplayName: details.primaryTypeDisplayName?.text ?? null,
+      rating: details.rating ?? null,
+      userRatingCount: details.userRatingCount ?? null,
+      priceLevel: details.priceLevel ?? null,
+      reviews: (details.reviews ?? []).map((r) => ({
+        authorName: r.authorAttribution?.displayName ?? "Anonymous",
+        rating: r.rating ?? 0,
+        text: r.text?.text ?? "",
+        relativePublishTime: r.relativePublishTimeDescription ?? "",
+        publishTime: r.publishTime ?? "",
+      })),
+      editorialSummary: details.editorialSummary?.text ?? null,
+      cachedAt,
+    };
+
+    // Cache hours (critical) and venue details (best-effort) with 30-day TTL.
+    // GDETAILS is fire-and-forget so a details write failure cannot break hours.
     const nowSeconds = Math.floor(Date.now() / 1000);
+    const ttl = nowSeconds + DATA_TTL_DAYS * 86_400;
     await putItem({
       PK: venueKey(venueId),
       SK: GDATA_SK,
       ...data,
-      ttl: nowSeconds + DATA_TTL_DAYS * 86_400,
+      ttl,
+    });
+    // Best-effort write for venue details — failure is non-critical
+    putItem({
+      PK: venueKey(venueId),
+      SK: GDETAILS_SK,
+      ...venueDetails,
+      ttl,
+    }).catch((err) => {
+      log.warn("Failed to cache venue details", { venueId, error: err instanceof Error ? err.message : String(err) });
     });
 
-    return data;
+    return { hours: data, venueDetails };
   } catch (err) {
     log.error("Failed to fetch Google hours", { venueId }, err);
     return null;
   }
+}
+
+/**
+ * Read cached venue details (categories, rating, reviews, price) from DynamoDB.
+ * Pure cache reader — never triggers Google API calls. Details are populated
+ * as a side effect of getGoogleHoursData() when it fetches from the API.
+ */
+export async function getGoogleVenueDetails(venueId: string): Promise<CachedVenueDetails | null> {
+  const cached = await getItem(venueKey(venueId), GDETAILS_SK);
+  if (!cached) return null;
+
+  const ttl = cached.ttl as number | undefined;
+  if (ttl && ttl < Math.floor(Date.now() / 1000)) return null;
+
+  return {
+    types: (cached.types as string[]) ?? [],
+    primaryType: (cached.primaryType as string) ?? null,
+    primaryTypeDisplayName: (cached.primaryTypeDisplayName as string) ?? null,
+    rating: (cached.rating as number) ?? null,
+    userRatingCount: (cached.userRatingCount as number) ?? null,
+    priceLevel: (cached.priceLevel as string) ?? null,
+    reviews: (cached.reviews as CachedVenueDetails["reviews"]) ?? [],
+    editorialSummary: (cached.editorialSummary as string) ?? null,
+    cachedAt: cached.cachedAt as string,
+  };
 }
 
 /**
@@ -426,7 +511,8 @@ async function matchGoogleVenue(
 
 /**
  * Fetch place details from Google Places API (New).
- * Requests only regularOpeningHours and businessStatus (Enterprise tier).
+ * Requests hours, business status, types, rating, reviews, price, and
+ * editorial summary (Enterprise+Atmosphere tier).
  */
 async function fetchGooglePlaceDetails(placeId: string): Promise<GooglePlaceDetails | null> {
   const log = createLogger("google:details");
@@ -443,7 +529,7 @@ async function fetchGooglePlaceDetails(placeId: string): Promise<GooglePlaceDeta
     response = await fetch(`${GOOGLE_BASE}/places/${placeId}`, {
       headers: {
         "X-Goog-Api-Key": GOOGLE_API_KEY,
-        "X-Goog-FieldMask": "businessStatus,regularOpeningHours",
+        "X-Goog-FieldMask": "businessStatus,regularOpeningHours,types,primaryType,primaryTypeDisplayName,rating,userRatingCount,priceLevel,reviews,editorialSummary",
       },
       signal: controller.signal,
     });
