@@ -36,6 +36,7 @@ struct VenueDetailsFull: Codable, Sendable, Hashable {
     let types: [String]
     let reviews: [GoogleReview]
     let editorialSummary: String?
+    let googleMapsUrl: String?
 
     /// Convert to lightweight summary for list contexts.
     func toSummary() -> VenueDetailsSummary {

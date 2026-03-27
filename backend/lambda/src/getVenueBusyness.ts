@@ -1,5 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { venueKey, fusedSK, getItem, queryByPK } from "./db";
+import { venueKey, fusedSK, getItem, queryByPK, mappingSK } from "./db";
 import { success, badRequest, serverError } from "./shared";
 import { computeVenueBusyness } from "./computeVenueBusyness";
 import { FusedEstimate, VenueDetailsFull } from "./signals/types";
@@ -89,6 +89,13 @@ export async function handler(
 
     // Fetch full venue details (including reviews) for single-venue response
     const cachedDetails = await getGoogleVenueDetails(venueId);
+    // Build Google Maps URL using Place ID for exact venue (handles chains)
+    const mapping = await getItem(venueKey(venueId), mappingSK("google"));
+    const placeId = mapping?.googlePlaceId as string | undefined;
+    const googleMapsUrl = placeId && placeId !== "__NO_MATCH__"
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venueName ?? "")}&query_place_id=${placeId}`
+      : null;
+
     const venueDetails: VenueDetailsFull | null = cachedDetails ? {
       primaryType: cachedDetails.primaryType,
       primaryTypeDisplayName: cachedDetails.primaryTypeDisplayName,
@@ -98,6 +105,7 @@ export async function handler(
       types: cachedDetails.types,
       reviews: cachedDetails.reviews,
       editorialSummary: cachedDetails.editorialSummary,
+      googleMapsUrl,
     } : null;
 
     done({ venueId, score: fused.busynessScore, confidence: fused.confidence, sourceCount: fused.sourceCount });

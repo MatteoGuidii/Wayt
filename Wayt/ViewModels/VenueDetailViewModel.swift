@@ -70,16 +70,16 @@ final class VenueDetailViewModel: ObservableObject {
     }
 
     /// Try to get a fused estimate — uses the nearby cache first to avoid a redundant API call,
-    /// only hitting the single-venue endpoint if the cache doesn't have this venue.
+    /// then always fetches full venue details (reviews, editorial summary) from the single-venue endpoint.
     private func loadFusedEstimate() async -> BusynessEstimate? {
-        // Check if the map's nearby fetch already cached this venue
-        if let cached = FusionService.shared.cachedEstimate(for: venue.id) {
-            Log.fusion.debug("Using cached fusion estimate for detail \(self.venue.id, privacy: .public)")
-            return busynessEngine.estimate(from: cached)
+        // Use cached busyness estimate if available
+        let cachedEstimate: BusynessEstimate? = if let cached = FusionService.shared.cachedEstimate(for: venue.id) {
+            busynessEngine.estimate(from: cached)
+        } else {
+            nil
         }
 
-        // Cache miss — fetch from the single-venue endpoint
-        Log.fusion.debug("Fusion cache miss for detail, fetching single-venue")
+        // Always fetch single-venue endpoint for full details (reviews, editorial summary)
         do {
             let response = try await FusionService.shared.fetchVenueBusyness(
                 venueId: venue.id,
@@ -88,10 +88,10 @@ final class VenueDetailViewModel: ObservableObject {
                 lng: venue.coordinate.longitude
             )
             venueDetailsFull = response.venueDetails
-            return busynessEngine.estimate(from: response.toFusedEstimate())
+            return cachedEstimate ?? busynessEngine.estimate(from: response.toFusedEstimate())
         } catch {
             Log.fusion.notice("Fusion unavailable for detail: \(error.localizedDescription)")
-            return nil
+            return cachedEstimate
         }
     }
 

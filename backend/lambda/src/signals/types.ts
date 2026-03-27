@@ -107,6 +107,7 @@ export interface VenueDetailsFull extends VenueDetailsSummary {
   types: string[];
   reviews: GoogleReview[];
   editorialSummary: string | null;
+  googleMapsUrl: string | null;
 }
 
 // -----------------------------------------------
