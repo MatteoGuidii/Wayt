@@ -9,6 +9,7 @@ struct VenueDetailsSummary: Codable, Sendable, Hashable {
     let rating: Double?
     let userRatingCount: Int?
     let priceLevel: String?
+    let priceRange: String?
 }
 
 // MARK: - Google Review
@@ -33,6 +34,7 @@ struct VenueDetailsFull: Codable, Sendable, Hashable {
     let rating: Double?
     let userRatingCount: Int?
     let priceLevel: String?
+    let priceRange: String?
     let types: [String]
     let reviews: [GoogleReview]
     let editorialSummary: String?
@@ -45,7 +47,8 @@ struct VenueDetailsFull: Codable, Sendable, Hashable {
             primaryTypeDisplayName: primaryTypeDisplayName,
             rating: rating,
             userRatingCount: userRatingCount,
-            priceLevel: priceLevel
+            priceLevel: priceLevel,
+            priceRange: priceRange
         )
     }
 }
@@ -53,9 +56,13 @@ struct VenueDetailsFull: Codable, Sendable, Hashable {
 // MARK: - Price Level Formatting
 
 enum PriceLevel {
-    /// Convert backend price level string to user-facing dollar signs.
-    static func format(_ raw: String?) -> String? {
-        switch raw {
+    /// Format price for display. Prefers the actual price range (e.g. "$10–25")
+    /// from Google Places API, falling back to tier-based dollar signs.
+    static func format(_ priceLevel: String?, priceRange: String? = nil) -> String? {
+        if let priceRange, !priceRange.isEmpty {
+            return priceRange
+        }
+        switch priceLevel {
         case "PRICE_LEVEL_FREE":           return "Free"
         case "PRICE_LEVEL_INEXPENSIVE":    return "$"
         case "PRICE_LEVEL_MODERATE":       return "$$"

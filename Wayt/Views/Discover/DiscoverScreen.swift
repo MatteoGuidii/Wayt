@@ -429,7 +429,7 @@ struct DiscoverScreen: View {
                             .font(WaytTheme.badgeFont)
                             .foregroundStyle(WaytTheme.secondaryText)
                     }
-                    if let price = PriceLevel.format(venue.priceLevel) {
+                    if let price = PriceLevel.format(venue.priceLevel, priceRange: venue.priceRange) {
                         if venue.rating != nil {
                             Text("·")
                                 .font(WaytTheme.badgeFont)
@@ -441,7 +441,7 @@ struct DiscoverScreen: View {
                     }
                 }
             } else if let busyness = venue.busyness {
-                Text(busyness.description)
+                Text(busyness.label)
                     .font(WaytTheme.badgeFont)
                     .foregroundStyle(WaytTheme.secondaryText)
                     .lineLimit(1)

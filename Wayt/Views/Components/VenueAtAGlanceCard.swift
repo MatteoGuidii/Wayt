@@ -6,6 +6,7 @@ struct VenueAtAGlanceCard: View {
     let rating: Double?
     let userRatingCount: Int?
     let priceLevel: String?
+    let priceRange: String?
     var onReviewsTapped: (() -> Void)?
 
     var body: some View {
@@ -33,7 +34,7 @@ struct VenueAtAGlanceCard: View {
             }
 
             // Price
-            if let price = PriceLevel.format(priceLevel) {
+            if let price = PriceLevel.format(priceLevel, priceRange: priceRange) {
                 if rating != nil {
                     Text("·")
                         .font(WaytTheme.captionFont)

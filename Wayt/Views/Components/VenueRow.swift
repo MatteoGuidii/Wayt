@@ -47,7 +47,7 @@ struct VenueRow: View {
                         .foregroundStyle(WaytTheme.secondaryText)
                     }
 
-                    if let price = PriceLevel.format(venue.priceLevel) {
+                    if let price = PriceLevel.format(venue.priceLevel, priceRange: venue.priceRange) {
                         Circle()
                             .fill(Color.secondary.opacity(0.5))
                             .frame(width: 3, height: 3)

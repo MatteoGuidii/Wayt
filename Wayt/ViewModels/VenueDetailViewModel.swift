@@ -85,7 +85,8 @@ final class VenueDetailViewModel: ObservableObject {
                 venueId: venue.id,
                 venueName: venue.name,
                 lat: venue.coordinate.latitude,
-                lng: venue.coordinate.longitude
+                lng: venue.coordinate.longitude,
+                address: venue.address
             )
             venueDetailsFull = response.venueDetails
             return cachedEstimate ?? busynessEngine.estimate(from: response.toFusedEstimate())

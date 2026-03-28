@@ -183,7 +183,8 @@ struct VenueDetailSheet: View {
         VenueAtAGlanceCard(
             rating: venue.rating,
             userRatingCount: venue.userRatingCount,
-            priceLevel: venue.priceLevel
+            priceLevel: venue.priceLevel,
+            priceRange: venue.priceRange
         ) {
             showReviewsSheet = true
         }
@@ -277,10 +278,6 @@ struct VenueDetailSheet: View {
                         .font(WaytTheme.headlineFont)
                         .foregroundStyle(viewModel.estimate.level.color)
 
-                    Text(viewModel.estimate.level.description)
-                        .font(WaytTheme.captionFont)
-                        .foregroundStyle(WaytTheme.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()

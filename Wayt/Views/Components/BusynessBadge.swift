@@ -44,18 +44,17 @@ struct BusynessBadge: View {
                 .onAppear { isPulsing = true }
 
                 Text(level.label)
-                    .font(style == .compact ? WaytTheme.badgeFont : WaytTheme.footnoteLightFont)
-                    .fontWeight(.semibold)
+                    .font(style == .compact ? WaytTheme.badgeFont : .system(size: 16, weight: .bold, design: .rounded))
                     .foregroundStyle(level.color)
 
                 if style == .standard, confidence != .none {
                     if confidence == .veryHigh {
                         Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(WaytTheme.busynessColor(for: 2))
                     }
                     Text("• \(confidence.label)")
-                        .font(WaytTheme.badgeFont)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(confidenceColor)
                 }
             }
@@ -79,12 +78,7 @@ struct BusynessBadge: View {
     }
 
     private var confidenceColor: Color {
-        switch confidence {
-        case .veryHigh, .high: return WaytTheme.busynessColor(for: 2)  // green
-        case .medium:          return WaytTheme.busynessColor(for: 3)  // yellow
-        case .low, .estimated: return WaytTheme.secondaryText
-        case .none:            return WaytTheme.secondaryText
-        }
+        WaytTheme.secondaryText
     }
 
     enum BadgeStyle {

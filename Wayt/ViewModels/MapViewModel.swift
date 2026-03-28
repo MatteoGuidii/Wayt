@@ -590,6 +590,7 @@ final class MapViewModel: ObservableObject {
                     venues[i].rating = details.rating ?? venues[i].rating
                     venues[i].userRatingCount = details.userRatingCount ?? venues[i].userRatingCount
                     venues[i].priceLevel = details.priceLevel ?? venues[i].priceLevel
+                    venues[i].priceRange = details.priceRange ?? venues[i].priceRange
                     venues[i].primaryTypeDisplayName = details.primaryTypeDisplayName ?? venues[i].primaryTypeDisplayName
                 }
 
@@ -649,6 +650,7 @@ final class MapViewModel: ObservableObject {
                 v.rating = existing.rating
                 v.userRatingCount = existing.userRatingCount
                 v.priceLevel = existing.priceLevel
+                v.priceRange = existing.priceRange
                 v.primaryTypeDisplayName = existing.primaryTypeDisplayName
                 return v
             }
@@ -667,6 +669,7 @@ final class MapViewModel: ObservableObject {
                     v.rating = details.rating
                     v.userRatingCount = details.userRatingCount
                     v.priceLevel = details.priceLevel
+                    v.priceRange = details.priceRange
                     v.primaryTypeDisplayName = details.primaryTypeDisplayName
                 }
                 return v
@@ -698,6 +701,7 @@ final class MapViewModel: ObservableObject {
                 v.rating = details.rating
                 v.userRatingCount = details.userRatingCount
                 v.priceLevel = details.priceLevel
+                v.priceRange = details.priceRange
                 v.primaryTypeDisplayName = details.primaryTypeDisplayName
             }
             return v

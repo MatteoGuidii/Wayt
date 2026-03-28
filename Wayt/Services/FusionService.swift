@@ -165,16 +165,20 @@ final class FusionService {
         venueId: String,
         venueName: String,
         lat: Double,
-        lng: Double
+        lng: Double,
+        address: String? = nil
     ) async throws -> DetailedFusedResponse {
         Log.fusion.debug("Fetching single-venue busyness for \(venueId, privacy: .public)")
         let encoded = venueId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? venueId
-        let queryItems = [
+        var queryItems = [
             URLQueryItem(name: "venueName", value: venueName),
             URLQueryItem(name: "lat", value: String(lat)),
             URLQueryItem(name: "lng", value: String(lng)),
             URLQueryItem(name: "timezone", value: TimeZone.current.identifier),
         ]
+        if let address {
+            queryItems.append(URLQueryItem(name: "address", value: address))
+        }
         return try await APIClient.shared.get(
             path: "/v1/venues/\(encoded)/busyness",
             queryItems: queryItems
@@ -227,12 +231,14 @@ struct VenueInfo: Codable, Sendable {
     let venueName: String
     let lat: Double
     let lng: Double
+    let address: String?
 
     init(venue: Venue) {
         self.venueId = venue.id
         self.venueName = venue.name
         self.lat = venue.coordinate.latitude
         self.lng = venue.coordinate.longitude
+        self.address = venue.address
     }
 }
 

@@ -30,6 +30,7 @@ export async function handler(
     const venueName = params.venueName ?? "";
     const lat = parseFloat(params.lat ?? "");
     const lng = parseFloat(params.lng ?? "");
+    const address = params.address || undefined;
 
     const timezone = params.timezone ?? "UTC";
 
@@ -65,7 +66,7 @@ export async function handler(
     // Step 2: If no valid cache, compute fresh
     if (!fused) {
       log.debug("Cache miss, computing fresh", { venueId });
-      fused = await computeVenueBusyness({ venueId, venueName, lat, lng, timezone });
+      fused = await computeVenueBusyness({ venueId, venueName, lat, lng, timezone, address });
     } else {
       log.debug("Cache hit", { venueId });
     }
@@ -102,6 +103,7 @@ export async function handler(
       rating: cachedDetails.rating,
       userRatingCount: cachedDetails.userRatingCount,
       priceLevel: cachedDetails.priceLevel,
+      priceRange: cachedDetails.priceRange,
       types: cachedDetails.types,
       reviews: cachedDetails.reviews,
       editorialSummary: cachedDetails.editorialSummary,

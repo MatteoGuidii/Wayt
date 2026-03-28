@@ -73,7 +73,8 @@ export async function fetchFoursquareSignal(
   venueName: string,
   lat: number,
   lng: number,
-  timezone: string = "UTC"
+  timezone: string = "UTC",
+  address?: string
 ): Promise<VenueSignal | null> {
   if (!FOURSQUARE_API_KEY) return null;
 
@@ -81,7 +82,7 @@ export async function fetchFoursquareSignal(
 
   try {
     // Step 1: Get raw Foursquare data (from 30-day cache or fresh API call)
-    const data = await getFoursquareVenueData(venueId, venueName, lat, lng);
+    const data = await getFoursquareVenueData(venueId, venueName, lat, lng, address);
     if (!data) {
       log.debug("No FSQ data available", { venueId });
       return null;
@@ -131,7 +132,8 @@ async function getFoursquareVenueData(
   venueId: string,
   venueName: string,
   lat: number,
-  lng: number
+  lng: number,
+  address?: string
 ): Promise<CachedFsqData | null> {
   const log = createLogger("foursquare:data");
 
@@ -151,7 +153,7 @@ async function getFoursquareVenueData(
   }
 
   // Cache miss — fetch from Foursquare API
-  const fsqId = await getCachedMapping(venueId) ?? await matchVenue(venueId, venueName, lat, lng);
+  const fsqId = await getCachedMapping(venueId) ?? await matchVenue(venueId, venueName, lat, lng, address);
   if (!fsqId) {
     log.debug("No Foursquare match", { venueId, venueName });
     return null;
@@ -283,7 +285,8 @@ async function matchVenue(
   venueId: string,
   venueName: string,
   lat: number,
-  lng: number
+  lng: number,
+  address?: string
 ): Promise<string | null> {
   const log = createLogger("foursquare:match");
 
@@ -292,6 +295,11 @@ async function matchVenue(
     ll: `${lat},${lng}`,
     limit: "5",
   });
+  // When address is available, add `near` for better geocoding
+  // (MapKit coordinates can be off; Foursquare resolves addresses well)
+  if (address) {
+    params.set("near", address);
+  }
 
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/search?${params}`,

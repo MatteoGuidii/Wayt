@@ -88,6 +88,7 @@ export interface CachedVenueDetails {
   rating: number | null;              // 1.0-5.0 (Google scale)
   userRatingCount: number | null;
   priceLevel: string | null;          // e.g. "PRICE_LEVEL_MODERATE"
+  priceRange: string | null;          // e.g. "$10–25" (formatted from Google priceRange)
   reviews: GoogleReview[];
   editorialSummary: string | null;
   cachedAt: string;
@@ -100,6 +101,7 @@ export interface VenueDetailsSummary {
   rating: number | null;
   userRatingCount: number | null;
   priceLevel: string | null;
+  priceRange: string | null;
 }
 
 /** Full venue details included in single-venue responses. */

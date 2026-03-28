@@ -119,14 +119,18 @@ export async function handler(
           rating: (detailsData.rating as number) ?? null,
           userRatingCount: (detailsData.userRatingCount as number) ?? null,
           priceLevel: (detailsData.priceLevel as string) ?? null,
+          priceRange: (detailsData.priceRange as string) ?? null,
         };
       }
 
-      // Backfill GDETAILS for venues with cached hours but no details yet.
+      // Backfill GDETAILS for venues missing details or missing priceRange
+      // (added later — stale cache entries need a re-fetch).
       // Runs in parallel, capped at 10 per request to limit Google API cost.
-      // After backfill, details are cached in DynamoDB and included in this response.
       const needsBackfill = cachedVenueIds.filter(
-        (id) => googleDataMap.has(id) && !googleDetailsMap.has(id)
+        (id) => googleDataMap.has(id) && (
+          !googleDetailsMap.has(id) ||
+          !(googleDetailsMap.get(id)?.priceRange)
+        )
       );
       if (needsBackfill.length > 0) {
         log.info("Backfilling venue details", { count: needsBackfill.length });
@@ -144,6 +148,7 @@ export async function handler(
             rating: details.rating,
             userRatingCount: details.userRatingCount,
             priceLevel: details.priceLevel,
+            priceRange: details.priceRange,
           };
         }
       }
@@ -210,6 +215,7 @@ export async function handler(
               rating: (detailsData.rating as number) ?? null,
               userRatingCount: (detailsData.userRatingCount as number) ?? null,
               priceLevel: (detailsData.priceLevel as string) ?? null,
+              priceRange: (detailsData.priceRange as string) ?? null,
             };
           }
           inlineCount++;

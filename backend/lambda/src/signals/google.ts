@@ -77,6 +77,12 @@ interface GoogleSearchResult {
   }>;
 }
 
+interface GoogleMoney {
+  currencyCode?: string;
+  units?: string;
+  nanos?: number;
+}
+
 interface GooglePlaceDetails {
   businessStatus?: string;
   regularOpeningHours?: {
@@ -91,6 +97,10 @@ interface GooglePlaceDetails {
   rating?: number;
   userRatingCount?: number;
   priceLevel?: string;
+  priceRange?: {
+    startPrice?: GoogleMoney;
+    endPrice?: GoogleMoney;
+  };
   reviews?: Array<{
     authorAttribution?: { displayName?: string };
     rating?: number;
@@ -124,7 +134,8 @@ export async function getGoogleHoursData(
   venueId: string,
   venueName: string,
   lat: number,
-  lng: number
+  lng: number,
+  address?: string
 ): Promise<GoogleHoursResult | null> {
   if (!GOOGLE_API_KEY) return null;
 
@@ -158,7 +169,7 @@ export async function getGoogleHoursData(
       return null;
     }
 
-    const googlePlaceId = cachedMapping ?? await matchGoogleVenue(venueId, venueName, lat, lng);
+    const googlePlaceId = cachedMapping ?? await matchGoogleVenue(venueId, venueName, lat, lng, address);
     if (!googlePlaceId) {
       log.debug("No Google Place ID resolved", { venueId, venueName });
       // Cache the failure so we don't re-attempt on every request
@@ -201,6 +212,7 @@ export async function getGoogleHoursData(
       rating: details.rating ?? null,
       userRatingCount: details.userRatingCount ?? null,
       priceLevel: details.priceLevel ?? null,
+      priceRange: formatPriceRange(details.priceRange),
       reviews: (details.reviews ?? []).map((r) => ({
         authorName: r.authorAttribution?.displayName ?? "Anonymous",
         rating: r.rating ?? 0,
@@ -251,9 +263,9 @@ export async function getGoogleHoursData(
 export async function ensureVenueDetails(venueId: string): Promise<CachedVenueDetails | null> {
   const log = createLogger("google:backfill");
 
-  // Check if already cached
+  // Check if already cached — re-fetch if missing priceRange (field added later)
   const existing = await getGoogleVenueDetails(venueId);
-  if (existing) return existing;
+  if (existing && existing.priceRange !== null) return existing;
 
   // Read cached Google mapping to get the Place ID
   const mapping = await getItem(venueKey(venueId), mappingSK("google"));
@@ -273,6 +285,7 @@ export async function ensureVenueDetails(venueId: string): Promise<CachedVenueDe
     rating: details.rating ?? null,
     userRatingCount: details.userRatingCount ?? null,
     priceLevel: details.priceLevel ?? null,
+    priceRange: formatPriceRange(details.priceRange),
     reviews: (details.reviews ?? []).map((r) => ({
       authorName: r.authorAttribution?.displayName ?? "Anonymous",
       rating: r.rating ?? 0,
@@ -316,6 +329,7 @@ export async function getGoogleVenueDetails(venueId: string): Promise<CachedVenu
     rating: (cached.rating as number) ?? null,
     userRatingCount: (cached.userRatingCount as number) ?? null,
     priceLevel: (cached.priceLevel as string) ?? null,
+    priceRange: (cached.priceRange as string) ?? null,
     reviews: (cached.reviews as CachedVenueDetails["reviews"]) ?? [],
     editorialSummary: (cached.editorialSummary as string) ?? null,
     cachedAt: cached.cachedAt as string,
@@ -428,13 +442,17 @@ async function matchGoogleVenue(
   venueId: string,
   venueName: string,
   lat: number,
-  lng: number
+  lng: number,
+  address?: string
 ): Promise<string | null> {
   const log = createLogger("google:match");
 
-  // Bake coordinates into the query — Google resolves "name near lat,lng"
-  // far better than name-only + locationBias alone
-  const textQuery = `${venueName} near ${lat.toFixed(4)},${lng.toFixed(4)}`;
+  // When address is available, use it in the query for more reliable matching
+  // (MapKit coordinates can be significantly off, but addresses are usually correct).
+  // Fall back to coordinate-based query when no address is provided.
+  const textQuery = address
+    ? `${venueName} ${address}`
+    : `${venueName} near ${lat.toFixed(4)},${lng.toFixed(4)}`;
 
   const body = {
     textQuery,
@@ -447,16 +465,9 @@ async function matchGoogleVenue(
     maxResultCount: 5,
   };
 
-  if (!googleBreaker.allowRequest()) {
-    log.warn("Circuit breaker OPEN — skipping Google match", { venueId });
-    return null;
-  }
-
-  let response: Response;
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4_000);
-    response = await fetch(`${GOOGLE_BASE}/places:searchText`, {
+  const response = await googleFetchWithRetry(
+    `${GOOGLE_BASE}/places:searchText`,
+    {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -464,36 +475,11 @@ async function matchGoogleVenue(
         "X-Goog-FieldMask": "places.id,places.displayName,places.location",
       },
       body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-  } catch (err) {
-    googleBreaker.recordFailure();
-    log.warn("Google Text Search error (network/timeout)", {
-      venueId,
-      venueName,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return null;
-  }
+    },
+    `match:${venueId}`
+  );
 
-  if (!response.ok) {
-    googleBreaker.recordFailure();
-    let errBody = "(empty)";
-    try {
-      const raw = await response.text();
-      if (raw) errBody = raw.slice(0, 300);
-    } catch { /* ignore */ }
-    log.warn("Google Text Search failed", {
-      status: response.status,
-      venueId,
-      venueName,
-      responseBody: errBody,
-    });
-    return null;
-  }
-
-  googleBreaker.recordSuccess();
+  if (!response) return null;
 
   const data = (await response.json()) as GoogleSearchResult;
   const candidates = data.places ?? [];
@@ -567,6 +553,75 @@ async function matchGoogleVenue(
 // Google Places API helpers
 // -----------------------------------------------
 
+/** Per-request timeout in milliseconds. */
+const FETCH_TIMEOUT_MS = 4_000;
+
+/** Fetch with retry, exponential backoff, circuit breaker, and per-request timeout. */
+async function googleFetchWithRetry(
+  url: string,
+  options: RequestInit,
+  label: string,
+  maxRetries = 2
+): Promise<Response | null> {
+  if (!googleBreaker.allowRequest()) {
+    const log = createLogger("google");
+    log.warn("Circuit breaker OPEN — skipping request", { label });
+    return null;
+  }
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        googleBreaker.recordSuccess();
+        return response;
+      }
+
+      const retryable = response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === maxRetries) {
+        googleBreaker.recordFailure();
+        const log = createLogger("google");
+        let body = "(empty)";
+        try {
+          const raw = await response.text();
+          if (raw) body = raw.slice(0, 300);
+        } catch { /* ignore */ }
+        log.warn("API request failed", {
+          label,
+          status: response.status,
+          attempt: attempt + 1,
+          responseBody: body,
+        });
+        return null;
+      }
+
+      // Exponential backoff with jitter: 200-300ms, 400-500ms
+      const delayMs = 200 * Math.pow(2, attempt) + Math.random() * 100;
+      const log = createLogger("google");
+      log.debug("Retrying API request", { label, status: response.status, attempt: attempt + 1, delayMs: Math.round(delayMs) });
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    } catch (err) {
+      googleBreaker.recordFailure();
+      if (attempt === maxRetries) {
+        const log = createLogger("google");
+        log.warn("API request error (network/timeout)", {
+          label,
+          attempt: attempt + 1,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return null;
+      }
+      const delayMs = 200 * Math.pow(2, attempt) + Math.random() * 100;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return null;
+}
+
 /**
  * Fetch place details from Google Places API (New).
  * Requests hours, business status, types, rating, reviews, price, and
@@ -575,48 +630,19 @@ async function matchGoogleVenue(
 async function fetchGooglePlaceDetails(placeId: string): Promise<GooglePlaceDetails | null> {
   const log = createLogger("google:details");
 
-  if (!googleBreaker.allowRequest()) {
-    log.warn("Circuit breaker OPEN — skipping Google details", { placeId });
-    return null;
-  }
-
-  let response: Response;
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4_000);
-    response = await fetch(`${GOOGLE_BASE}/places/${placeId}`, {
+  const response = await googleFetchWithRetry(
+    `${GOOGLE_BASE}/places/${placeId}`,
+    {
       headers: {
         "X-Goog-Api-Key": GOOGLE_API_KEY,
-        "X-Goog-FieldMask": "businessStatus,regularOpeningHours,types,primaryType,primaryTypeDisplayName,rating,userRatingCount,priceLevel,reviews,editorialSummary",
+        "X-Goog-FieldMask": "businessStatus,regularOpeningHours,types,primaryType,primaryTypeDisplayName,rating,userRatingCount,priceLevel,priceRange,reviews,editorialSummary",
       },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-  } catch (err) {
-    googleBreaker.recordFailure();
-    log.warn("Google Place Details error (network/timeout)", {
-      placeId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return null;
-  }
+    },
+    `details:${placeId}`
+  );
 
-  if (!response.ok) {
-    googleBreaker.recordFailure();
-    let body = "(empty)";
-    try {
-      const raw = await response.text();
-      if (raw) body = raw.slice(0, 300);
-    } catch { /* ignore */ }
-    log.warn("Google Place Details failed", {
-      placeId,
-      status: response.status,
-      responseBody: body,
-    });
-    return null;
-  }
+  if (!response) return null;
 
-  googleBreaker.recordSuccess();
   const data = (await response.json()) as GooglePlaceDetails;
   log.debug("Google Place Details fetched", {
     placeId,
@@ -629,6 +655,35 @@ async function fetchGooglePlaceDetails(placeId: string): Promise<GooglePlaceDeta
 // -----------------------------------------------
 // Helpers
 // -----------------------------------------------
+
+/** Extract a formatted price range string from Google's priceRange object.
+ * Returns e.g. "$10–25", "$60+", or null if no data. */
+function formatPriceRange(priceRange: GooglePlaceDetails["priceRange"]): string | null {
+  if (!priceRange) return null;
+  const start = priceRange.startPrice;
+  const end = priceRange.endPrice;
+  if (!start?.units && !end?.units) return null;
+
+  const currency = start?.currencyCode ?? end?.currencyCode ?? "USD";
+  const symbol = currencySymbol(currency);
+  const startVal = start?.units ? parseInt(start.units, 10) : NaN;
+  const endVal = end?.units ? parseInt(end.units, 10) : NaN;
+
+  if (!isNaN(startVal) && !isNaN(endVal)) return `${symbol}${startVal}–${endVal}`;
+  if (!isNaN(startVal)) return `${symbol}${startVal}+`;
+  if (!isNaN(endVal)) return `Up to ${symbol}${endVal}`;
+  return null;
+}
+
+function currencySymbol(code: string): string {
+  switch (code) {
+    case "USD": case "CAD": case "AUD": return "$";
+    case "EUR": return "€";
+    case "GBP": return "£";
+    case "JPY": return "¥";
+    default: return `${code} `;
+  }
+}
 
 function normalizeBusinessStatus(status: string | undefined): CachedGoogleHours["businessStatus"] {
   switch (status) {

@@ -24,6 +24,7 @@ export interface ComputeInput {
   lat: number;
   lng: number;
   timezone?: string;
+  address?: string;
 }
 
 /**
@@ -36,7 +37,7 @@ export interface ComputeInput {
  * 5. Cache and return the fused result
  */
 export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEstimate> {
-  const { venueId, venueName, lat, lng, timezone } = input;
+  const { venueId, venueName, lat, lng, timezone, address } = input;
   const now = Date.now();
   const nowSeconds = Math.floor(now / 1000);
 
@@ -62,7 +63,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 
     if (staleSourceIds.length > 0) {
       const fetches = staleSourceIds.map((sourceId) =>
-        fetchSignalBySource(sourceId, venueId, venueName, lat, lng, timezone)
+        fetchSignalBySource(sourceId, venueId, venueName, lat, lng, timezone, address)
       );
       const results = await Promise.all(fetches);
 
@@ -82,7 +83,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
     });
 
     // Step 2b: Fetch Google hours for open/closed status (parallel with signals)
-    const googleResult = await getGoogleHoursData(venueId, venueName, lat, lng);
+    const googleResult = await getGoogleHoursData(venueId, venueName, lat, lng, address);
     const googleHours = googleResult?.hours ?? null;
     const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
 
@@ -115,6 +116,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
         rating: googleVenueDetails.rating,
         userRatingCount: googleVenueDetails.userRatingCount,
         priceLevel: googleVenueDetails.priceLevel,
+        priceRange: googleVenueDetails.priceRange,
       };
     }
 
@@ -212,11 +214,12 @@ async function fetchSignalBySource(
   venueName: string,
   lat: number,
   lng: number,
-  timezone?: string
+  timezone?: string,
+  address?: string
 ): Promise<VenueSignal | null> {
   switch (sourceId) {
     case "foursquare":
-      return fetchFoursquareSignal(venueId, venueName, lat, lng, timezone);
+      return fetchFoursquareSignal(venueId, venueName, lat, lng, timezone, address);
     case "user_reports":
       return aggregateUserReports(venueId);
     default:

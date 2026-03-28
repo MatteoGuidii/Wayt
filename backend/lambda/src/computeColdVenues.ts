@@ -94,7 +94,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
           batch.map(async ([venueId]): Promise<{ venueId: string; result: GoogleHoursResult } | null> => {
             const venue = coldVenueMap.get(venueId);
             if (!venue) return null;
-            const result = await getGoogleHoursData(venueId, venue.venueName, venue.lat, venue.lng);
+            const result = await getGoogleHoursData(venueId, venue.venueName, venue.lat, venue.lng, venue.address);
             if (!result) return null;
             return { venueId, result };
           })

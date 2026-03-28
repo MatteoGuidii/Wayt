@@ -48,6 +48,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     var rating: Double?
     var userRatingCount: Int?
     var priceLevel: String?
+    var priceRange: String?
     var primaryTypeDisplayName: String?
 
     // MARK: - Name Normalization
@@ -97,6 +98,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
             && lhs.rating == rhs.rating
             && lhs.userRatingCount == rhs.userRatingCount
             && lhs.priceLevel == rhs.priceLevel
+            && lhs.priceRange == rhs.priceRange
             && lhs.primaryTypeDisplayName == rhs.primaryTypeDisplayName
     }
 
@@ -112,6 +114,7 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         hasher.combine(rating)
         hasher.combine(userRatingCount)
         hasher.combine(priceLevel)
+        hasher.combine(priceRange)
         hasher.combine(primaryTypeDisplayName)
     }
 }

@@ -64,7 +64,7 @@ struct VenueCard: View {
                             .font(WaytTheme.badgeFont)
                             .foregroundStyle(WaytTheme.secondaryText)
                     }
-                    if let price = PriceLevel.format(venue.priceLevel) {
+                    if let price = PriceLevel.format(venue.priceLevel, priceRange: venue.priceRange) {
                         if venue.rating != nil {
                             Text("·")
                                 .font(WaytTheme.badgeFont)
