@@ -9,20 +9,14 @@ struct AuthGateSheet: View {
 
     var body: some View {
         VStack(spacing: 5) {
+            Spacer()
+
             WaytLogomark(size: 72)
-                .padding(.top, 8)
 
-            VStack(spacing: 12) {
-                Text("Join the community")
-                    .font(WaytTheme.largeTitleFont)
-                    .multilineTextAlignment(.center)
-
-                Text("Create an account to share wait times\nwith the community")
-                    .font(WaytTheme.bodyFont)
-                    .foregroundStyle(WaytTheme.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(3)
-            }
+            Text("Join the community")
+                .font(WaytTheme.largeTitleFont)
+                .multilineTextAlignment(.center)
+                .padding(.bottom, 12)
 
             VStack(spacing: 8) {
                 benefitRow(icon: "megaphone.fill", text: "Report how busy places are")
@@ -43,9 +37,9 @@ struct AuthGateSheet: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(WaytTheme.skyPunch)
+                        .background(WaytTheme.mapsBlue)
                         .clipShape(Capsule())
-                        .shadow(color: WaytTheme.skyPunch.opacity(0.3), radius: 10, y: 5)
+                        .shadow(color: WaytTheme.mapsBlue.opacity(0.3), radius: 10, y: 5)
                 }
 
                 Button("Maybe later") {
@@ -63,7 +57,7 @@ struct AuthGateSheet: View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(WaytTheme.bodyBoldFont)
-                .foregroundStyle(WaytTheme.skyPunch)
+                .foregroundStyle(WaytTheme.mapsBlue)
                 .frame(width: 28)
 
             Text(text)

@@ -15,7 +15,7 @@ struct DiscoverScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 24) {
                     greetingHeader
                     vibePulseSection
                     categoryStrip
@@ -75,8 +75,7 @@ struct DiscoverScreen: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, -20)
+        .padding(.top, 16)
     }
 
     /// Show "Go Now" when no busyness filter, or filtering empty/quiet/moderate
@@ -98,8 +97,8 @@ struct DiscoverScreen: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: "waveform.path")
-                    .font(WaytTheme.footnoteFont)
-                    .foregroundStyle(WaytTheme.skyPunch)
+                    .font(WaytTheme.subheadFont)
+                    .foregroundStyle(WaytTheme.mapsBlue)
                 Text("Area Vibe")
                     .font(WaytTheme.sectionFont)
 
@@ -578,8 +577,8 @@ struct DiscoverScreen: View {
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "mappin.and.ellipse")
-                        .font(WaytTheme.footnoteFont)
-                        .foregroundStyle(WaytTheme.skyPunch)
+                        .font(WaytTheme.subheadFont)
+                        .foregroundStyle(WaytTheme.mapsBlue)
                     Text("All Spots")
                         .font(WaytTheme.sectionFont)
                 }

@@ -79,13 +79,13 @@ struct OnboardingView: View {
 
             // Decorative floating circles
             Circle()
-                .fill(WaytTheme.skyPunch.opacity(0.10))
+                .fill(WaytTheme.mapsBlue.opacity(0.10))
                 .frame(width: 300, height: 300)
                 .offset(x: -120, y: -280)
                 .blur(radius: 40)
 
             Circle()
-                .fill(WaytTheme.skyPunch.opacity(0.06))
+                .fill(WaytTheme.mapsBlue.opacity(0.06))
                 .frame(width: 250, height: 250)
                 .offset(x: 150, y: 200)
                 .blur(radius: 40)
@@ -104,12 +104,12 @@ struct OnboardingView: View {
 
                 Image(systemName: page.accentIcon)
                     .font(WaytTheme.iconLargeFont)
-                    .foregroundStyle(WaytTheme.skyPunch)
+                    .foregroundStyle(WaytTheme.mapsBlue)
                     .padding(12)
                     .background(
                         Circle()
                             .fill(.ultraThinMaterial)
-                            .shadow(color: WaytTheme.skyPunch.opacity(0.2), radius: 8, y: 2)
+                            .shadow(color: WaytTheme.mapsBlue.opacity(0.2), radius: 8, y: 2)
                     )
                     .offset(x: 55, y: -40)
             }
@@ -140,7 +140,7 @@ struct OnboardingView: View {
         HStack(spacing: 8) {
             ForEach(pages.indices, id: \.self) { index in
                 Capsule()
-                    .fill(index == currentPage ? WaytTheme.skyPunch : Color.gray.opacity(0.3))
+                    .fill(index == currentPage ? WaytTheme.mapsBlue : Color.gray.opacity(0.3))
                     .frame(width: index == currentPage ? 24 : 8, height: 8)
                     .animation(.spring(response: 0.35), value: currentPage)
             }
@@ -158,9 +158,9 @@ struct OnboardingView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(WaytTheme.skyPunch)
+                    .background(WaytTheme.mapsBlue)
                     .clipShape(Capsule())
-                    .shadow(color: WaytTheme.skyPunch.opacity(0.35), radius: 12, y: 6)
+                    .shadow(color: WaytTheme.mapsBlue.opacity(0.35), radius: 12, y: 6)
             }
             .scaleEffect(appeared ? 1 : 0.9)
             .opacity(appeared ? 1 : 0)
@@ -169,7 +169,7 @@ struct OnboardingView: View {
             Button(action: onLogIn) {
                 Text("I already have an account")
                     .font(WaytTheme.bodyFont)
-                    .foregroundStyle(WaytTheme.skyPunch)
+                    .foregroundStyle(WaytTheme.mapsBlue)
             }
             .opacity(appeared ? 1 : 0)
         }
