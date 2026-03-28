@@ -489,6 +489,10 @@ async function matchGoogleVenue(
   }
 
   // Score candidates — compare against original venueName (not the location-qualified query)
+  // When address is provided, relax the distance cap: MapKit coordinates can be
+  // several km off while the address is correct, so use 5 km to avoid rejecting
+  // valid matches that the address-based query found correctly.
+  const maxDistance = address ? 5_000 : MATCH_MAX_DISTANCE_M;
   let bestCandidate: (typeof candidates)[0] | null = null;
   let bestScore = -1;
 
@@ -500,9 +504,9 @@ async function matchGoogleVenue(
     if (candidateLat == null || candidateLng == null) continue;
 
     const distance = haversineDistance(lat, lng, candidateLat, candidateLng);
-    if (distance > MATCH_MAX_DISTANCE_M) continue;
+    if (distance > maxDistance) continue;
 
-    const distanceScore = Math.max(0, 1.0 - distance / MATCH_MAX_DISTANCE_M);
+    const distanceScore = Math.max(0, 1.0 - distance / maxDistance);
     const nameScore = nameSimilarity(venueName, candidateName);
 
     // Proximity bonus: venues within 50m are very likely the correct match

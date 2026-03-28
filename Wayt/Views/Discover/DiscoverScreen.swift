@@ -440,11 +440,6 @@ struct DiscoverScreen: View {
                             .foregroundStyle(WaytTheme.secondaryText)
                     }
                 }
-            } else if let busyness = venue.busyness {
-                Text(busyness.label)
-                    .font(WaytTheme.badgeFont)
-                    .foregroundStyle(WaytTheme.secondaryText)
-                    .lineLimit(1)
             }
         }
         .padding(14)

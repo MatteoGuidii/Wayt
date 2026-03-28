@@ -64,10 +64,12 @@ export async function handler(
 
       if (ttl && ttl < nowSeconds) continue;
 
-      // Skip cached empty estimates (sourceCount === 0) — treat as cache miss so
-      // the background Lambda retries with improved matching thresholds.
+      // Skip cached empty estimates (sourceCount === 0) unless they have a
+      // definitive businessStatus (e.g. UNVERIFIED, CLOSED_PERMANENTLY) — those
+      // must reach the iOS app so it can filter out ghost venues.
       const sourceCount = item.sourceCount as number;
-      if (sourceCount === 0) continue;
+      const businessStatus = item.businessStatus as string | null;
+      if (sourceCount === 0 && !businessStatus) continue;
 
       const dist = haversineDistance(lat, lng, itemLat, itemLng);
       if (dist > radius) continue;

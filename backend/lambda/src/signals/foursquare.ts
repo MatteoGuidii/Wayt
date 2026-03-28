@@ -292,13 +292,15 @@ async function matchVenue(
 
   const params = new URLSearchParams({
     query: venueName,
-    ll: `${lat},${lng}`,
     limit: "5",
   });
-  // When address is available, add `near` for better geocoding
-  // (MapKit coordinates can be off; Foursquare resolves addresses well)
+  // Foursquare requires either `ll` or `near`, not both.
+  // Prefer `near` when address is available — MapKit coordinates can be
+  // several km off while the address is usually correct.
   if (address) {
     params.set("near", address);
+  } else {
+    params.set("ll", `${lat},${lng}`);
   }
 
   const response = await fetchWithRetry(

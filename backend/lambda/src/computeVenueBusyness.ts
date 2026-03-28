@@ -107,6 +107,12 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
     fused.hoursToday = openStatus?.hoursToday ?? null;
     fused.businessStatus = googleHours?.businessStatus ?? null;
 
+    // Mark venues that couldn't be found on any external source as UNVERIFIED.
+    // These are likely ghost venues in MapKit (closed/renamed/nonexistent).
+    if (freshSignals.length === 0 && !googleHours) {
+      fused.businessStatus = "UNVERIFIED";
+    }
+
     // Attach venue details summary (returned in-memory from the same API call)
     const googleVenueDetails = googleResult?.venueDetails ?? null;
     if (googleVenueDetails) {
@@ -140,9 +146,12 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
     });
 
     // Step 5: Cache the fused result with geohash for spatial queries.
-    // Only cache if we have real signals — don't persist empty estimates
-    // (no Foursquare match + no user reports) so the system retries next time.
-    if (freshSignals.length > 0) {
+    // Cache if we have real signals OR if the venue is UNVERIFIED (ghost venue).
+    // UNVERIFIED must be cached so the iOS app can read it from the geohash
+    // index on progressive refreshes and filter out the ghost venue.
+    // Empty non-UNVERIFIED estimates are not cached so the system retries.
+    const shouldCache = freshSignals.length > 0 || fused.businessStatus === "UNVERIFIED";
+    if (shouldCache) {
       const geohash = encode(lat, lng);
       await putItem({
         PK: venueKey(venueId),
