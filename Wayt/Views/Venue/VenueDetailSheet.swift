@@ -163,7 +163,7 @@ struct VenueDetailSheet: View {
                         .font(WaytTheme.headlineFont)
                         .lineLimit(2)
 
-                    Text(venue.primaryTypeDisplayName ?? venue.category.displayName)
+                    Text(venue.primaryTypeDisplayName ?? viewModel.venueDetailsFull?.primaryTypeDisplayName ?? venue.category.displayName)
                         .font(WaytTheme.captionFont)
                         .foregroundStyle(WaytTheme.secondaryText)
                 }
@@ -181,10 +181,10 @@ struct VenueDetailSheet: View {
 
     private var atAGlanceSection: some View {
         VenueAtAGlanceCard(
-            rating: venue.rating,
-            userRatingCount: venue.userRatingCount,
-            priceLevel: venue.priceLevel,
-            priceRange: venue.priceRange
+            rating: venue.rating ?? viewModel.venueDetailsFull?.rating,
+            userRatingCount: venue.userRatingCount ?? viewModel.venueDetailsFull?.userRatingCount,
+            priceLevel: venue.priceLevel ?? viewModel.venueDetailsFull?.priceLevel,
+            priceRange: venue.priceRange ?? viewModel.venueDetailsFull?.priceRange
         ) {
             showReviewsSheet = true
         }

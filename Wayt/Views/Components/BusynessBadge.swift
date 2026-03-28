@@ -14,16 +14,16 @@ struct BusynessBadge: View {
         if isOpen == false {
             HStack(spacing: 4) {
                 Circle()
-                    .fill(Color.secondary)
+                    .fill(Color.red)
                     .frame(width: dotSize, height: dotSize)
                 Text("Closed")
                     .font(style == .compact ? WaytTheme.badgeFont : WaytTheme.footnoteLightFont)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.red)
             }
             .padding(.horizontal, style == .compact ? 6 : 8)
             .padding(.vertical, style == .compact ? 3 : 5)
-            .background(Color.gray.opacity(0.12))
+            .background(Color.red.opacity(0.12))
             .clipShape(Capsule())
         } else if let level {
             HStack(spacing: 4) {

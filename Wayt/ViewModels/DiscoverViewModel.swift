@@ -15,8 +15,22 @@ final class DiscoverViewModel: ObservableObject {
     // MARK: - Discover-Only Filters
 
     @Published var openNowOnly: Bool = false
-    @Published var topRatedOnly: Bool = false
+    @Published var ratingFilter: DiscoverRatingFilter?
     @Published var priceFilter: DiscoverPriceFilter?
+
+    enum DiscoverRatingFilter: Double, CaseIterable {
+        case threeHalf = 3.5
+        case four      = 4.0
+        case fourHalf  = 4.5
+
+        var label: String {
+            switch self {
+            case .threeHalf: return "3.5+"
+            case .four:      return "4+"
+            case .fourHalf:  return "4.5+"
+            }
+        }
+    }
 
     enum DiscoverPriceFilter: String, CaseIterable {
         case budget   // $
@@ -44,12 +58,12 @@ final class DiscoverViewModel: ObservableObject {
     }
 
     var hasActiveDiscoverFilters: Bool {
-        openNowOnly || topRatedOnly || priceFilter != nil
+        openNowOnly || ratingFilter != nil || priceFilter != nil
     }
 
     func clearDiscoverFilters() {
         openNowOnly = false
-        topRatedOnly = false
+        ratingFilter = nil
         priceFilter = nil
         applyFilter()
     }
@@ -185,8 +199,8 @@ final class DiscoverViewModel: ObservableObject {
         if openNowOnly {
             base = base.filter { $0.isOpen == true }
         }
-        if topRatedOnly {
-            base = base.filter { ($0.rating ?? 0) >= 4.0 }
+        if let ratingFilter {
+            base = base.filter { ($0.rating ?? 0) >= ratingFilter.rawValue }
         }
         if let priceFilter {
             base = base.filter { priceFilter.matches(priceLevel: $0.priceLevel) }
@@ -208,8 +222,8 @@ final class DiscoverViewModel: ObservableObject {
             .prefix(8)
             .map { $0 }
 
-        // Sort by rating when Top Rated filter is active
-        if topRatedOnly {
+        // Sort by rating when a rating filter is active
+        if ratingFilter != nil {
             filteredVenues = base.sorted { ($0.rating ?? 0) > ($1.rating ?? 0) }
         } else {
             filteredVenues = base

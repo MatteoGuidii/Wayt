@@ -69,17 +69,12 @@ final class VenueDetailViewModel: ObservableObject {
         isLoadingReports = false
     }
 
-    /// Try to get a fused estimate — uses the nearby cache first to avoid a redundant API call,
-    /// then always fetches full venue details (reviews, editorial summary) from the single-venue endpoint.
+    /// Fetch full venue data from the single-venue endpoint.
+    /// Always prefers the fresh response (has hours, rating, reviews, price)
+    /// over the nearby cache which may be incomplete for cold venues.
     private func loadFusedEstimate() async -> BusynessEstimate? {
-        // Use cached busyness estimate if available
-        let cachedEstimate: BusynessEstimate? = if let cached = FusionService.shared.cachedEstimate(for: venue.id) {
-            busynessEngine.estimate(from: cached)
-        } else {
-            nil
-        }
-
-        // Always fetch single-venue endpoint for full details (reviews, editorial summary)
+        let vid = venue.id
+        Log.fusion.info("[Detail] Fetching for \(vid, privacy: .public)")
         do {
             let response = try await FusionService.shared.fetchVenueBusyness(
                 venueId: venue.id,
@@ -88,11 +83,19 @@ final class VenueDetailViewModel: ObservableObject {
                 lng: venue.coordinate.longitude,
                 address: venue.address
             )
+            let hasDetails = response.venueDetails != nil
+            let hours = response.hoursToday ?? "nil"
+            let rating = response.venueDetails?.rating
+            Log.fusion.info("[Detail] OK: isOpen=\(String(describing: response.isOpen)) hours=\(hours, privacy: .public) hasDetails=\(hasDetails) rating=\(String(describing: rating))")
             venueDetailsFull = response.venueDetails
-            return cachedEstimate ?? busynessEngine.estimate(from: response.toFusedEstimate())
+            return busynessEngine.estimate(from: response.toFusedEstimate())
         } catch {
-            Log.fusion.notice("Fusion unavailable for detail: \(error.localizedDescription)")
-            return cachedEstimate
+            Log.fusion.error("[Detail] FAILED: \(String(describing: error))")
+            // Fall back to nearby cache if single-venue endpoint fails
+            if let cached = FusionService.shared.cachedEstimate(for: venue.id) {
+                return busynessEngine.estimate(from: cached)
+            }
+            return nil
         }
     }
 

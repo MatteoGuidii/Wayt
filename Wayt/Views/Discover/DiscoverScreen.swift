@@ -293,25 +293,29 @@ struct DiscoverScreen: View {
 
     private var discoverFilterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 // Open Now
                 filterChip(
                     label: "Open Now",
-                    icon: "clock",
+                    icon: "clock.fill",
+                    accent: .secondary,
                     isActive: viewModel.openNowOnly
                 ) {
                     viewModel.openNowOnly.toggle()
                     viewModel.applyFilterPublic()
                 }
 
-                // Top Rated
-                filterChip(
-                    label: "4\u{2605}+",
-                    icon: "star.fill",
-                    isActive: viewModel.topRatedOnly
-                ) {
-                    viewModel.topRatedOnly.toggle()
-                    viewModel.applyFilterPublic()
+                // Rating tiers
+                ForEach(DiscoverViewModel.DiscoverRatingFilter.allCases, id: \.self) { tier in
+                    filterChip(
+                        label: tier.label,
+                        icon: "star.fill",
+                        accent: .secondary,
+                        isActive: viewModel.ratingFilter == tier
+                    ) {
+                        viewModel.ratingFilter = viewModel.ratingFilter == tier ? nil : tier
+                        viewModel.applyFilterPublic()
+                    }
                 }
 
                 // Price tiers
@@ -319,6 +323,7 @@ struct DiscoverScreen: View {
                     filterChip(
                         label: tier.label,
                         icon: nil,
+                        accent: .secondary,
                         isActive: viewModel.priceFilter == tier
                     ) {
                         viewModel.priceFilter = viewModel.priceFilter == tier ? nil : tier
@@ -330,28 +335,38 @@ struct DiscoverScreen: View {
         }
     }
 
-    private func filterChip(label: String, icon: String?, isActive: Bool, action: @escaping () -> Void) -> some View {
+    private func filterChip(label: String, icon: String?, accent: Color, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 action()
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(WaytTheme.subheadFont)
+                        .foregroundStyle(isActive ? .white : accent)
                 }
                 Text(label)
-                    .font(WaytTheme.badgeFont)
+                    .font(WaytTheme.footnoteFont)
+                    .foregroundStyle(isActive ? .white : .primary)
             }
-            .foregroundStyle(isActive ? .white : WaytTheme.secondaryText)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             .background(isActive ? WaytTheme.skyPunch : WaytTheme.cardBackground)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(isActive ? Color.clear : Color.primary.opacity(0.08), lineWidth: 1)
+                    .stroke(
+                        isActive ? WaytTheme.skyPunch : Color.primary.opacity(0.08),
+                        lineWidth: isActive ? 0 : 1.5
+                    )
+            )
+            .shadow(
+                color: isActive ? WaytTheme.skyPunch.opacity(0.3) : .black.opacity(0.04),
+                radius: isActive ? 6 : 3,
+                x: 0,
+                y: isActive ? 3 : 1
             )
         }
         .buttonStyle(.plain)
