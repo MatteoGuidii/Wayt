@@ -73,7 +73,7 @@ enum WaytTheme {
 
     // MARK: - Backgrounds
 
-    /// Cool ice-blue gradient for auth/onboarding screens; deep navy with subtle blue in dark mode
+    /// Cool ice-blue gradient for screens; deep navy with subtle blue in dark mode
     static let backgroundGradient = LinearGradient(
         colors: [
             adaptive(
@@ -91,7 +91,7 @@ enum WaytTheme {
 
     static let cardBackground = adaptive(
         light: .systemBackground,
-        dark:  UIColor(red: 0.10, green: 0.105, blue: 0.14, alpha: 1)  // subtle navy, blends with background
+        dark:  UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1)   // neutral dark card
     )
 
     /// Adaptive shadow for cards — subtle in light, stronger in dark
@@ -108,8 +108,8 @@ enum WaytTheme {
 
     /// Avatar outer ring
     static let avatarRing = adaptive(
-        light: UIColor(red: 0.93, green: 0.97, blue: 0.99, alpha: 1),
-        dark:  UIColor(red: 0.18, green: 0.19, blue: 0.24, alpha: 1)
+        light: UIColor(red: 1.00, green: 0.97, blue: 0.93, alpha: 1),
+        dark:  UIColor(red: 0.18, green: 0.19, blue: 0.22, alpha: 1)
     )
 
     /// Avatar inner circle / camera badge background

@@ -122,11 +122,11 @@ private struct AuthHeaderView: View {
 
             Text("Wayt")
                 .font(WaytTheme.displayFont)
-                .foregroundStyle(WaytTheme.mapsBlue)
+                .foregroundStyle(WaytTheme.primaryText)
 
             Text("Know before you go.")
                 .font(WaytTheme.subtitleFont)
-                .foregroundStyle(WaytTheme.mapsBlue.opacity(0.7))
+                .foregroundStyle(WaytTheme.secondaryText)
         }
         .padding(.top, 12)
         .padding(.bottom, 4)
@@ -229,11 +229,11 @@ private struct AuthenticatorContainer: View {
 
                 Text("Wayt")
                     .font(WaytTheme.displayFont)
-                    .foregroundStyle(WaytTheme.mapsBlue)
+                    .foregroundStyle(WaytTheme.primaryText)
 
                 Text("Know before you go.")
                     .font(WaytTheme.subtitleFont)
-                    .foregroundStyle(WaytTheme.mapsBlue.opacity(0.7))
+                    .foregroundStyle(WaytTheme.secondaryText)
             }
             .padding(.top, 12)
             .padding(.bottom, 4)
