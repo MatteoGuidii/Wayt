@@ -107,6 +107,7 @@ final class MapViewModel: ObservableObject {
     internal var lastSearchedRegion: MKCoordinateRegion?
     private var searchTask: Task<Void, Never>?
     private var refreshTimer: Task<Void, Never>?
+    private var hoursTransitionTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
     private var followUpTask: Task<Void, Never>?
 
@@ -120,6 +121,7 @@ final class MapViewModel: ObservableObject {
     deinit {
         searchTask?.cancel()
         refreshTimer?.cancel()
+        hoursTransitionTask?.cancel()
         clusterDebounceTask?.cancel()
         expandTask?.cancel()
         prefetchTask?.cancel()
@@ -172,11 +174,17 @@ final class MapViewModel: ObservableObject {
 
                 var results: [Venue]
                 if searchText.isEmpty {
-                    // Progressive loading: show venues as each query type completes
+                    // Progressive loading: merge new venues as each query type completes
                     results = await searchService.searchAllTypes(region: region) { [weak self] partial in
                         guard let self, !Task.isCancelled else { return }
-                        self.venues = self.applyAllBusynessData(to: partial)
-                        self.recomputeClusters(debounce: true)
+                        // Merge: append only genuinely new venues (like expandSearch)
+                        let existingIDs = Set(self.venues.map(\.id))
+                        let newVenues = partial.filter { !existingIDs.contains($0.id) }
+                        if !newVenues.isEmpty {
+                            let withBusyness = self.applyAllBusynessData(to: newVenues)
+                            self.venues.append(contentsOf: withBusyness)
+                            self.recomputeClusters(debounce: true)
+                        }
                         self.isSearching = false // stop spinner on first batch
                     }
                 } else {
@@ -226,12 +234,34 @@ final class MapViewModel: ObservableObject {
                     scheduleProgressiveRefreshes(region: region)
                 }
 
-                // Update display immediately — don't wait for backend
+                // Merge final results: keep existing in-region venues, add new ones
                 if !results.isEmpty {
-                    venues = results
+                    let newResultIDs = Set(results.map(\.id))
+                    // Retain existing venues still within the new search region
+                    var merged = venues.filter { venue in
+                        newResultIDs.contains(venue.id) || region.containsWithBuffer(venue.coordinate)
+                    }
+                    // Add genuinely new results not already present
+                    let mergedIDs = Set(merged.map(\.id))
+                    let additional = results.filter { !mergedIDs.contains($0.id) }
+                    merged.append(contentsOf: additional)
+
+                    // Sort by distance from region center, cap at limit
+                    let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+                    merged.sort { a, b in
+                        let distA = center.distance(from: CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude))
+                        let distB = center.distance(from: CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude))
+                        return distA < distB
+                    }
+                    if merged.count > AppConstants.maxVisibleVenues {
+                        merged = Array(merged.prefix(AppConstants.maxVisibleVenues))
+                    }
+
+                    venues = applyAllBusynessData(to: merged)
                     lastSearchedRegion = region
                     lastExpandedRegion = nil
                     recomputeClusters()
+                    scheduleHoursTransitionRefresh()
                 }
                 Log.map.info("Loaded \(results.count) venues, \(self.filteredVenues.count) after filters, \(self.mapItems.count) map items")
             } catch {
@@ -526,11 +556,16 @@ final class MapViewModel: ObservableObject {
                 guard UIApplication.shared.applicationState == .active else { continue }
                 guard !venues.isEmpty, let region = lastSearchedRegion else { continue }
 
-                // Let cache TTL handle staleness — no manual invalidation needed
+                // Invalidate cache if any venue's hours transition has passed
+                if hasHoursTransitionOccurred() {
+                    fusionService.invalidateCache()
+                }
+
                 var updated = venues
                 await overlayBusynessData(on: &updated, region: region)
                 venues = updated
                 recomputeClusters()
+                scheduleHoursTransitionRefresh()
                 Log.map.debug("Live refresh complete")
             }
         }
@@ -540,6 +575,108 @@ final class MapViewModel: ObservableObject {
     func stopLiveRefresh() {
         refreshTimer?.cancel()
         refreshTimer = nil
+        hoursTransitionTask?.cancel()
+        hoursTransitionTask = nil
+    }
+
+    // MARK: - Hours Transition Refresh
+
+    /// Check if any venue's opening/closing transition has passed since we last
+    /// fetched data, meaning the cached `isOpen` is likely stale.
+    private func hasHoursTransitionOccurred() -> Bool {
+        let now = Date()
+        for venue in venues {
+            guard let hoursToday = venue.hoursToday else { continue }
+            guard let transitionTime = parseTransitionTime(from: hoursToday, isOpen: venue.isOpen) else { continue }
+            // Transition is in the past (already happened) and within the last refresh window
+            if transitionTime <= now && now.timeIntervalSince(transitionTime) < AppConstants.liveRefreshInterval + 30 {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Schedule a one-shot refresh at the next venue hours transition (open→closed or closed→open).
+    /// This ensures the UI updates within seconds of a venue opening or closing.
+    private func scheduleHoursTransitionRefresh() {
+        hoursTransitionTask?.cancel()
+
+        let now = Date()
+        var earliest: Date?
+
+        for venue in venues {
+            guard let hoursToday = venue.hoursToday else { continue }
+            guard let transitionTime = parseTransitionTime(from: hoursToday, isOpen: venue.isOpen) else { continue }
+            // Only care about upcoming transitions within the next hour
+            guard transitionTime > now, transitionTime.timeIntervalSince(now) < 3600 else { continue }
+            if earliest == nil || transitionTime < earliest! {
+                earliest = transitionTime
+            }
+        }
+
+        guard let target = earliest else { return }
+        // Add a small buffer so the backend has time to reflect the change
+        let delay = target.timeIntervalSince(now) + 5
+
+        Log.map.debug("Hours transition scheduled in \(Int(delay))s")
+        hoursTransitionTask = Task {
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            guard UIApplication.shared.applicationState == .active else { return }
+            guard !venues.isEmpty, let region = lastSearchedRegion else { return }
+
+            fusionService.invalidateCache()
+            var updated = venues
+            await overlayBusynessData(on: &updated, region: region)
+            venues = updated
+            recomputeClusters()
+            Log.map.debug("Hours transition refresh complete")
+        }
+    }
+
+    /// Parse the next open/close transition time from a `hoursToday` string.
+    ///
+    /// Recognized formats:
+    /// - "Opens 11:00 AM" → venue is closed, transition at 11:00 AM
+    /// - "Closes 10:00 PM" → venue is open, transition at 10:00 PM
+    /// - "11:00 AM – 10:00 PM" → uses `isOpen` to pick opening or closing time
+    private func parseTransitionTime(from hoursToday: String, isOpen: Bool?) -> Date? {
+        let calendar = Calendar.current
+        let now = Date()
+
+        // "Opens 11:00 AM" or "Closes 10:00 PM"
+        if let range = hoursToday.range(of: #"^(Opens|Closes)\s+"#, options: .regularExpression) {
+            let timeStr = String(hoursToday[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+            return todayDate(from: timeStr, calendar: calendar, now: now)
+        }
+
+        // "11:00 AM – 10:00 PM" (en-dash or hyphen)
+        let parts = hoursToday.components(separatedBy: CharacterSet(charactersIn: "–-"))
+        if parts.count == 2 {
+            let openStr = parts[0].trimmingCharacters(in: .whitespaces)
+            let closeStr = parts[1].trimmingCharacters(in: .whitespaces)
+            // If currently closed, next transition is opening; if open, it's closing
+            let target = (isOpen == true) ? closeStr : openStr
+            return todayDate(from: target, calendar: calendar, now: now)
+        }
+
+        return nil
+    }
+
+    private static let hoursFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "h:mm a"
+        return f
+    }()
+
+    private func todayDate(from timeString: String, calendar: Calendar, now: Date) -> Date? {
+        guard let parsed = Self.hoursFormatter.date(from: timeString) else { return nil }
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: parsed)
+        var todayComponents = calendar.dateComponents([.year, .month, .day], from: now)
+        todayComponents.hour = timeComponents.hour
+        todayComponents.minute = timeComponents.minute
+        return calendar.date(from: todayComponents)
     }
 
     // MARK: - Busyness Data Overlay
