@@ -118,7 +118,7 @@ private struct AuthHeaderView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            WaytMascot(size: 80, expression: .looking, animated: false)
+            WaytLogomark(size: 64)
 
             Text("Wayt")
                 .font(WaytTheme.displayFont)
@@ -225,7 +225,7 @@ private struct AuthenticatorContainer: View {
 
             // Header
             VStack(spacing: 8) {
-                WaytMascot(size: 80, expression: .looking, animated: false)
+                WaytLogomark(size: 64)
 
                 Text("Wayt")
                     .font(WaytTheme.displayFont)

@@ -9,7 +9,7 @@ struct AuthGateSheet: View {
 
     var body: some View {
         VStack(spacing: 5) {
-            WaytMascot(size: 90, expression: .looking)
+            WaytLogomark(size: 72)
                 .padding(.top, 8)
 
             VStack(spacing: 12) {

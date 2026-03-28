@@ -65,21 +65,15 @@ struct DiscoverScreen: View {
     // MARK: - Greeting Header
 
     private var greetingHeader: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(viewModel.greeting)
-                    .font(WaytTheme.largeTitleFont)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(viewModel.greeting)
+                .font(WaytTheme.largeTitleFont)
 
-                Text(viewModel.greetingSubtitle)
-                    .font(WaytTheme.subheadLightFont)
-                    .foregroundStyle(WaytTheme.secondaryText)
-            }
-
-            Spacer()
-
-            WaytMascot(size: 80, expression: mascotExpression, animated: true)
-                .offset(x: -10)
+            Text(viewModel.greetingSubtitle)
+                .font(WaytTheme.subheadLightFont)
+                .foregroundStyle(WaytTheme.secondaryText)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, -20)
@@ -97,16 +91,6 @@ struct DiscoverScreen: View {
         return level.rawValue >= 4
     }
 
-    private var mascotExpression: WaytMascot.Expression {
-        guard let mood = viewModel.areaMood else { return .looking }
-        switch mood {
-        case .empty:    return .looking
-        case .quiet:    return .happy
-        case .moderate: return .cheerful
-        case .busy:     return .excited
-        case .packed:   return .wink
-        }
-    }
 
     // MARK: - Vibe Pulse (Tappable)
 
@@ -224,7 +208,9 @@ struct DiscoverScreen: View {
 
     private var emptyVibeState: some View {
         VStack(spacing: 8) {
-            WaytMascot(size: 48, expression: .looking, animated: false)
+            Image(systemName: "waveform.path")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(.tertiary)
             Text("Scanning your area...")
                 .font(WaytTheme.footnoteLightFont)
                 .foregroundStyle(WaytTheme.secondaryText)
@@ -683,7 +669,9 @@ struct DiscoverScreen: View {
 
     private var emptyNearbyState: some View {
         VStack(spacing: 12) {
-            WaytMascot(size: 56, expression: .looking, animated: true)
+            Image(systemName: "mappin.slash")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(.tertiary)
 
             Text("Nothing here yet")
                 .font(WaytTheme.bodyBoldFont)

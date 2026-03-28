@@ -17,7 +17,6 @@ struct ProfileScreen: View {
     @State private var showImagePreview = false
     @State private var showFirstTimeNameSheet = false
     @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var mascotExpression: WaytMascot.Expression = .happy
     @State private var pulsePhase: CGFloat = 0
 
     var body: some View {
@@ -39,7 +38,6 @@ struct ProfileScreen: View {
                 }
             }
         }
-        .task { await cycleMascotExpression() }
         .sheet(isPresented: $showEditSheet) {
             ProfileEditSheet(isFirstTime: false)
                 .environmentObject(viewModel)
@@ -80,7 +78,7 @@ struct ProfileScreen: View {
                 VStack(spacing: 28) {
                     Spacer().frame(height: 20)
 
-                    WaytMascot(size: 130, expression: mascotExpression, animated: true)
+                    WaytLogomark(size: 100)
 
                     VStack(spacing: 8) {
                         Text("Join the community!")
@@ -456,8 +454,10 @@ struct ProfileScreen: View {
 
     private func rankCard(rank: UserRank) -> some View {
         HStack(spacing: 14) {
-            // Mascot on the left
-            WaytMascot(size: 48, expression: mascotExpression, animated: false)
+            Image(systemName: rank.icon)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(rank.color)
+                .frame(width: 48, height: 48)
 
             // Progress content
             VStack(alignment: .leading, spacing: 10) {
@@ -693,23 +693,6 @@ struct ProfileScreen: View {
         }
     }
 
-    // MARK: - Mascot Expression Cycle
-
-    private static let expressionCycle: [WaytMascot.Expression] = [
-        .happy, .cheerful, .looking, .excited, .wink, .proud, .kind
-    ]
-
-    private func cycleMascotExpression() async {
-        var index = 0
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(12))
-            guard !Task.isCancelled else { break }
-            index = (index + 1) % Self.expressionCycle.count
-            withAnimation(.easeInOut(duration: 0.5)) {
-                mascotExpression = Self.expressionCycle[index]
-            }
-        }
-    }
 
     // MARK: - Image Preview
 
@@ -898,15 +881,6 @@ enum UserRank: Int, CaseIterable {
         }
     }
 
-    var mascotExpression: WaytMascot.Expression {
-        switch self {
-        case .newbie:     return .looking
-        case .explorer:   return .happy
-        case .scout:      return .cheerful
-        case .localGuide: return .excited
-        case .legend:     return .proud
-        }
-    }
 
     var nextRank: UserRank? {
         UserRank(rawValue: rawValue + 1)

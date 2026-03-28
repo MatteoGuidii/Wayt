@@ -20,7 +20,7 @@ enum WaytTheme {
         dark:  UIColor(red: 0.22, green: 0.48, blue: 0.65, alpha: 1)   // muted sky blue, easier on eyes
     )
 
-    /// Ultra Blue — gradient accent for mascot pin body
+    /// Ultra Blue — gradient accent
     static let ultraBlue = adaptive(
         light: UIColor(red: 0.20, green: 0.20, blue: 1.00, alpha: 1),  // #3333FF
         dark:  UIColor(red: 0.18, green: 0.18, blue: 0.45, alpha: 1)   // muted indigo
@@ -30,36 +30,6 @@ enum WaytTheme {
     static let mapsBlue = adaptive(
         light: UIColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1),  // #007AFF
         dark:  UIColor(red: 0.25, green: 0.48, blue: 0.72, alpha: 1)   // softer maps blue
-    )
-
-    /// Mascot body top — vibrant sky blue, stays bright so Vee looks the same in both modes
-    static let mascotBodyTop = adaptive(
-        light: UIColor(red: 0.00, green: 0.70, blue: 0.95, alpha: 1),  // same as light skyPunch
-        dark:  UIColor(red: 0.00, green: 0.62, blue: 0.88, alpha: 1)   // slightly toned but still vivid blue
-    )
-
-    /// Mascot body bottom — vivid indigo, keeps the mascot pop in dark mode
-    static let mascotBodyBottom = adaptive(
-        light: UIColor(red: 0.20, green: 0.20, blue: 1.00, alpha: 1),  // same as light ultraBlue
-        dark:  UIColor(red: 0.20, green: 0.20, blue: 0.85, alpha: 1)   // slightly toned indigo
-    )
-
-    /// Dark ink — mascot face features (eyes, mouth); same in both modes so face is always visible
-    static let ink = adaptive(
-        light: UIColor(red: 0.25, green: 0.20, blue: 0.35, alpha: 1),  // #403357
-        dark:  UIColor(red: 0.25, green: 0.20, blue: 0.35, alpha: 1)   // same — stays dark on white face
-    )
-
-    /// Mascot outline strokes — black in both modes to preserve mascot identity
-    static let mascotOutline = adaptive(
-        light: .black,
-        dark:  .black
-    )
-
-    /// Mascot face oval fill — white in both modes (mascot identity)
-    static let mascotFace = adaptive(
-        light: UIColor(white: 1.0, alpha: 0.95),
-        dark:  UIColor(white: 1.0, alpha: 0.95)
     )
 
     /// Saved/bookmark accent — matches busyness "Busy" orange
@@ -277,7 +247,7 @@ extension View {
 // MARK: - Pin Shape (Wayt brand icon container)
 
 /// Teardrop / map-pin silhouette — rounded top half tapering to a point.
-/// Shared brand shape echoing the Wayt mascot.
+/// Shared brand shape for map pins and markers.
 struct PinShape: Shape {
     func path(in rect: CGRect) -> Path {
         let headRadius = rect.width / 2

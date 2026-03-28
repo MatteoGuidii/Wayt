@@ -131,38 +131,6 @@ struct WaytThemeTests {
         }
     }
 
-    // MARK: - Mascot Colors
-
-    @Test("mascotBodyTop is a valid color")
-    func mascotBodyTopExists() {
-        #expect(WaytTheme.mascotBodyTop != Color.clear)
-    }
-
-    @Test("mascotBodyBottom is a valid color")
-    func mascotBodyBottomExists() {
-        #expect(WaytTheme.mascotBodyBottom != Color.clear)
-    }
-
-    @Test("ink is a valid color")
-    func inkExists() {
-        #expect(WaytTheme.ink != Color.clear)
-    }
-
-    @Test("mascotOutline is a valid color")
-    func mascotOutlineExists() {
-        #expect(WaytTheme.mascotOutline != Color.clear)
-    }
-
-    @Test("mascotFace is a valid color")
-    func mascotFaceExists() {
-        #expect(WaytTheme.mascotFace != Color.clear)
-    }
-
-    @Test("mascotBodyTop and mascotBodyBottom are distinct")
-    func mascotBodyColorsDistinct() {
-        #expect(WaytTheme.mascotBodyTop != WaytTheme.mascotBodyBottom)
-    }
-
     // MARK: - Text Colors
 
     @Test("primaryText is a valid color")

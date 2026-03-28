@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Onboarding (Welcome Flow)
 
-/// Waze-inspired onboarding with swipeable pages, mascot illustrations,
+/// Waze-inspired onboarding with swipeable pages, brand logomark,
 /// and "Get Started" / "I already have an account" CTAs.
 struct OnboardingView: View {
 
@@ -14,19 +14,16 @@ struct OnboardingView: View {
 
     private let pages: [OnboardingPage] = [
         OnboardingPage(
-            expression: .looking,
             headline: "Know before you go",
             subtitle: "See how busy any venue is — right now. No more guessing, no more wasted trips.",
             accentIcon: "eye.fill"
         ),
         OnboardingPage(
-            expression: .excited,
             headline: "Real-time crowd intel",
             subtitle: "Live busyness levels from real people on the ground. Updated every few minutes.",
             accentIcon: "waveform.path.ecg"
         ),
         OnboardingPage(
-            expression: .proud,
             headline: "Help your community",
             subtitle: "Drop a quick report when you're at a venue. It takes 5 seconds and helps everyone.",
             accentIcon: "hand.thumbsup.fill"
@@ -101,11 +98,10 @@ struct OnboardingView: View {
         VStack(spacing: 24) {
             Spacer()
 
-            // Mascot
+            // Logomark + floating icon badge
             ZStack {
-                WaytMascot(size: 140, expression: page.expression)
+                WaytLogomark(size: 100)
 
-                // Small floating icon badge
                 Image(systemName: page.accentIcon)
                     .font(WaytTheme.iconLargeFont)
                     .foregroundStyle(WaytTheme.skyPunch)
@@ -115,7 +111,7 @@ struct OnboardingView: View {
                             .fill(.ultraThinMaterial)
                             .shadow(color: WaytTheme.skyPunch.opacity(0.2), radius: 8, y: 2)
                     )
-                    .offset(x: 65, y: -50)
+                    .offset(x: 55, y: -40)
             }
 
             VStack(spacing: 12) {
@@ -192,7 +188,6 @@ struct OnboardingView: View {
 // MARK: - Page Model
 
 private struct OnboardingPage {
-    let expression: WaytMascot.Expression
     let headline: String
     let subtitle: String
     let accentIcon: String

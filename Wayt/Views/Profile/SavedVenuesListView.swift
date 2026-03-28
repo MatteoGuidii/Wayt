@@ -214,7 +214,9 @@ struct SavedVenuesListView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            WaytMascot(size: 72, expression: .looking, animated: true)
+            Image(systemName: "bookmark")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(.tertiary)
 
             VStack(spacing: 6) {
                 Text("No saved spots yet")
