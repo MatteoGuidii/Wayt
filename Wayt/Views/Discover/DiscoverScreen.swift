@@ -19,6 +19,7 @@ struct DiscoverScreen: View {
                     greetingHeader
                     vibePulseSection
                     categoryStrip
+                    discoverFilterChips
                     if authState.isSignedIn && !nearbySavedVenues.isEmpty {
                         savedVenuesSection
                     }
@@ -288,6 +289,74 @@ struct DiscoverScreen: View {
         }
     }
 
+    // MARK: - Discover Filter Chips
+
+    private var discoverFilterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                // Open Now
+                filterChip(
+                    label: "Open Now",
+                    icon: "clock",
+                    isActive: viewModel.openNowOnly
+                ) {
+                    viewModel.openNowOnly.toggle()
+                    viewModel.applyFilterPublic()
+                }
+
+                // Top Rated
+                filterChip(
+                    label: "4\u{2605}+",
+                    icon: "star.fill",
+                    isActive: viewModel.topRatedOnly
+                ) {
+                    viewModel.topRatedOnly.toggle()
+                    viewModel.applyFilterPublic()
+                }
+
+                // Price tiers
+                ForEach(DiscoverViewModel.DiscoverPriceFilter.allCases, id: \.self) { tier in
+                    filterChip(
+                        label: tier.label,
+                        icon: nil,
+                        isActive: viewModel.priceFilter == tier
+                    ) {
+                        viewModel.priceFilter = viewModel.priceFilter == tier ? nil : tier
+                        viewModel.applyFilterPublic()
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private func filterChip(label: String, icon: String?, isActive: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                action()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                Text(label)
+                    .font(WaytTheme.badgeFont)
+            }
+            .foregroundStyle(isActive ? .white : WaytTheme.secondaryText)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(isActive ? WaytTheme.skyPunch : WaytTheme.cardBackground)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(isActive ? Color.clear : Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Category Strip (Horizontal Pills)
 
     private var categoryStrip: some View {
@@ -521,11 +590,12 @@ struct DiscoverScreen: View {
                         .scaleEffect(0.8)
                 }
 
-                if filterState.selectedCategory != nil || filterState.selectedBusynessLevel != nil {
+                if filterState.selectedCategory != nil || filterState.selectedBusynessLevel != nil || viewModel.hasActiveDiscoverFilters {
                     Button {
                         withAnimation(.spring(response: 0.3)) {
                             filterState.selectCategory(nil)
                             filterState.selectBusynessLevel(nil)
+                            viewModel.clearDiscoverFilters()
                         }
                     } label: {
                         Text("Clear filters")

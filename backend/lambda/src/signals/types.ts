@@ -47,8 +47,8 @@ export interface FusedEstimate {
   isOpen?: boolean | null;
   /** Today's operating hours for display (e.g. "11:00 AM – 10:00 PM"). null = unknown. */
   hoursToday?: string | null;
-  /** Google Places business status. UNVERIFIED = no match on any external source. null = unknown. */
-  businessStatus?: "OPERATIONAL" | "CLOSED_TEMPORARILY" | "CLOSED_PERMANENTLY" | "UNVERIFIED" | null;
+  /** Google Places business status. null = unknown or not yet resolved. */
+  businessStatus?: "OPERATIONAL" | "CLOSED_TEMPORARILY" | "CLOSED_PERMANENTLY" | null;
   /** Lightweight venue details (categories, rating, price). Null if not yet fetched. */
   venueDetails?: VenueDetailsSummary | null;
 }

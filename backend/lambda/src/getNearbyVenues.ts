@@ -65,8 +65,8 @@ export async function handler(
       if (ttl && ttl < nowSeconds) continue;
 
       // Skip cached empty estimates (sourceCount === 0) unless they have a
-      // definitive businessStatus (e.g. UNVERIFIED, CLOSED_PERMANENTLY) — those
-      // must reach the iOS app so it can filter out ghost venues.
+      // definitive businessStatus (e.g. CLOSED_PERMANENTLY) — those must reach
+      // the iOS app so it can filter them out.
       const sourceCount = item.sourceCount as number;
       const businessStatus = item.businessStatus as string | null;
       if (sourceCount === 0 && !businessStatus) continue;

@@ -12,6 +12,48 @@ final class DiscoverViewModel: ObservableObject {
     @Published var popularVenues: [Venue] = []
     @Published var sweetSpotVenues: [Venue] = []
 
+    // MARK: - Discover-Only Filters
+
+    @Published var openNowOnly: Bool = false
+    @Published var topRatedOnly: Bool = false
+    @Published var priceFilter: DiscoverPriceFilter?
+
+    enum DiscoverPriceFilter: String, CaseIterable {
+        case budget   // $
+        case mid      // $$
+        case upscale  // $$$+
+
+        var label: String {
+            switch self {
+            case .budget:  return "$"
+            case .mid:     return "$$"
+            case .upscale: return "$$$+"
+            }
+        }
+
+        func matches(priceLevel: String?) -> Bool {
+            switch self {
+            case .budget:
+                return priceLevel == "PRICE_LEVEL_FREE" || priceLevel == "PRICE_LEVEL_INEXPENSIVE"
+            case .mid:
+                return priceLevel == "PRICE_LEVEL_MODERATE"
+            case .upscale:
+                return priceLevel == "PRICE_LEVEL_EXPENSIVE" || priceLevel == "PRICE_LEVEL_VERY_EXPENSIVE"
+            }
+        }
+    }
+
+    var hasActiveDiscoverFilters: Bool {
+        openNowOnly || topRatedOnly || priceFilter != nil
+    }
+
+    func clearDiscoverFilters() {
+        openNowOnly = false
+        topRatedOnly = false
+        priceFilter = nil
+        applyFilter()
+    }
+
     // MARK: - Shared Filter
 
     var filterState: VenueFilterState? {
@@ -130,9 +172,25 @@ final class DiscoverViewModel: ObservableObject {
 
     // MARK: - Filter
 
+    /// Public entry point for Discover-only filter changes.
+    func applyFilterPublic() {
+        applyFilter()
+    }
+
     private func applyFilter() {
         // Apply shared filter logic (category + busyness)
-        let base = filterState?.apply(to: venues) ?? venues
+        var base = filterState?.apply(to: venues) ?? venues
+
+        // Apply Discover-only filters
+        if openNowOnly {
+            base = base.filter { $0.isOpen == true }
+        }
+        if topRatedOnly {
+            base = base.filter { ($0.rating ?? 0) >= 4.0 }
+        }
+        if let priceFilter {
+            base = base.filter { priceFilter.matches(priceLevel: $0.priceLevel) }
+        }
 
         // Popular / buzzing: busyness >= 4 (busy + packed)
         popularVenues = base
@@ -150,6 +208,11 @@ final class DiscoverViewModel: ObservableObject {
             .prefix(8)
             .map { $0 }
 
-        filteredVenues = base
+        // Sort by rating when Top Rated filter is active
+        if topRatedOnly {
+            filteredVenues = base.sorted { ($0.rating ?? 0) > ($1.rating ?? 0) }
+        } else {
+            filteredVenues = base
+        }
     }
 }

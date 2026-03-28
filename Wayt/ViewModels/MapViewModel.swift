@@ -604,13 +604,8 @@ final class MapViewModel: ObservableObject {
             }
         }
 
-        // Remove ghost venues: permanently/temporarily closed, or unverified
-        // (not found on any external source — likely defunct MapKit entries)
-        venues.removeAll {
-            $0.businessStatus == "CLOSED_PERMANENTLY"
-                || $0.businessStatus == "CLOSED_TEMPORARILY"
-                || $0.businessStatus == "UNVERIFIED"
-        }
+        // Remove permanently closed venues (confirmed gone by Google Places)
+        venues.removeAll { $0.businessStatus == "CLOSED_PERMANENTLY" }
     }
 
     /// Fetch report summaries from legacy API. Returns empty dict on failure.
