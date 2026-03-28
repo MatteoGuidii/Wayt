@@ -164,12 +164,40 @@ final class MapViewModel: ObservableObject {
             do {
                 // Phase A: Fire area pre-fetch in background — populates the fusion
                 // cache so progressive refreshes can color venues without blocking.
-                Task { [fusionService] in
+                // When the prefetch returns, immediately apply cached estimates to any
+                // venues already on screen (colors first MapKit batches faster).
+                Task { [weak self, fusionService] in
                     await fusionService.prefetchArea(
                         lat: region.center.latitude,
                         lng: region.center.longitude,
                         radius: radius
                     )
+                    guard let self, !Task.isCancelled else { return }
+                    let uncached = self.venues.filter { $0.busynessConfidence == .none }
+                    guard !uncached.isEmpty else { return }
+                    var updated = self.venues
+                    for i in updated.indices where updated[i].busynessConfidence == .none {
+                        if let cached = fusionService.cachedEstimate(for: updated[i].id) {
+                            let estimate = self.busynessEngine.estimate(from: cached)
+                            updated[i].busyness = estimate.level
+                            updated[i].busynessConfidence = estimate.confidence
+                            updated[i].reportCount = estimate.reportCount
+                            updated[i].estimatedWaitMinutes = estimate.waitMinutes
+                            updated[i].isOpen = estimate.isOpen
+                            updated[i].hoursToday = estimate.hoursToday
+                            updated[i].businessStatus = estimate.businessStatus
+                            if let details = cached.venueDetails {
+                                updated[i].rating = details.rating
+                                updated[i].userRatingCount = details.userRatingCount
+                                updated[i].priceLevel = details.priceLevel
+                                updated[i].priceRange = details.priceRange
+                                updated[i].primaryTypeDisplayName = details.primaryTypeDisplayName
+                            }
+                        }
+                    }
+                    self.venues = updated
+                    self.recomputeClusters()
+                    Log.map.debug("Prefetch applied cached estimates to early batches")
                 }
 
                 var results: [Venue]
