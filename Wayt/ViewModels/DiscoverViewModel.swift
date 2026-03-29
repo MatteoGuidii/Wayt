@@ -99,6 +99,8 @@ final class DiscoverViewModel: ObservableObject {
     @Published private(set) var categoryCounts: [VenueCategory: Int] = [:]
 
     /// Recompute cached derived state from the current venues array.
+    /// VibePulse uses all venues (area mood). Category counts respect busyness filter
+    /// so pill counts match what the user actually sees.
     private func recomputeDerivedState() {
         var pulse: [Int: Int] = [1: 0, 2: 0, 3: 0, 4: 0, 5: 0]
         for venue in venues {
@@ -107,7 +109,14 @@ final class DiscoverViewModel: ObservableObject {
             }
         }
         vibePulse = pulse
-        categoryCounts = Dictionary(grouping: venues, by: \.category).mapValues(\.count)
+
+        let base: [Venue]
+        if let level = filterState?.selectedBusynessLevel {
+            base = venues.filter { $0.busyness == level }
+        } else {
+            base = venues
+        }
+        categoryCounts = Dictionary(grouping: base, by: \.category).mapValues(\.count)
     }
 
     /// Dominant busyness level in the area
@@ -180,7 +189,6 @@ final class DiscoverViewModel: ObservableObject {
             let updatedLookup = Dictionary(newVenues.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
             venues = venues.map { updatedLookup[$0.id] ?? $0 }
         }
-        recomputeDerivedState()
         applyFilter()
     }
 
@@ -192,6 +200,8 @@ final class DiscoverViewModel: ObservableObject {
     }
 
     private func applyFilter() {
+        recomputeDerivedState()
+
         // Apply shared filter logic (category + busyness)
         var base = filterState?.apply(to: venues) ?? venues
 

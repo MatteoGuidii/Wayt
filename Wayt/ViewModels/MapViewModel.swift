@@ -139,6 +139,7 @@ final class MapViewModel: ObservableObject {
     ///   single POST request. Update colors when the response arrives.
     func searchVenues(in region: MKCoordinateRegion) {
         let isInitialSearch = venues.isEmpty && lastSearchedRegion == nil
+        isSearching = false
         searchTask?.cancel()
         expandTask?.cancel()
         followUpTask?.cancel()
@@ -369,13 +370,17 @@ final class MapViewModel: ObservableObject {
         }
     }
 
-    /// Navigate to a saved venue — shows only that venue on the map
-    /// without triggering an area search.
+    /// Navigate to a saved venue — preserves existing venues and ensures
+    /// the target is present, then animates to it.
     func navigateToSavedVenue(_ savedVenue: SavedVenue) {
         let venue = Venue(savedVenue: savedVenue)
-        venues = [venue]
+
+        if !venues.contains(where: { $0.id == venue.id }) {
+            venues.insert(venue, at: 0)
+        }
         recomputeClusters()
         selectedVenue = venue
+        showSearchThisArea = true
 
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             cameraPosition = .camera(MapCamera(
