@@ -14,6 +14,7 @@ import {
   MATCH_MIN_SCORE,
   getLocalTime,
 } from "./matching";
+import { foursquareBreaker } from "./circuitBreaker";
 
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY ?? "";
 const FSQ_BASE = "https://places-api.foursquare.com";
@@ -72,7 +73,8 @@ export async function fetchFoursquareSignal(
   venueName: string,
   lat: number,
   lng: number,
-  timezone: string = "UTC"
+  timezone: string = "UTC",
+  address?: string
 ): Promise<VenueSignal | null> {
   if (!FOURSQUARE_API_KEY) return null;
 
@@ -80,7 +82,7 @@ export async function fetchFoursquareSignal(
 
   try {
     // Step 1: Get raw Foursquare data (from 30-day cache or fresh API call)
-    const data = await getFoursquareVenueData(venueId, venueName, lat, lng);
+    const data = await getFoursquareVenueData(venueId, venueName, lat, lng, address);
     if (!data) {
       log.debug("No FSQ data available", { venueId });
       return null;
@@ -130,7 +132,8 @@ async function getFoursquareVenueData(
   venueId: string,
   venueName: string,
   lat: number,
-  lng: number
+  lng: number,
+  address?: string
 ): Promise<CachedFsqData | null> {
   const log = createLogger("foursquare:data");
 
@@ -150,7 +153,7 @@ async function getFoursquareVenueData(
   }
 
   // Cache miss — fetch from Foursquare API
-  const fsqId = await getCachedMapping(venueId) ?? await matchVenue(venueId, venueName, lat, lng);
+  const fsqId = await getCachedMapping(venueId) ?? await matchVenue(venueId, venueName, lat, lng, address);
   if (!fsqId) {
     log.debug("No Foursquare match", { venueId, venueName });
     return null;
@@ -198,38 +201,80 @@ async function getCachedMapping(venueId: string): Promise<string | null> {
   return (item.fsqId as string) ?? null;
 }
 
-/** Fetch with retry and exponential backoff for 429/5xx responses. */
+/** Per-request timeout in milliseconds. Prevents a single stalled request from blocking the Lambda. */
+const FETCH_TIMEOUT_MS = 4_000;
+
+/** Fetch with retry, exponential backoff, circuit breaker, and per-request timeout. */
 async function fetchWithRetry(
   url: string,
   label: string,
   maxRetries = 3
 ): Promise<Response | null> {
+  if (!foursquareBreaker.allowRequest()) {
+    const log = createLogger("foursquare");
+    log.warn("Circuit breaker OPEN — skipping request", { label });
+    return null;
+  }
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const response = await fetch(url, { headers: FSQ_HEADERS });
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const response = await fetch(url, { headers: FSQ_HEADERS, signal: controller.signal });
+      clearTimeout(timeout);
 
-    if (response.ok) return response;
+      if (response.ok) {
+        foursquareBreaker.recordSuccess();
+        return response;
+      }
 
-    const retryable = response.status === 429 || response.status >= 500;
-    if (!retryable || attempt === maxRetries) {
+      const retryable = response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === maxRetries) {
+        foursquareBreaker.recordFailure();
+        const retryLog = createLogger("foursquare");
+        let body = "(empty)";
+        try {
+          const raw = await response.text();
+          if (raw) body = raw.slice(0, 300);
+        } catch { /* ignore */ }
+        retryLog.warn("API request failed", {
+          label,
+          url: url.slice(0, 200),
+          status: response.status,
+          attempt: attempt + 1,
+          maxRetries: maxRetries + 1,
+          responseBody: body,
+          circuitState: foursquareBreaker.getState(),
+        });
+        return null;
+      }
+
+      // Exponential backoff with jitter: 200-300ms, 400-500ms, 800-900ms
+      const delayMs = 200 * Math.pow(2, attempt) + Math.random() * 100;
       const retryLog = createLogger("foursquare");
-      let body = "(empty)";
-      try {
-        const raw = await response.text();
-        if (raw) body = raw.slice(0, 300);
-      } catch { /* ignore */ }
-      retryLog.warn("API request failed", {
+      retryLog.debug("Retrying API request", {
         label,
-        url: url.slice(0, 200),
         status: response.status,
         attempt: attempt + 1,
-        responseBody: body,
+        delayMs: Math.round(delayMs),
       });
-      return null;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    } catch (err) {
+      // Network error or timeout
+      foursquareBreaker.recordFailure();
+      if (attempt === maxRetries) {
+        const log = createLogger("foursquare");
+        log.warn("API request error (network/timeout)", {
+          label,
+          attempt: attempt + 1,
+          error: err instanceof Error ? err.message : String(err),
+          circuitState: foursquareBreaker.getState(),
+        });
+        return null;
+      }
+      const delayMs = 200 * Math.pow(2, attempt) + Math.random() * 100;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-
-    // Exponential backoff: 200ms, 400ms, 800ms
-    const delayMs = 200 * Math.pow(2, attempt);
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   return null;
 }
@@ -240,15 +285,23 @@ async function matchVenue(
   venueId: string,
   venueName: string,
   lat: number,
-  lng: number
+  lng: number,
+  address?: string
 ): Promise<string | null> {
   const log = createLogger("foursquare:match");
 
   const params = new URLSearchParams({
     query: venueName,
-    ll: `${lat},${lng}`,
     limit: "5",
   });
+  // Foursquare requires either `ll` or `near`, not both.
+  // Prefer `near` when address is available — MapKit coordinates can be
+  // several km off while the address is usually correct.
+  if (address) {
+    params.set("near", address);
+  } else {
+    params.set("ll", `${lat},${lng}`);
+  }
 
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/search?${params}`,
@@ -315,6 +368,7 @@ async function matchVenue(
 
 /** Fetch Foursquare place details including popularity. */
 async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null> {
+  const log = createLogger("foursquare:data");
   const fields = "fsq_place_id,name,popularity,rating,stats,hours_popular";
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/${fsqId}?fields=${fields}`,
@@ -322,7 +376,15 @@ async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null>
   );
   if (!response) return null;
 
-  return (await response.json()) as FsqPlaceDetails;
+  const data = (await response.json()) as FsqPlaceDetails;
+  log.debug("Place details fetched", {
+    fsqId,
+    name: data.name,
+    hasPopularity: data.popularity != null,
+    popularity: data.popularity,
+    hoursPopularCount: data.hours_popular?.length ?? 0,
+  });
+  return data;
 }
 
 // -----------------------------------------------
@@ -432,6 +494,19 @@ export function computeTimeAwareBusyness(
 
   // Confidence: higher when we're near a known peak or clearly in a trough
   const confidence = computeTemporalConfidence(temporalShape, todayWindows.length);
+
+  const log = createLogger("foursquare");
+  log.debug("Temporal busyness computed", {
+    popularity: popularity.toFixed(3),
+    dayMultiplier: dayMult,
+    currentDay,
+    currentMinutes,
+    windowCount: todayWindows.length,
+    gaussianSum: gaussianSum.toFixed(3),
+    temporalShape: temporalShape.toFixed(3),
+    score: score.toFixed(3),
+    confidence: confidence.toFixed(3),
+  });
 
   return { score, confidence };
 }
@@ -608,10 +683,10 @@ export async function batchMatchVenues(
 }
 
 /**
- * Search Foursquare for venues in an area using 2 parallel queries for broader coverage.
- * Query 1: category-filtered (dining/drinking) — precise matches.
- * Query 2: no category filter — catches miscategorized or niche venues.
- * Returns up to 100 deduplicated results with popularity and hours_popular.
+ * Search Foursquare for venues in an area.
+ * For small areas (≤1500m radius): 2 parallel queries (category + broad) — up to 100 results.
+ * For larger areas: splits into 4 quadrants with category queries + 1 broad center query,
+ * increasing coverage to ~250 deduplicated results and reducing Phase 3 cold venue fallback.
  */
 async function batchSearchArea(
   lat: number,
@@ -620,30 +695,66 @@ async function batchSearchArea(
   log: ReturnType<typeof createLogger>
 ): Promise<FsqSearchResult[]> {
   const fields = "fsq_place_id,name,popularity,rating,distance,hours_popular,latitude,longitude";
-  const radiusStr = String(Math.round(radiusMeters));
-  const ll = `${lat},${lng}`;
 
-  // Two parallel searches for broader coverage (max 100 results total)
-  const [categoryResults, broadResults] = await Promise.all([
-    // Search 1: Dining & drinking category (precise)
-    fetchAreaSearch({ ll, radius: radiusStr, categories: FSQ_DINING_CATEGORIES, limit: "50", fields }),
-    // Search 2: No category filter (catches miscategorized venues)
-    fetchAreaSearch({ ll, radius: radiusStr, limit: "50", fields }),
-  ]);
+  const searches: Promise<FsqSearchResult[]>[] = [];
+
+  if (radiusMeters <= 1500) {
+    // Small area: 2 parallel searches (original strategy)
+    const radiusStr = String(Math.round(radiusMeters));
+    const ll = `${lat},${lng}`;
+    searches.push(
+      fetchAreaSearch({ ll, radius: radiusStr, categories: FSQ_DINING_CATEGORIES, limit: "50", fields }),
+      fetchAreaSearch({ ll, radius: radiusStr, limit: "50", fields }),
+    );
+  } else {
+    // Large area: split into quadrants for category search + 1 broad center search.
+    // Each quadrant covers half the radius, offsetting center by ~40% of the radius.
+    const offset = radiusMeters * 0.4;
+    const latOffset = offset / 111_320; // ~111km per degree latitude
+    const lngOffset = offset / (111_320 * Math.cos(lat * Math.PI / 180));
+    const quadrantRadius = String(Math.round(radiusMeters * 0.55));
+
+    const quadrants = [
+      { lat: lat + latOffset, lng: lng + lngOffset },
+      { lat: lat + latOffset, lng: lng - lngOffset },
+      { lat: lat - latOffset, lng: lng + lngOffset },
+      { lat: lat - latOffset, lng: lng - lngOffset },
+    ];
+
+    // 4 quadrant category searches + 1 broad center search (5 parallel calls)
+    for (const q of quadrants) {
+      searches.push(
+        fetchAreaSearch({
+          ll: `${q.lat},${q.lng}`,
+          radius: quadrantRadius,
+          categories: FSQ_DINING_CATEGORIES,
+          limit: "50",
+          fields,
+        }),
+      );
+    }
+    searches.push(
+      fetchAreaSearch({ ll: `${lat},${lng}`, radius: String(Math.round(radiusMeters)), limit: "50", fields }),
+    );
+  }
+
+  const results = await Promise.all(searches);
 
   // Deduplicate by fsq_place_id
   const seen = new Set<string>();
   const combined: FsqSearchResult[] = [];
-  for (const place of [...categoryResults, ...broadResults]) {
-    if (!seen.has(place.fsq_place_id)) {
-      seen.add(place.fsq_place_id);
-      combined.push(place);
+  for (const batch of results) {
+    for (const place of batch) {
+      if (!seen.has(place.fsq_place_id)) {
+        seen.add(place.fsq_place_id);
+        combined.push(place);
+      }
     }
   }
 
   log.debug("Area search results", {
-    category: categoryResults.length,
-    broad: broadResults.length,
+    queries: results.length,
+    totalRaw: results.reduce((sum, r) => sum + r.length, 0),
     deduplicated: combined.length,
   });
   return combined;
@@ -653,12 +764,20 @@ async function batchSearchArea(
 async function fetchAreaSearch(
   params: Record<string, string>
 ): Promise<FsqSearchResult[]> {
+  const log = createLogger("foursquare:batch");
   const searchParams = new URLSearchParams(params);
   const response = await fetchWithRetry(
     `${FSQ_BASE}/places/search?${searchParams}`,
     `Area search`
   );
-  if (!response) return [];
+  if (!response) {
+    log.warn("Area search returned no response", {
+      ll: params.ll,
+      radius: params.radius,
+      categories: params.categories ?? "none",
+    });
+    return [];
+  }
 
   const data = (await response.json()) as FsqSearchResponse;
   return data.results ?? [];

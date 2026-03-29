@@ -12,6 +12,62 @@ final class DiscoverViewModel: ObservableObject {
     @Published var popularVenues: [Venue] = []
     @Published var sweetSpotVenues: [Venue] = []
 
+    // MARK: - Discover-Only Filters
+
+    @Published var openNowOnly: Bool = false
+    @Published var ratingFilter: DiscoverRatingFilter?
+    @Published var priceFilter: DiscoverPriceFilter?
+
+    enum DiscoverRatingFilter: Double, CaseIterable {
+        case threeHalf = 3.5
+        case four      = 4.0
+        case fourHalf  = 4.5
+
+        var label: String {
+            switch self {
+            case .threeHalf: return "3.5+"
+            case .four:      return "4+"
+            case .fourHalf:  return "4.5+"
+            }
+        }
+    }
+
+    enum DiscoverPriceFilter: String, CaseIterable {
+        case budget   // $
+        case mid      // $$
+        case upscale  // $$$+
+
+        var label: String {
+            switch self {
+            case .budget:  return "$"
+            case .mid:     return "$$"
+            case .upscale: return "$$$+"
+            }
+        }
+
+        func matches(priceLevel: String?) -> Bool {
+            switch self {
+            case .budget:
+                return priceLevel == "PRICE_LEVEL_FREE" || priceLevel == "PRICE_LEVEL_INEXPENSIVE"
+            case .mid:
+                return priceLevel == "PRICE_LEVEL_MODERATE"
+            case .upscale:
+                return priceLevel == "PRICE_LEVEL_EXPENSIVE" || priceLevel == "PRICE_LEVEL_VERY_EXPENSIVE"
+            }
+        }
+    }
+
+    var hasActiveDiscoverFilters: Bool {
+        openNowOnly || ratingFilter != nil || priceFilter != nil
+    }
+
+    func clearDiscoverFilters() {
+        openNowOnly = false
+        ratingFilter = nil
+        priceFilter = nil
+        applyFilter()
+    }
+
     // MARK: - Shared Filter
 
     var filterState: VenueFilterState? {
@@ -32,24 +88,35 @@ final class DiscoverViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Computed
+    // MARK: - Cached Derived State
 
-    /// Count of nearby venues per busyness level (1–5) for the vibe pulse
-    var vibePulse: [Int: Int] {
-        var counts: [Int: Int] = [:]
-        for level in 1...5 { counts[level] = 0 }
+    /// Count of nearby venues per busyness level (1–5) for the vibe pulse.
+    /// Stored property — recomputed only when venues change, not on every view render.
+    @Published private(set) var vibePulse: [Int: Int] = [1: 0, 2: 0, 3: 0, 4: 0, 5: 0]
+
+    /// Count of venues per category.
+    /// Stored property — recomputed only when venues change, not on every view render.
+    @Published private(set) var categoryCounts: [VenueCategory: Int] = [:]
+
+    /// Recompute cached derived state from the current venues array.
+    /// VibePulse uses all venues (area mood). Category counts respect busyness filter
+    /// so pill counts match what the user actually sees.
+    private func recomputeDerivedState() {
+        var pulse: [Int: Int] = [1: 0, 2: 0, 3: 0, 4: 0, 5: 0]
         for venue in venues {
             if let level = venue.busyness?.rawValue {
-                counts[level, default: 0] += 1
+                pulse[level, default: 0] += 1
             }
         }
-        return counts
-    }
+        vibePulse = pulse
 
-    /// Count of venues per category
-    var categoryCounts: [VenueCategory: Int] {
-        Dictionary(grouping: venues, by: \.category)
-            .mapValues(\.count)
+        let base: [Venue]
+        if let level = filterState?.selectedBusynessLevel {
+            base = venues.filter { $0.busyness == level }
+        } else {
+            base = venues
+        }
+        categoryCounts = Dictionary(grouping: base, by: \.category).mapValues(\.count)
     }
 
     /// Dominant busyness level in the area
@@ -85,25 +152,69 @@ final class DiscoverViewModel: ObservableObject {
 
     // MARK: - Update Venues (from MapViewModel)
 
+    /// Last known location used for sorting — skip re-sort if user hasn't moved significantly.
+    private var lastSortLocation: CLLocation?
+    /// Venue IDs at the time of last sort — detect content changes without relying on first-element check.
+    private var lastSortedVenueIDs: Set<String> = []
+
     /// Receives venues from the shared MapViewModel and sorts by distance.
+    /// Skips the O(n log n) sort if venue set is unchanged AND user hasn't moved more than 50m.
     func updateVenues(_ newVenues: [Venue], userLocation: CLLocation?) {
-        var sorted = newVenues
-        if let location = userLocation {
+        let newIDs = Set(newVenues.map(\.id))
+        let venuesChanged = newIDs != lastSortedVenueIDs
+
+        let needsSort: Bool = {
+            guard let location = userLocation else { return false }
+            if venuesChanged { return true }
+            guard let lastLoc = lastSortLocation else { return true }
+            return location.distance(from: lastLoc) > 50
+        }()
+
+        if needsSort, let location = userLocation {
+            var sorted = newVenues
             sorted.sort { a, b in
                 let locA = CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude)
                 let locB = CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude)
                 return location.distance(from: locA) < location.distance(from: locB)
             }
+            venues = sorted
+            lastSortLocation = location
+            lastSortedVenueIDs = newIDs
+        } else if venuesChanged {
+            // Venue set changed but no location — use unsorted order
+            venues = newVenues
+            lastSortedVenueIDs = newIDs
+        } else {
+            // Same venue set, user hasn't moved — merge updated data while preserving sort order
+            let updatedLookup = Dictionary(newVenues.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            venues = venues.map { updatedLookup[$0.id] ?? $0 }
         }
-        venues = sorted
         applyFilter()
     }
 
     // MARK: - Filter
 
+    /// Public entry point for Discover-only filter changes.
+    func applyFilterPublic() {
+        applyFilter()
+    }
+
     private func applyFilter() {
+        recomputeDerivedState()
+
         // Apply shared filter logic (category + busyness)
-        let base = filterState?.apply(to: venues) ?? venues
+        var base = filterState?.apply(to: venues) ?? venues
+
+        // Apply Discover-only filters
+        if openNowOnly {
+            base = base.filter { $0.isOpen == true }
+        }
+        if let ratingFilter {
+            base = base.filter { ($0.rating ?? 0) >= ratingFilter.rawValue }
+        }
+        if let priceFilter {
+            base = base.filter { priceFilter.matches(priceLevel: $0.priceLevel) }
+        }
 
         // Popular / buzzing: busyness >= 4 (busy + packed)
         popularVenues = base
@@ -121,6 +232,11 @@ final class DiscoverViewModel: ObservableObject {
             .prefix(8)
             .map { $0 }
 
-        filteredVenues = base
+        // Sort by rating when a rating filter is active
+        if ratingFilter != nil {
+            filteredVenues = base.sorted { ($0.rating ?? 0) > ($1.rating ?? 0) }
+        } else {
+            filteredVenues = base
+        }
     }
 }

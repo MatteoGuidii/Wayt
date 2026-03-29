@@ -28,7 +28,6 @@ final class LookAroundCache {
 
     func store(_ scene: MKLookAroundScene, for coordinate: CLLocationCoordinate2D) {
         if cache.count >= maxEntries {
-            // Evict ~25% of entries
             let keysToRemove = Array(cache.keys.prefix(maxEntries / 4))
             keysToRemove.forEach { cache.removeValue(forKey: $0) }
         }
@@ -58,16 +57,19 @@ struct VenueDetailSheet: View {
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var locationService: LocationService
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
+    @EnvironmentObject private var tabSelection: TabSelection
+    @EnvironmentObject private var mapViewModel: MapViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showAuthGate = false
     @State private var lookAroundScene: MKLookAroundScene?
     @State private var isLoadingLookAround = true
     @State private var showFullLookAround = false
+    @State private var showReviewsSheet = false
+    @AppStorage("wayt_distanceUnit") private var distanceUnit: String = "km"
 
     init(venue: Venue) {
         self.venue = venue
         _viewModel = StateObject(wrappedValue: VenueDetailViewModel(venue: venue))
-        // Instantly populate from cache if available (before body is rendered)
         if let cached = LookAroundCache.shared.scene(for: venue.coordinate) {
             _lookAroundScene = State(initialValue: cached)
             _isLoadingLookAround = State(initialValue: false)
@@ -79,15 +81,13 @@ struct VenueDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 16) {
                     headerSection
                         .padding(.top, -8)
-                    lookAroundSection
-                    hoursSection
-                    busynessSection
+                    atAGlanceSection
+                    busynessHeroSection
                     actionsSection
-                    reportButton
-                    recentReportsSection
+                    lookAroundSection
                 }
                 .padding(WaytTheme.cardPadding)
             }
@@ -117,10 +117,7 @@ struct VenueDetailSheet: View {
             }
         }
         .task {
-            // Proximity is synchronous — run immediately
             viewModel.updateProximity(userLocation: locationService.userLocation)
-
-            // Fire reports + LookAround in parallel
             async let reportsTask: () = viewModel.loadReports()
             async let lookAroundTask: () = fetchLookAroundScene()
             _ = await (reportsTask, lookAroundTask)
@@ -148,17 +145,17 @@ struct VenueDetailSheet: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Section 1: Identity Header
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 ZStack {
                     Circle()
                         .fill(venue.category.color.opacity(0.15))
-                        .frame(width: 48, height: 48)
+                        .frame(width: 44, height: 44)
                     Image(systemName: venue.category.icon)
-                        .font(WaytTheme.headlineFont)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundStyle(venue.category.color)
                 }
 
@@ -167,7 +164,7 @@ struct VenueDetailSheet: View {
                         .font(WaytTheme.headlineFont)
                         .lineLimit(2)
 
-                    Text(venue.category.displayName)
+                    Text(venue.primaryTypeDisplayName ?? viewModel.venueDetailsFull?.primaryTypeDisplayName ?? venue.category.displayName)
                         .font(WaytTheme.captionFont)
                         .foregroundStyle(WaytTheme.secondaryText)
                 }
@@ -181,152 +178,218 @@ struct VenueDetailSheet: View {
         }
     }
 
-    // MARK: - Look Around
+    // MARK: - At a Glance (Rating | Price | Reviews)
 
-    @ViewBuilder
-    private var lookAroundSection: some View {
-        if let scene = lookAroundScene {
-            ZStack {
-                LookAroundPreview(initialScene: scene)
-                    .allowsHitTesting(false)
-            }
-            .frame(height: 160)
-            .clipShape(RoundedRectangle(cornerRadius: WaytTheme.cornerRadius, style: .continuous))
-            .overlay {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { showFullLookAround = true }
-            }
-        } else if isLoadingLookAround {
-            RoundedRectangle(cornerRadius: WaytTheme.cornerRadius, style: .continuous)
-                .fill(Color(.tertiarySystemBackground))
-                .frame(height: 160)
-                .overlay {
-                    ProgressView()
-                        .tint(.secondary)
-                }
+    private var atAGlanceSection: some View {
+        VenueAtAGlanceCard(
+            rating: venue.rating ?? viewModel.venueDetailsFull?.rating,
+            userRatingCount: venue.userRatingCount ?? viewModel.venueDetailsFull?.userRatingCount,
+            priceLevel: venue.priceLevel ?? viewModel.venueDetailsFull?.priceLevel,
+            priceRange: venue.priceRange ?? viewModel.venueDetailsFull?.priceRange
+        ) {
+            showReviewsSheet = true
+        }
+        .sheet(isPresented: $showReviewsSheet) {
+            ReviewsSheet(
+                reviews: viewModel.venueDetailsFull?.reviews ?? [],
+                googleMapsUrl: viewModel.venueDetailsFull?.googleMapsUrl
+            )
         }
     }
 
-    private func fetchLookAroundScene() async {
-        let cache = LookAroundCache.shared
-        let coordinate = venue.coordinate
+    // MARK: - Section 2: Busyness Hero Card
 
-        // Already populated from cache in init
-        if lookAroundScene != nil || cache.isKnownMiss(for: coordinate) {
-            isLoadingLookAround = false
-            return
-        }
+    private var busynessHeroSection: some View {
+        VStack(spacing: 0) {
+            // Hours status bar
+            if let isOpen = viewModel.estimate.isOpen {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(isOpen ? Color.green : Color.red)
+                        .frame(width: 7, height: 7)
 
-        let request = MKLookAroundSceneRequest(coordinate: coordinate)
-        do {
-            if let scene = try await request.scene {
-                lookAroundScene = scene
-                cache.store(scene, for: coordinate)
-            } else {
-                // Successful request but no coverage — safe to cache as permanent miss
-                cache.storeMiss(for: coordinate)
-            }
-        } catch {
-            // Transient error (network/server) — don't cache so we can retry later
-        }
-        isLoadingLookAround = false
-    }
-
-    // MARK: - Hours
-
-    @ViewBuilder
-    private var hoursSection: some View {
-        if let isOpen = viewModel.estimate.isOpen {
-            HStack(spacing: 12) {
-                Image(systemName: isOpen ? "door.left.hand.open" : "door.left.hand.closed")
-                    .font(.system(size: 22))
-                    .foregroundStyle(isOpen ? .green : .red)
-                    .frame(width: 36)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(isOpen ? "Open Now" : "Closed")
-                        .font(WaytTheme.bodyBoldFont)
+                    Text(isOpen ? "Open" : "Closed")
+                        .font(WaytTheme.badgeFont)
                         .foregroundStyle(isOpen ? .green : .red)
 
                     if let hours = viewModel.estimate.hoursToday {
-                        Text(hours)
-                            .font(WaytTheme.captionFont)
+                        Text("· \(hours)")
+                            .font(WaytTheme.badgeFont)
                             .foregroundStyle(WaytTheme.secondaryText)
+                            .lineLimit(1)
                     }
+
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background((isOpen ? Color.green : Color.red).opacity(0.06))
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                if viewModel.estimate.isOpen == false {
+                    closedBusynessContent
+                } else {
+                    openBusynessContent
+                }
+
+                embeddedReportButton
+
+                compactRecentReports
+            }
+            .padding(16)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: WaytTheme.cornerRadius, style: .continuous)
+                .fill(busynessBackgroundFill)
+        }
+        .waytCard()
+        .busynessGlow(viewModel.estimate.isOpen == false ? nil : viewModel.estimate.level.color)
+    }
+
+    private var busynessBackgroundFill: some ShapeStyle {
+        if viewModel.estimate.isOpen == false {
+            return AnyShapeStyle(Color.clear)
+        }
+        return AnyShapeStyle(viewModel.estimate.level.color.opacity(0.05))
+    }
+
+    private var closedBusynessContent: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "door.left.hand.closed")
+                .font(.system(size: 24, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Text("Currently closed")
+                .font(WaytTheme.bodyFont)
+                .foregroundStyle(WaytTheme.secondaryText)
+        }
+    }
+
+    private var openBusynessContent: some View {
+        VStack(spacing: 12) {
+            // Large centered busyness display
+            HStack(spacing: 14) {
+                Image(systemName: viewModel.estimate.level.icon)
+                    .font(.system(size: 36, weight: .semibold, design: .rounded))
+                    .foregroundStyle(viewModel.estimate.level.color)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.estimate.level.label)
+                        .font(WaytTheme.headlineFont)
+                        .foregroundStyle(viewModel.estimate.level.color)
+
                 }
 
                 Spacer()
             }
-            .padding(14)
-            .waytCard()
-        }
-    }
 
-    // MARK: - Busyness
+            // Confidence + wait time row
+            HStack(spacing: 12) {
+                BusynessBadge(
+                    level: viewModel.estimate.level,
+                    confidence: viewModel.estimate.confidence
+                )
 
-    private var busynessSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Current Busyness")
-                .font(WaytTheme.subtitleFont)
-
-            if viewModel.estimate.isOpen == false {
-                HStack(spacing: 16) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "door.left.hand.closed")
-                            .font(WaytTheme.displayFont)
-                            .foregroundStyle(.secondary)
-
-                        Text("Closed")
-                            .font(WaytTheme.bodyBoldFont)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(width: 80)
-
-                    Text("This venue is currently closed.")
-                        .font(WaytTheme.bodyFont)
+                if let wait = viewModel.estimate.waitMinutes {
+                    Label("~\(wait) min wait", systemImage: "clock")
+                        .font(WaytTheme.captionFont)
                         .foregroundStyle(WaytTheme.secondaryText)
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .waytCard()
-            } else {
-                HStack(spacing: 16) {
-                    VStack(spacing: 4) {
-                        Image(systemName: viewModel.estimate.level.icon)
-                            .font(WaytTheme.displayFont)
-                            .foregroundStyle(viewModel.estimate.level.color)
 
-                        Text(viewModel.estimate.level.label)
-                            .font(WaytTheme.bodyBoldFont)
-                            .foregroundStyle(viewModel.estimate.level.color)
-                    }
-                    .frame(width: 80)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(viewModel.estimate.level.description)
-                            .font(WaytTheme.bodyFont)
-
-                        BusynessBadge(
-                            level: viewModel.estimate.level,
-                            confidence: viewModel.estimate.confidence
-                        )
-
-                        if let wait = viewModel.estimate.waitMinutes {
-                            Label("~\(wait) min wait", systemImage: "clock")
-                                .font(WaytTheme.captionFont)
-                                .foregroundStyle(WaytTheme.secondaryText)
-                        }
-                    }
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .waytCard()
+                Spacer()
             }
         }
     }
 
-    // MARK: - Actions
+    private var embeddedReportButton: some View {
+        VStack(spacing: 6) {
+            if viewModel.estimate.isOpen == false {
+                Label("Venue is closed", systemImage: "door.left.hand.closed")
+                    .font(WaytTheme.bodyBoldFont)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemGray4))
+                    .foregroundStyle(WaytTheme.secondaryText)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if viewModel.isWithinReportRange {
+                Button {
+                    if authState.isSignedIn {
+                        viewModel.showReportSheet = true
+                    } else {
+                        showAuthGate = true
+                    }
+                } label: {
+                    Label(
+                        viewModel.reportSubmitted ? "Thanks! Report again?" : "How busy is it?",
+                        systemImage: viewModel.reportSubmitted ? "checkmark.circle.fill" : "megaphone.fill"
+                    )
+                    .font(WaytTheme.bodyBoldFont)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(viewModel.reportSubmitted ? .green : WaytTheme.mapsBlue)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+            } else {
+                Label("Get closer to report", systemImage: "location.fill")
+                    .font(WaytTheme.bodyBoldFont)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemGray4))
+                    .foregroundStyle(WaytTheme.secondaryText)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                if let distance = viewModel.distanceToVenue(from: locationService.userLocation) {
+                    Text("You're \(formattedShortDistance(distance)) away - must be within \(formattedShortDistance(AppConstants.reportProximityRadius))")
+                        .font(WaytTheme.captionFont)
+                        .foregroundStyle(WaytTheme.secondaryText)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var compactRecentReports: some View {
+        if !viewModel.recentReports.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Divider()
+
+                Text("Recent Reports")
+                    .font(WaytTheme.captionFont)
+                    .foregroundStyle(WaytTheme.secondaryText)
+
+                ForEach(viewModel.recentReports.prefix(3)) { report in
+                    HStack {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(report.busynessLevel.color)
+                                .frame(width: 6, height: 6)
+                            Text(report.busynessLevel.label)
+                                .font(WaytTheme.badgeFont)
+                                .foregroundStyle(report.busynessLevel.color)
+                        }
+
+                        Spacer()
+
+                        Text(report.timestamp, style: .relative)
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                }
+            }
+        } else if viewModel.isLoadingReports {
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading reports...")
+                    .font(WaytTheme.captionFont)
+                    .foregroundStyle(WaytTheme.secondaryText)
+            }
+        }
+    }
+
+    // MARK: - Section 3: Quick Actions
 
     private var actionsSection: some View {
         HStack(spacing: 12) {
@@ -342,6 +405,24 @@ struct VenueDetailSheet: View {
                 venue.mapItem.openInMaps(launchOptions: [
                     MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault
                 ])
+            }
+
+            if tabSelection.selectedTab != .map {
+                actionButton(icon: "map.fill", label: "See on Map") {
+                    dismiss()
+                    if !mapViewModel.venues.contains(where: { $0.id == venue.id }) {
+                        mapViewModel.venues.append(venue)
+                    }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        mapViewModel.cameraPosition = .camera(MapCamera(
+                            centerCoordinate: venue.coordinate,
+                            distance: 800,
+                            heading: 0,
+                            pitch: 0
+                        ))
+                    }
+                    tabSelection.selectedTab = .map
+                }
             }
 
             if let url = venue.url {
@@ -376,6 +457,8 @@ struct VenueDetailSheet: View {
                     .font(WaytTheme.headlineFont)
                 Text(label)
                     .font(WaytTheme.badgeFont)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
@@ -385,79 +468,63 @@ struct VenueDetailSheet: View {
         .tint(tint ?? WaytTheme.mapsBlue)
     }
 
-    // MARK: - Report Button
+    // MARK: - Look Around
 
-    private var reportButton: some View {
-        VStack(spacing: 6) {
-            if viewModel.isWithinReportRange {
-                Button {
-                    if authState.isSignedIn {
-                        viewModel.showReportSheet = true
-                    } else {
-                        showAuthGate = true
-                    }
-                } label: {
-                    Label(
-                        viewModel.reportSubmitted ? "Thanks! Report again?" : "How busy is it?",
-                        systemImage: viewModel.reportSubmitted ? "checkmark.circle.fill" : "megaphone.fill"
-                    )
-                    .font(WaytTheme.bodyBoldFont)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(viewModel.reportSubmitted ? .green : WaytTheme.mapsBlue)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-            } else {
-                Label("Get closer to report", systemImage: "location.fill")
-                    .font(WaytTheme.bodyBoldFont)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color(.systemGray4))
-                    .foregroundStyle(WaytTheme.secondaryText)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                if let distance = viewModel.distanceToVenue(from: locationService.userLocation) {
-                    Text("You're \(Int(distance))m away - must be within \(Int(AppConstants.reportProximityRadius))m")
-                        .font(WaytTheme.captionFont)
-                        .foregroundStyle(WaytTheme.secondaryText)
-                }
+    @ViewBuilder
+    private var lookAroundSection: some View {
+        if let scene = lookAroundScene {
+            ZStack {
+                LookAroundPreview(initialScene: scene)
+                    .allowsHitTesting(false)
             }
-        }
-    }
-
-    // MARK: - Recent Reports
-
-    private var recentReportsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if !viewModel.recentReports.isEmpty {
-                Text("Recent Reports")
-                    .font(WaytTheme.subtitleFont)
-
-                ForEach(viewModel.recentReports.prefix(5)) { report in
-                    HStack {
-                        BusynessBadge(
-                            level: report.busynessLevel,
-                            confidence: .high,
-                            style: .compact
-                        )
-
-                        Spacer()
-
-                        Text(report.timestamp, style: .relative)
-                            .font(WaytTheme.badgeFont)
-                            .foregroundStyle(WaytTheme.secondaryText)
-                    }
-                    .padding(.vertical, 4)
-                }
-            } else if viewModel.isLoadingReports {
-                HStack {
+            .frame(height: 140)
+            .clipShape(RoundedRectangle(cornerRadius: WaytTheme.cornerRadius, style: .continuous))
+            .overlay {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { showFullLookAround = true }
+            }
+        } else if isLoadingLookAround {
+            RoundedRectangle(cornerRadius: WaytTheme.cornerRadius, style: .continuous)
+                .fill(Color(.tertiarySystemBackground))
+                .frame(height: 140)
+                .overlay {
                     ProgressView()
-                    Text("Loading reports...")
-                        .font(WaytTheme.captionFont)
-                        .foregroundStyle(WaytTheme.secondaryText)
+                        .tint(.secondary)
                 }
-            }
         }
     }
+
+    private func formattedShortDistance(_ meters: Double) -> String {
+        if distanceUnit == "mi" {
+            let feet = Int(meters * 3.28084)
+            return "\(feet)ft"
+        } else {
+            return "\(Int(meters))m"
+        }
+    }
+
+    private func fetchLookAroundScene() async {
+        let cache = LookAroundCache.shared
+        let coordinate = venue.coordinate
+
+        if lookAroundScene != nil || cache.isKnownMiss(for: coordinate) {
+            isLoadingLookAround = false
+            return
+        }
+
+        let request = MKLookAroundSceneRequest(coordinate: coordinate)
+        do {
+            if let scene = try await request.scene {
+                lookAroundScene = scene
+                cache.store(scene, for: coordinate)
+            } else {
+                cache.storeMiss(for: coordinate)
+            }
+        } catch {
+            // Transient error — don't cache so we can retry later
+        }
+        isLoadingLookAround = false
+    }
+
 }

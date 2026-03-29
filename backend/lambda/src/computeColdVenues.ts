@@ -6,7 +6,8 @@ import {
   batchMatchVenues,
   computeTimeAwareBusyness,
 } from "./signals/foursquare";
-import { getGoogleHoursData, isOpenNow } from "./signals/google";
+import { getGoogleHoursData, isOpenNow, GoogleHoursResult } from "./signals/google";
+import { CachedVenueDetails } from "./signals/types";
 import { foursquareConfidenceLevel } from "./signals/fusion";
 
 /**
@@ -37,8 +38,9 @@ const QUICK_ESTIMATE_TTL_SECONDS = 2 * 60 * 60;
 
 /** High concurrency for warm venues (no external API calls). */
 const WARM_CONCURRENCY = 20;
-/** Concurrency for remaining cold venues — individual Foursquare API calls. */
-const COLD_CONCURRENCY = 40;
+/** Concurrency for remaining cold venues — individual Foursquare API calls.
+ *  Kept at 15 to avoid Foursquare 429 rate limit cascades with exponential backoff. */
+const COLD_CONCURRENCY = 15;
 
 export async function handler(event: BackgroundEvent): Promise<void> {
   const log = createLogger("computeBackground");
@@ -80,25 +82,30 @@ export async function handler(event: BackgroundEvent): Promise<void> {
       const nowSeconds = Math.floor(nowMs / 1000);
       const quickEstimates: Record<string, unknown>[] = [];
 
-      // Fetch Google hours for matched venues (5 concurrent max)
+      // Fetch Google hours + details for matched venues (5 concurrent max)
       const matchedEntries = Array.from(matched.entries());
       const googleHoursMap = new Map<string, { isOpen: boolean; hoursToday: string | null; businessStatus: string | null }>();
+      const googleDetailsMap = new Map<string, CachedVenueDetails>();
       const GOOGLE_CONCURRENCY = 5;
 
       for (let i = 0; i < matchedEntries.length; i += GOOGLE_CONCURRENCY) {
         const batch = matchedEntries.slice(i, i + GOOGLE_CONCURRENCY);
         const results = await Promise.all(
-          batch.map(async ([venueId]) => {
+          batch.map(async ([venueId]): Promise<{ venueId: string; result: GoogleHoursResult } | null> => {
             const venue = coldVenueMap.get(venueId);
             if (!venue) return null;
-            const hours = await getGoogleHoursData(venueId, venue.venueName, venue.lat, venue.lng);
-            if (!hours) return null;
-            const status = isOpenNow(hours, nowMs, timezone);
-            return { venueId, ...status, businessStatus: hours.businessStatus ?? null };
+            const result = await getGoogleHoursData(venueId, venue.venueName, venue.lat, venue.lng, venue.address);
+            if (!result) return null;
+            return { venueId, result };
           })
         );
         for (const r of results) {
-          if (r) googleHoursMap.set(r.venueId, { isOpen: r.isOpen, hoursToday: r.hoursToday, businessStatus: r.businessStatus });
+          if (!r) continue;
+          const status = isOpenNow(r.result.hours, nowMs, timezone);
+          googleHoursMap.set(r.venueId, { isOpen: status.isOpen, hoursToday: status.hoursToday, businessStatus: r.result.hours.businessStatus ?? null });
+          if (r.result.venueDetails) {
+            googleDetailsMap.set(r.venueId, r.result.venueDetails);
+          }
         }
       }
 
@@ -109,6 +116,15 @@ export async function handler(event: BackgroundEvent): Promise<void> {
         const lat = venue?.lat ?? 0;
         const lng = venue?.lng ?? 0;
         const geohash = encode(lat, lng);
+
+        const details = googleDetailsMap.get(venueId);
+        const venueDetails = details ? {
+          primaryType: details.primaryType,
+          primaryTypeDisplayName: details.primaryTypeDisplayName,
+          rating: details.rating,
+          userRatingCount: details.userRatingCount,
+          priceLevel: details.priceLevel,
+        } : null;
 
         quickEstimates.push({
           PK: venueKey(venueId),
@@ -127,6 +143,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
           isOpen: openStatus?.isOpen ?? null,
           hoursToday: openStatus?.hoursToday ?? null,
           businessStatus: openStatus?.businessStatus ?? null,
+          venueDetails,
           lat,
           lng,
           venueName: venue?.venueName ?? "",
@@ -161,10 +178,21 @@ export async function handler(event: BackgroundEvent): Promise<void> {
   }
 
   // Phase 3: Remaining cold venues — individual Foursquare API calls as fallback
+  // Cap processing to avoid Lambda timeout; remaining venues will be picked up
+  // on the next progressive refresh cycle.
+  const MAX_COLD_PER_INVOCATION = 50;
   let coldProcessed = 0;
   if (coldVenues.length > 0) {
-    coldProcessed = await processPool(coldVenues, timezone, COLD_CONCURRENCY, log);
-    log.info("Cold phase complete", { processed: coldProcessed, total: coldVenues.length });
+    const processable = coldVenues.slice(0, MAX_COLD_PER_INVOCATION);
+    const deferred = coldVenues.length - processable.length;
+    if (deferred > 0) {
+      log.warn("Cold venues capped to prevent timeout", {
+        processing: processable.length,
+        deferred,
+      });
+    }
+    coldProcessed = await processPool(processable, timezone, COLD_CONCURRENCY, log);
+    log.info("Cold phase complete", { processed: coldProcessed, total: processable.length });
   }
 
   log.info("Background compute done", {

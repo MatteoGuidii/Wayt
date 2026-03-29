@@ -1,11 +1,9 @@
 import SwiftUI
-import CoreLocation
 
 /// Bold card-style venue row — playful, glanceable, Waze-inspired.
 struct VenueRow: View {
 
     let venue: Venue
-    var userLocation: CLLocation?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -27,33 +25,10 @@ struct VenueRow: View {
                     .font(WaytTheme.cardTitleFont)
                     .lineLimit(1)
 
-                HStack(spacing: 6) {
-                    Text(venue.category.shortName)
-                        .font(WaytTheme.captionLightFont)
-                        .foregroundStyle(WaytTheme.secondaryText)
-
-                    if let distance = formattedDistance {
-                        Circle()
-                            .fill(Color.secondary.opacity(0.5))
-                            .frame(width: 3, height: 3)
-                        Text(distance)
-                            .font(WaytTheme.captionLightFont)
-                            .foregroundStyle(WaytTheme.secondaryText)
-                    }
-
-                    if let wait = venue.estimatedWaitMinutes, wait > 0 {
-                        Circle()
-                            .fill(Color.secondary.opacity(0.5))
-                            .frame(width: 3, height: 3)
-                        HStack(spacing: 2) {
-                            Image(systemName: "clock.fill")
-                                .font(WaytTheme.nanoFont)
-                            Text("~\(wait)m")
-                                .font(WaytTheme.captionFont)
-                        }
-                        .foregroundStyle(WaytTheme.secondaryText)
-                    }
-                }
+                Text(venue.primaryTypeDisplayName ?? venue.category.shortName)
+                    .font(WaytTheme.captionLightFont)
+                    .foregroundStyle(WaytTheme.secondaryText)
+                    .lineLimit(1)
 
                 // Hours row
                 if let isOpen = venue.isOpen {
@@ -93,19 +68,4 @@ struct VenueRow: View {
         .busynessGlow(venue.isOpen == false ? nil : venue.busyness?.color, radius: 6, y: 3)
     }
 
-    // MARK: - Distance
-
-    private var formattedDistance: String? {
-        guard let userLocation else { return nil }
-        let venueLocation = CLLocation(
-            latitude: venue.coordinate.latitude,
-            longitude: venue.coordinate.longitude
-        )
-        let meters = userLocation.distance(from: venueLocation)
-        if meters < 1000 {
-            return "\(Int(meters))m"
-        } else {
-            return String(format: "%.1fkm", meters / 1000)
-        }
-    }
 }

@@ -118,15 +118,15 @@ private struct AuthHeaderView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            WaytMascot(size: 80, expression: .looking, animated: false)
+            WaytLogomark(size: 64)
 
             Text("Wayt")
                 .font(WaytTheme.displayFont)
-                .foregroundStyle(WaytTheme.mapsBlue)
+                .foregroundStyle(WaytTheme.primaryText)
 
             Text("Know before you go.")
                 .font(WaytTheme.subtitleFont)
-                .foregroundStyle(WaytTheme.mapsBlue.opacity(0.7))
+                .foregroundStyle(WaytTheme.secondaryText)
         }
         .padding(.top, 12)
         .padding(.bottom, 4)
@@ -174,8 +174,8 @@ private struct AuthenticatorContainer: View {
         t.components.field.cornerRadius = 12
 
         // Accent color
-        t.colors.background.interactive = WaytTheme.skyPunch
-        t.colors.foreground.interactive = WaytTheme.skyPunch
+        t.colors.background.interactive = WaytTheme.mapsBlue
+        t.colors.foreground.interactive = WaytTheme.mapsBlue
 
         // Buttons
         t.components.button.primary.cornerRadius = 16
@@ -225,15 +225,15 @@ private struct AuthenticatorContainer: View {
 
             // Header
             VStack(spacing: 8) {
-                WaytMascot(size: 80, expression: .looking, animated: false)
+                WaytLogomark(size: 64)
 
                 Text("Wayt")
                     .font(WaytTheme.displayFont)
-                    .foregroundStyle(WaytTheme.mapsBlue)
+                    .foregroundStyle(WaytTheme.primaryText)
 
                 Text("Know before you go.")
                     .font(WaytTheme.subtitleFont)
-                    .foregroundStyle(WaytTheme.mapsBlue.opacity(0.7))
+                    .foregroundStyle(WaytTheme.secondaryText)
             }
             .padding(.top, 12)
             .padding(.bottom, 4)
@@ -267,17 +267,17 @@ private struct AuthenticatorContainer: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(WaytTheme.skyPunch)
+                        .background(WaytTheme.mapsBlue)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .padding(.top, 8)
 
                 HStack {
                     Text("Forgot password?")
-                        .foregroundStyle(WaytTheme.skyPunch)
+                        .foregroundStyle(WaytTheme.mapsBlue)
                     Spacer()
                     Text("Create account")
-                        .foregroundStyle(WaytTheme.skyPunch)
+                        .foregroundStyle(WaytTheme.mapsBlue)
                 }
                 .font(WaytTheme.subtitleFont)
             }

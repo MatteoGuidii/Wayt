@@ -48,6 +48,17 @@ final class LocationService: NSObject, ObservableObject {
         manager.stopUpdatingLocation()
     }
 
+    /// Request a single fresh location fix (e.g., on app resume after movement).
+    func requestFreshLocation() {
+        let previousAccuracy = manager.desiredAccuracy
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.requestLocation()
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            manager.desiredAccuracy = previousAccuracy
+        }
+    }
+
 }
 
 // MARK: - CLLocationManagerDelegate

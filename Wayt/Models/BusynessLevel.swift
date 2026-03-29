@@ -27,15 +27,6 @@ enum BusynessLevel: Int, Codable, CaseIterable, Hashable, Sendable {
         }
     }
 
-    var description: String {
-        switch self {
-        case .empty:    return "Plenty of space"
-        case .quiet:    return "A few people"
-        case .moderate: return "Comfortably busy"
-        case .busy:     return "Getting crowded"
-        case .packed:   return "Standing room only"
-        }
-    }
 
     var color: Color {
         WaytTheme.busynessColor(for: rawValue)

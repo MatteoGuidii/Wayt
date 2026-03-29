@@ -15,10 +15,11 @@ struct DiscoverScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 24) {
                     greetingHeader
                     vibePulseSection
                     categoryStrip
+                    discoverFilterChips
                     if authState.isSignedIn && !nearbySavedVenues.isEmpty {
                         savedVenuesSection
                     }
@@ -64,24 +65,17 @@ struct DiscoverScreen: View {
     // MARK: - Greeting Header
 
     private var greetingHeader: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(viewModel.greeting)
-                    .font(WaytTheme.largeTitleFont)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(viewModel.greeting)
+                .font(WaytTheme.largeTitleFont)
 
-                Text(viewModel.greetingSubtitle)
-                    .font(WaytTheme.subheadLightFont)
-                    .foregroundStyle(WaytTheme.secondaryText)
-            }
-
-            Spacer()
-
-            WaytMascot(size: 80, expression: mascotExpression, animated: true)
-                .offset(x: -10)
+            Text(viewModel.greetingSubtitle)
+                .font(WaytTheme.subheadLightFont)
+                .foregroundStyle(WaytTheme.secondaryText)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, -20)
+        .padding(.top, 16)
     }
 
     /// Show "Go Now" when no busyness filter, or filtering empty/quiet/moderate
@@ -96,16 +90,6 @@ struct DiscoverScreen: View {
         return level.rawValue >= 4
     }
 
-    private var mascotExpression: WaytMascot.Expression {
-        guard let mood = viewModel.areaMood else { return .looking }
-        switch mood {
-        case .empty:    return .looking
-        case .quiet:    return .happy
-        case .moderate: return .cheerful
-        case .busy:     return .excited
-        case .packed:   return .wink
-        }
-    }
 
     // MARK: - Vibe Pulse (Tappable)
 
@@ -113,8 +97,8 @@ struct DiscoverScreen: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: "waveform.path")
-                    .font(WaytTheme.footnoteFont)
-                    .foregroundStyle(WaytTheme.skyPunch)
+                    .font(WaytTheme.subheadFont)
+                    .foregroundStyle(WaytTheme.mapsBlue)
                 Text("Area Vibe")
                     .font(WaytTheme.sectionFont)
 
@@ -223,7 +207,9 @@ struct DiscoverScreen: View {
 
     private var emptyVibeState: some View {
         VStack(spacing: 8) {
-            WaytMascot(size: 48, expression: .looking, animated: false)
+            Image(systemName: "waveform.path")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(.tertiary)
             Text("Scanning your area...")
                 .font(WaytTheme.footnoteLightFont)
                 .foregroundStyle(WaytTheme.secondaryText)
@@ -275,7 +261,7 @@ struct DiscoverScreen: View {
             VStack(spacing: 8) {
                 ForEach(nearbySavedVenues) { venue in
                     Button { selectedVenue = venue } label: {
-                        VenueRow(venue: venue, userLocation: locationService.userLocation)
+                        VenueRow(venue: venue)
                     }
                     .buttonStyle(.plain)
                 }
@@ -286,6 +272,89 @@ struct DiscoverScreen: View {
             .clipped()
             .opacity(isSavedExpanded ? 1 : 0)
         }
+    }
+
+    // MARK: - Discover Filter Chips
+
+    private var discoverFilterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                // Open Now
+                filterChip(
+                    label: "Open Now",
+                    icon: "clock.fill",
+                    accent: .secondary,
+                    isActive: viewModel.openNowOnly
+                ) {
+                    viewModel.openNowOnly.toggle()
+                    viewModel.applyFilterPublic()
+                }
+
+                // Rating tiers
+                ForEach(DiscoverViewModel.DiscoverRatingFilter.allCases, id: \.self) { tier in
+                    filterChip(
+                        label: tier.label,
+                        icon: "star.fill",
+                        accent: .secondary,
+                        isActive: viewModel.ratingFilter == tier
+                    ) {
+                        viewModel.ratingFilter = viewModel.ratingFilter == tier ? nil : tier
+                        viewModel.applyFilterPublic()
+                    }
+                }
+
+                // Price tiers
+                ForEach(DiscoverViewModel.DiscoverPriceFilter.allCases, id: \.self) { tier in
+                    filterChip(
+                        label: tier.label,
+                        icon: nil,
+                        accent: .secondary,
+                        isActive: viewModel.priceFilter == tier
+                    ) {
+                        viewModel.priceFilter = viewModel.priceFilter == tier ? nil : tier
+                        viewModel.applyFilterPublic()
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private func filterChip(label: String, icon: String?, accent: Color, isActive: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                action()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(WaytTheme.subheadFont)
+                        .foregroundStyle(isActive ? .white : accent)
+                }
+                Text(label)
+                    .font(WaytTheme.footnoteFont)
+                    .foregroundStyle(isActive ? .white : .primary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(isActive ? WaytTheme.skyPunch : WaytTheme.cardBackground)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(
+                        isActive ? WaytTheme.skyPunch : Color.primary.opacity(0.08),
+                        lineWidth: isActive ? 0 : 1.5
+                    )
+            )
+            .shadow(
+                color: isActive ? WaytTheme.skyPunch.opacity(0.3) : .black.opacity(0.04),
+                radius: isActive ? 6 : 3,
+                x: 0,
+                y: isActive ? 3 : 1
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Category Strip (Horizontal Pills)
@@ -419,11 +488,27 @@ struct DiscoverScreen: View {
                 .lineLimit(2)
                 .foregroundStyle(.primary)
 
-            if let busyness = venue.busyness {
-                Text(busyness.description)
-                    .font(WaytTheme.badgeFont)
-                    .foregroundStyle(WaytTheme.secondaryText)
-                    .lineLimit(1)
+            if venue.rating != nil || venue.priceLevel != nil {
+                HStack(spacing: 4) {
+                    if let rating = venue.rating {
+                        Image(systemName: "star.fill")
+                            .font(WaytTheme.nanoFont)
+                            .foregroundStyle(.yellow)
+                        Text(String(format: "%.1f", rating))
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                    if let price = PriceLevel.format(venue.priceLevel, priceRange: venue.priceRange) {
+                        if venue.rating != nil {
+                            Text("·")
+                                .font(WaytTheme.badgeFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                        }
+                        Text(price)
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                }
             }
         }
         .padding(14)
@@ -492,8 +577,8 @@ struct DiscoverScreen: View {
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "mappin.and.ellipse")
-                        .font(WaytTheme.footnoteFont)
-                        .foregroundStyle(WaytTheme.skyPunch)
+                        .font(WaytTheme.subheadFont)
+                        .foregroundStyle(WaytTheme.mapsBlue)
                     Text("All Spots")
                         .font(WaytTheme.sectionFont)
                 }
@@ -505,16 +590,17 @@ struct DiscoverScreen: View {
                         .scaleEffect(0.8)
                 }
 
-                if filterState.selectedCategory != nil || filterState.selectedBusynessLevel != nil {
+                if filterState.selectedCategory != nil || filterState.selectedBusynessLevel != nil || viewModel.hasActiveDiscoverFilters {
                     Button {
                         withAnimation(.spring(response: 0.3)) {
                             filterState.selectCategory(nil)
                             filterState.selectBusynessLevel(nil)
+                            viewModel.clearDiscoverFilters()
                         }
                     } label: {
                         Text("Clear filters")
                             .font(WaytTheme.captionFont)
-                            .foregroundStyle(WaytTheme.skyPunch)
+                            .foregroundStyle(WaytTheme.mapsBlue)
                     }
                 }
             }
@@ -533,7 +619,7 @@ struct DiscoverScreen: View {
                 LazyVStack(spacing: 8) {
                     ForEach(viewModel.filteredVenues) { venue in
                         Button { selectedVenue = venue } label: {
-                            VenueRow(venue: venue, userLocation: locationService.userLocation)
+                            VenueRow(venue: venue)
                         }
                         .buttonStyle(.plain)
                     }
@@ -544,7 +630,7 @@ struct DiscoverScreen: View {
                     seeMoreButton
                 }
 
-                if mapViewModel.isExpandingSearch {
+                if mapViewModel.isSearching || mapViewModel.isExpandingSearch {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -554,33 +640,37 @@ struct DiscoverScreen: View {
     }
 
     private var seeMoreButton: some View {
-        Button {
+        let atMax = mapViewModel.isAtMaxExpand
+        return Button {
             mapViewModel.expandSearch()
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "plus.magnifyingglass")
+                Image(systemName: atMax ? "figure.walk" : "plus.magnifyingglass")
                     .font(WaytTheme.footnoteFont)
-                Text("See more venues")
+                Text(atMax ? "Showing all walkable venues" : "See more venues")
                     .font(WaytTheme.subheadFont)
             }
-            .foregroundStyle(WaytTheme.mapsBlue)
+            .foregroundStyle(atMax ? WaytTheme.secondaryText : WaytTheme.mapsBlue)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(WaytTheme.mapsBlue.opacity(0.08))
+            .background((atMax ? Color.secondary : WaytTheme.mapsBlue).opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(WaytTheme.mapsBlue.opacity(0.2), lineWidth: 1)
+                    .stroke((atMax ? Color.secondary : WaytTheme.mapsBlue).opacity(0.2), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
+        .disabled(atMax)
         .padding(.horizontal, 16)
         .padding(.top, 4)
     }
 
     private var emptyNearbyState: some View {
         VStack(spacing: 12) {
-            WaytMascot(size: 56, expression: .looking, animated: true)
+            Image(systemName: "mappin.slash")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(.tertiary)
 
             Text("Nothing here yet")
                 .font(WaytTheme.bodyBoldFont)

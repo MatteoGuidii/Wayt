@@ -24,8 +24,10 @@ final class VenueSearchService {
 
     /// Timestamps of recent MapKit requests (sliding window). Static so all instances share the budget.
     private static var requestTimestamps: [Date] = []
-    /// Apple enforces 50 requests / 60 seconds. Stay well under that.
-    private static let maxRequestsPerWindow = 45
+    /// Apple enforces 50 requests / 60 seconds across ALL MapKit server calls,
+    /// including internal batch-spatial-lookup requests triggered by map annotation rendering.
+    /// Reserve ~15 slots for those internal requests.
+    private static let maxRequestsPerWindow = 35
     private static let windowDuration: TimeInterval = 60
 
     /// Returns true if we can safely make another request. Prunes stale timestamps.
@@ -45,17 +47,37 @@ final class VenueSearchService {
         Self.requestTimestamps.removeAll()
     }
 
+    /// Clear all cached search results so the next search hits MapKit fresh.
+    /// Call before expand searches where the region grew but the cache key
+    /// would still match the previous (smaller) region.
+    func invalidateCache() {
+        queryCache.removeAll()
+        oldestCacheTimestamp = .distantFuture
+    }
+
     // MARK: - Query Normalization & Cache
 
     private func normalizedQuery(_ query: String) -> String {
         query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    /// Tracks the oldest cache entry timestamp to avoid scanning all entries.
+    private var oldestCacheTimestamp: Date = .distantFuture
+
     private func pruneCacheIfNeeded() {
+        // Fast path: skip if cache is small and no entries are stale
         let now = Date()
+        guard queryCache.count > Self.maxCacheEntries
+              || now.timeIntervalSince(oldestCacheTimestamp) >= Self.cacheTTL else {
+            return
+        }
+
+        // Remove expired entries
         queryCache = queryCache.filter { _, value in
             now.timeIntervalSince(value.timestamp) < Self.cacheTTL
         }
+
+        // If still over limit, remove oldest entries
         if queryCache.count > Self.maxCacheEntries {
             let sortedKeys = queryCache.keys.sorted { lhs, rhs in
                 (queryCache[lhs]?.timestamp ?? .distantPast) < (queryCache[rhs]?.timestamp ?? .distantPast)
@@ -64,6 +86,9 @@ final class VenueSearchService {
                 queryCache.removeValue(forKey: key)
             }
         }
+
+        // Update oldest timestamp tracker
+        oldestCacheTimestamp = queryCache.values.map(\.timestamp).min() ?? .distantFuture
     }
 
     private func cacheKey(for query: String, region: MKCoordinateRegion) -> String {
@@ -136,52 +161,60 @@ final class VenueSearchService {
         .foodMarket
     ]
 
-    /// Known fast-food chains to filter out
-    private static let excludedNames: Set<String> = [
-        "mcdonald's", "burger king", "wendy's", "taco bell",
-        "kfc", "subway", "chick-fil-a", "popeyes",
-        "dunkin'", "domino's", "pizza hut", "papa john's"
-    ]
-
-    /// Returns true if the lowercased venue name matches an excluded chain.
-    /// Uses prefix matching so "Subway" and "McDonald's King St" are excluded,
-    /// but "Subway Sushi Bar" passes through.
-    private static func isExcludedChain(_ name: String) -> Bool {
-        if excludedNames.contains(name) { return true }
-        for chain in excludedNames {
-            if name.hasPrefix(chain) {
-                let remainder = name.dropFirst(chain.count)
-                if remainder.isEmpty || remainder.first?.isLetter == false {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
     // MARK: - Non-Venue Filtering
 
     /// Keywords in a lowercased name that indicate a non-venue (home business, event, service).
     private static let nonVenueKeywords: [String] = [
+        // Beauty / personal care
         "beauty bar", "nail bar", "lash bar", "brow bar", "hair bar",
         "salon", "spa ", "nails", "lashes", "esthetics", "aesthetics",
         "tattoo", "piercing", "tanning",
+        // Events / classes
         "monthly social", "weekly social", "dance social",
         "dance class", "fitness class", "yoga class",
         "with live band", "with dj",
         "meetup", "meet up", "networking event",
+        // Services
         "photo studio", "photography", "videography",
         "tutoring", "daycare", "dog grooming", "pet grooming",
         "cleaning service", "moving company", "plumbing", "roofing",
         "accounting", "consulting", "insurance",
+        "catering", "caterer",
+        "mobile bar", "traveling", "travelling",
+        "bartender", "bartending",
+        "event planner", "event planning", "event rental",
+        "food truck",
+        // Medical / health — compound terms only to avoid false positives
+        // (e.g., "The Clinic Bar" or "Remedy Café" are legit venues)
+        "medical centre", "medical center", "medical clinic",
+        "dental office", "dental clinic", "dental centre", "dental center",
+        "dentist office", "dentistry",
+        "concussion", "physiotherapy", "chiropractic", "chiropractor",
+        "optometry", "optometrist", "ophthalmology",
+        "veterinary", "vet clinic", "animal hospital",
+        "walk-in clinic", "urgent care", "family medicine",
+        "family health", "health centre", "health center",
+        "hearing centre", "hearing center", "hearing aid",
+        "orthopedic", "orthopaedic", "radiology", "x-ray",
+        "pharmacy", "drugstore",
     ]
+
+    /// Pre-compiled regex combining all non-venue keywords for O(n) matching instead of O(n*m).
+    private static let nonVenueRegex: NSRegularExpression? = {
+        let escaped = nonVenueKeywords.map { NSRegularExpression.escapedPattern(for: $0) }
+        let pattern = escaped.joined(separator: "|")
+        return try? NSRegularExpression(pattern: pattern, options: [])
+    }()
 
     /// Name patterns that suggest an event listing rather than a permanent venue.
     /// Long names with dashes/pipes often indicate event descriptions, not venue names.
     private static func isNonVenue(_ name: String) -> Bool {
-        // Check non-venue keywords
-        for keyword in nonVenueKeywords {
-            if name.contains(keyword) { return true }
+        // Check non-venue keywords using pre-compiled regex (single pass)
+        if let regex = nonVenueRegex {
+            let range = NSRange(name.startIndex..., in: name)
+            if regex.firstMatch(in: name, range: range) != nil {
+                return true
+            }
         }
 
         // Very long names (>60 chars) with separators are typically event listings
@@ -224,9 +257,6 @@ final class VenueSearchService {
 
         let venues = response.mapItems.compactMap { item -> Venue? in
             guard let name = item.name?.lowercased() else { return nil }
-
-            // Filter excluded fast-food chains (prefix match, not substring)
-            if Self.isExcludedChain(name) { return nil }
 
             // Filter home businesses, events, and non-venue services
             if Self.isNonVenue(name) { return nil }
@@ -344,8 +374,6 @@ final class VenueSearchService {
         let venues = response.mapItems.compactMap { item -> Venue? in
             guard let name = item.name?.lowercased() else { return nil }
 
-            if Self.isExcludedChain(name) { return nil }
-
             // Filter home businesses, events, and non-venue services
             if Self.isNonVenue(name) { return nil }
 
@@ -409,6 +437,10 @@ final class VenueSearchService {
                 Log.search.notice("Category '\(label, privacy: .public)' timed out (attempt \(attempt + 1))")
             } catch is CancellationError {
                 return []
+            } catch let error as MKError where error.code == .placemarkNotFound {
+                // No results for this category in this area — retrying won't help
+                Log.search.debug("Category '\(label, privacy: .public)' not found in area")
+                return []
             } catch {
                 Log.search.error("Category '\(label, privacy: .public)' failed (attempt \(attempt + 1)): \(error.localizedDescription)")
             }
@@ -440,21 +472,33 @@ final class VenueSearchService {
         var seen = Set<String>()
         var accumulated: [Venue] = []
 
-        // All queries run in a single concurrent group for maximum speed
+        // Stagger queries in small batches to avoid exceeding Apple's shared
+        // 50 req/60s budget (which includes internal map annotation lookups).
         let categories: [MKPointOfInterestCategory] = [
             .restaurant, .cafe, .nightlife, .bakery, .brewery, .winery
         ]
         let keywords = ["restaurant", "bar", "lounge", "brunch", "pub", "diner"]
-        Log.search.debug("Starting \(categories.count) category + \(keywords.count) keyword searches in parallel")
+        Log.search.debug("Starting \(categories.count) category + \(keywords.count) keyword searches in staggered batches")
 
+        // Batch 1: category searches (6 concurrent)
         await withTaskGroup(of: [Venue].self) { group in
-            // Category-based searches
             for category in categories {
                 group.addTask {
                     await self.searchCategoryWithTimeout(category: category, region: region)
                 }
             }
-            // Keyword searches — run concurrently with categories
+
+            for await batch in group {
+                for venue in batch where !seen.contains(venue.id) {
+                    seen.insert(venue.id)
+                    accumulated.append(venue)
+                }
+                onBatch?(accumulated)
+            }
+        }
+
+        // Batch 2: keyword searches (6 concurrent)
+        await withTaskGroup(of: [Venue].self) { group in
             for keyword in keywords {
                 group.addTask {
                     await self.searchWithTimeout(query: keyword, region: region)
@@ -472,17 +516,77 @@ final class VenueSearchService {
 
         Log.search.info("All searches complete: \(accumulated.count) total unique venues")
 
-        // Precompute distances, sort, and cap at limit — closest venues first
-        let distances = accumulated.map { venue in
-            center.distance(from: CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude))
+        // Sort by distance and cap at limit — closest venues first
+        accumulated.sort { a, b in
+            let distA = center.distance(from: CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude))
+            let distB = center.distance(from: CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude))
+            return distA < distB
         }
-        let sortedIndices = distances.enumerated()
-            .sorted { $0.element < $1.element }
-            .prefix(AppConstants.maxVisibleVenues)
-            .map(\.offset)
-        accumulated = sortedIndices.map { accumulated[$0] }
+        if accumulated.count > AppConstants.maxVisibleVenues {
+            accumulated = Array(accumulated.prefix(AppConstants.maxVisibleVenues))
+        }
 
         Log.search.info("Multi-type search complete: \(accumulated.count) venues after distance cap")
+        return accumulated
+    }
+
+    // MARK: - Deep Search (Additional Keywords)
+
+    /// Additional keywords that complement the initial search.
+    /// Run in the same region to discover venues the first 6 keywords missed.
+    private static let deepKeywords = [
+        "cafe", "coffee", "bistro", "grill", "pizza", "sushi",
+        "steakhouse", "seafood", "cocktail", "wine bar",
+        "bakery", "patisserie", "tapas", "ramen", "pho",
+        "breakfast", "dessert", "ice cream",
+    ]
+
+    /// Search the same region with additional keywords to find venues
+    /// the initial `searchAllTypes` missed. Batched to stay within rate limits.
+    func deepSearch(
+        region: MKCoordinateRegion,
+        onBatch: (([Venue]) -> Void)? = nil
+    ) async -> [Venue] {
+        let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+
+        var seen = Set<String>()
+        var accumulated: [Venue] = []
+
+        // Split into two batches to stay within the 35 req/60s budget
+        let batchSize = Self.deepKeywords.count / 2
+        let batch1 = Array(Self.deepKeywords.prefix(batchSize))
+        let batch2 = Array(Self.deepKeywords.dropFirst(batchSize))
+        Log.search.debug("Starting deep search: \(batch1.count) + \(batch2.count) keywords in 2 batches")
+
+        for keywords in [batch1, batch2] {
+            await withTaskGroup(of: [Venue].self) { group in
+                for keyword in keywords {
+                    group.addTask {
+                        await self.searchWithTimeout(query: keyword, region: region)
+                    }
+                }
+
+                for await batch in group {
+                    for venue in batch where !seen.contains(venue.id) {
+                        seen.insert(venue.id)
+                        accumulated.append(venue)
+                    }
+                    onBatch?(accumulated)
+                }
+            }
+        }
+
+        Log.search.info("Deep search complete: \(accumulated.count) total unique venues")
+
+        accumulated.sort { a, b in
+            let distA = center.distance(from: CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude))
+            let distB = center.distance(from: CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude))
+            return distA < distB
+        }
+        if accumulated.count > AppConstants.maxVisibleVenues {
+            accumulated = Array(accumulated.prefix(AppConstants.maxVisibleVenues))
+        }
+
         return accumulated
     }
 

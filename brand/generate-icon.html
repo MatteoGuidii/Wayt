@@ -17,10 +17,24 @@
     .row > div { flex: 1; }
     button { background: #FFD600; color: #000; border: none; padding: 14px 24px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
     button:hover { background: #FFCA00; }
+    button.secondary { background: #333; color: #fff; }
+    button.secondary:hover { background: #444; }
+    button.save-btn { background: #4CAF50; color: #fff; }
+    button.save-btn:hover { background: #45a049; }
     .sizes { display: flex; gap: 12px; margin-top: 16px; }
     .sizes canvas { border-radius: 12px; background: #222; }
     .size-label { font-size: 11px; color: #666; text-align: center; margin-top: 4px; }
     .size-group { text-align: center; }
+    .toggle-row { display: flex; align-items: center; gap: 10px; }
+    .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #444; border-radius: 12px; transition: 0.2s; }
+    .toggle .slider:before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s; }
+    .toggle input:checked + .slider { background: #FFD600; }
+    .toggle input:checked + .slider:before { transform: translateX(20px); }
+    .section-title { font-size: 14px; font-weight: 600; margin-top: 12px; padding-top: 12px; border-top: 1px solid #333; }
+    .saved-indicator { font-size: 12px; color: #4CAF50; margin-left: 8px; opacity: 0; transition: opacity 0.3s; }
+    .saved-indicator.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -54,10 +68,34 @@
         <input type="range" id="cornerRadius" min="0" max="400" value="224">
       </div>
 
-      <button onclick="exportSVG()">Download SVG (1024×1024)</button>
-      <button onclick="exportPNG(1024)">Download PNG (1024×1024)</button>
-      <button onclick="exportPNG(512)">Download PNG (512×512)</button>
-      <button onclick="exportPNG(180)">Download PNG (180×180 — iOS)</button>
+      <div class="section-title">Logo Outline</div>
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="outlineEnabled">
+          <span class="slider"></span>
+        </label>
+        <label style="margin: 0;">Enable logo outline</label>
+      </div>
+      <div id="outlineControls" style="display: none; flex-direction: column; gap: 16px;">
+        <div>
+          <label>Outline Color</label>
+          <input type="color" id="outlineColor" value="#000000">
+        </div>
+        <div>
+          <label>Outline Thickness: <span id="outlineLabel">20</span></label>
+          <input type="range" id="outlineThickness" min="2" max="60" value="20">
+        </div>
+      </div>
+
+      <div class="section-title">Export</div>
+      <button onclick="exportSVG()">Download SVG (1024x1024)</button>
+      <button onclick="exportPNG(1024)">Download PNG (1024x1024)</button>
+      <button onclick="exportPNG(512)">Download PNG (512x512)</button>
+      <button onclick="exportPNG(180)">Download PNG (180x180 -- iOS)</button>
+
+      <div class="section-title">Save State</div>
+      <button class="save-btn" onclick="saveState()">Save current settings<span id="savedIndicator" class="saved-indicator">Saved!</span></button>
+      <button class="secondary" id="updateHtmlBtn" style="display:none;" onclick="updateHtml()">Update HTML with saved settings</button>
 
       <h3 style="margin-top: 24px; font-size: 14px;">Preview Sizes</h3>
       <div class="sizes">
@@ -78,7 +116,19 @@
   </div>
 
 <script>
-// ── Icon geometry (1024×1024 coordinate space) ──
+// ── Default values (source of truth for the HTML file) ──
+const DEFAULTS = {
+  gradTop: '#FFD600',
+  gradBottom: '#CC7A00',
+  logoColor: '#FFFFFF',
+  strokeWidth: 80,
+  cornerRadius: 224,
+  outlineEnabled: false,
+  outlineColor: '#000000',
+  outlineThickness: 20,
+};
+
+// ── Icon geometry (1024x1024 coordinate space) ──
 const ICON = {
   viewBox: 1024,
   outerLegs: [
@@ -90,11 +140,13 @@ const ICON = {
     { x1: 674, y1: 824, x2: 512, y2: 560 },
   ],
   upperTriangle: [
-    { x1: 400, y1: 336, x2: 624, y2: 336 },  // top bar
-    { x1: 400, y1: 336, x2: 512, y2: 560 },   // left side
-    { x1: 624, y1: 336, x2: 512, y2: 560 },   // right side
+    { x1: 400, y1: 336, x2: 624, y2: 336 },
+    { x1: 400, y1: 336, x2: 512, y2: 560 },
+    { x1: 624, y1: 336, x2: 512, y2: 560 },
   ],
 };
+
+const STORAGE_KEY = 'wayt-icon-generator-state';
 
 function getConfig() {
   return {
@@ -103,7 +155,27 @@ function getConfig() {
     logoColor: document.getElementById('logoColor').value,
     strokeWidth: parseInt(document.getElementById('strokeWidth').value),
     cornerRadius: parseInt(document.getElementById('cornerRadius').value),
+    outlineEnabled: document.getElementById('outlineEnabled').checked,
+    outlineColor: document.getElementById('outlineColor').value,
+    outlineThickness: parseInt(document.getElementById('outlineThickness').value),
   };
+}
+
+function setConfig(cfg) {
+  document.getElementById('gradTop').value = cfg.gradTop;
+  document.getElementById('gradBottom').value = cfg.gradBottom;
+  document.getElementById('logoColor').value = cfg.logoColor;
+  document.getElementById('strokeWidth').value = cfg.strokeWidth;
+  document.getElementById('cornerRadius').value = cfg.cornerRadius;
+  document.getElementById('outlineEnabled').checked = cfg.outlineEnabled;
+  document.getElementById('outlineColor').value = cfg.outlineColor;
+  document.getElementById('outlineThickness').value = cfg.outlineThickness;
+  toggleOutlineControls();
+}
+
+function toggleOutlineControls() {
+  const enabled = document.getElementById('outlineEnabled').checked;
+  document.getElementById('outlineControls').style.display = enabled ? 'flex' : 'none';
 }
 
 function drawIcon(canvas) {
@@ -114,8 +186,9 @@ function drawIcon(canvas) {
 
   ctx.clearRect(0, 0, size, size);
 
-  // Background
   const r = cfg.cornerRadius * scale;
+
+  // Background
   roundRect(ctx, 0, 0, size, size, r);
   const grad = ctx.createLinearGradient(0, 0, 0, size);
   grad.addColorStop(0, cfg.gradTop);
@@ -123,12 +196,26 @@ function drawIcon(canvas) {
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Draw all lines
+  const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
+
+  // Draw outline behind logo strokes if enabled
+  if (cfg.outlineEnabled && cfg.outlineThickness > 0) {
+    ctx.strokeStyle = cfg.outlineColor;
+    ctx.lineWidth = (cfg.strokeWidth + cfg.outlineThickness * 2) * scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    allLines.forEach(l => {
+      ctx.beginPath();
+      ctx.moveTo(l.x1 * scale, l.y1 * scale);
+      ctx.lineTo(l.x2 * scale, l.y2 * scale);
+      ctx.stroke();
+    });
+  }
+
+  // Draw logo lines
   ctx.strokeStyle = cfg.logoColor;
   ctx.lineWidth = cfg.strokeWidth * scale;
   ctx.lineCap = 'round';
-
-  const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
   allLines.forEach(l => {
     ctx.beginPath();
     ctx.moveTo(l.x1 * scale, l.y1 * scale);
@@ -137,7 +224,55 @@ function drawIcon(canvas) {
   });
 }
 
+function drawIconForExport(canvas) {
+  const ctx = canvas.getContext('2d');
+  const cfg = getConfig();
+
+  canvas.width = ICON.viewBox;
+  canvas.height = ICON.viewBox;
+
+  const r = cfg.cornerRadius;
+
+  ctx.clearRect(0, 0, ICON.viewBox, ICON.viewBox);
+
+  // Background
+  roundRect(ctx, 0, 0, ICON.viewBox, ICON.viewBox, r);
+  const grad = ctx.createLinearGradient(0, 0, 0, ICON.viewBox);
+  grad.addColorStop(0, cfg.gradTop);
+  grad.addColorStop(1, cfg.gradBottom);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
+
+  // Outline behind logo strokes
+  if (cfg.outlineEnabled && cfg.outlineThickness > 0) {
+    ctx.strokeStyle = cfg.outlineColor;
+    ctx.lineWidth = cfg.strokeWidth + cfg.outlineThickness * 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    allLines.forEach(l => {
+      ctx.beginPath();
+      ctx.moveTo(l.x1, l.y1);
+      ctx.lineTo(l.x2, l.y2);
+      ctx.stroke();
+    });
+  }
+
+  // Logo lines
+  ctx.strokeStyle = cfg.logoColor;
+  ctx.lineWidth = cfg.strokeWidth;
+  ctx.lineCap = 'round';
+  allLines.forEach(l => {
+    ctx.beginPath();
+    ctx.moveTo(l.x1, l.y1);
+    ctx.lineTo(l.x2, l.y2);
+    ctx.stroke();
+  });
+}
+
 function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);
@@ -154,12 +289,22 @@ function roundRect(ctx, x, y, w, h, r) {
 function renderAll() {
   document.getElementById('strokeLabel').textContent = document.getElementById('strokeWidth').value;
   document.getElementById('radiusLabel').textContent = document.getElementById('cornerRadius').value;
+  document.getElementById('outlineLabel').textContent = document.getElementById('outlineThickness').value;
+  toggleOutlineControls();
   ['main', 's60', 's40', 's29'].forEach(id => drawIcon(document.getElementById(id)));
 }
 
 function buildSVG() {
   const cfg = getConfig();
   const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
+
+  let outlineLines = '';
+  if (cfg.outlineEnabled && cfg.outlineThickness > 0) {
+    outlineLines = allLines.map(l =>
+      `  <line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${cfg.outlineColor}" stroke-width="${cfg.strokeWidth + cfg.outlineThickness * 2}" stroke-linecap="round"/>`
+    ).join('\n');
+  }
+
   const lines = allLines.map(l =>
     `  <line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${cfg.logoColor}" stroke-width="${cfg.strokeWidth}" stroke-linecap="round"/>`
   ).join('\n');
@@ -172,6 +317,7 @@ function buildSVG() {
     </linearGradient>
   </defs>
   <rect x="0" y="0" width="1024" height="1024" rx="${cfg.cornerRadius}" ry="${cfg.cornerRadius}" fill="url(#bg)"/>
+${outlineLines}
 ${lines}
 </svg>`;
 }
@@ -181,12 +327,19 @@ function exportSVG() {
   download(blob, 'wayt-icon.svg');
 }
 
-function exportPNG(size) {
+function exportPNG(targetSize) {
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  drawIcon(canvas);
-  canvas.toBlob(blob => download(blob, `wayt-icon-${size}.png`), 'image/png');
+  drawIconForExport(canvas);
+  if (canvas.width === targetSize) {
+    canvas.toBlob(blob => download(blob, `wayt-icon-${targetSize}.png`), 'image/png');
+  } else {
+    const out = document.createElement('canvas');
+    out.width = targetSize;
+    out.height = targetSize;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(canvas, 0, 0, targetSize, targetSize);
+    out.toBlob(blob => download(blob, `wayt-icon-${targetSize}.png`), 'image/png');
+  }
 }
 
 function download(blob, filename) {
@@ -198,8 +351,76 @@ function download(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-// Bind controls
+// ── Save / Restore state ──
+
+function saveState() {
+  const cfg = getConfig();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  const indicator = document.getElementById('savedIndicator');
+  indicator.classList.add('show');
+  setTimeout(() => indicator.classList.remove('show'), 2000);
+  document.getElementById('updateHtmlBtn').style.display = 'block';
+}
+
+function updateHtml() {
+  // Generate the updated HTML file with current saved settings baked into DEFAULTS
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) return;
+  const cfg = JSON.parse(saved);
+
+  // Read current page HTML and replace DEFAULTS
+  fetch(location.href).then(r => r.text()).then(html => {
+    const newDefaults = `const DEFAULTS = {
+  gradTop: '${cfg.gradTop}',
+  gradBottom: '${cfg.gradBottom}',
+  logoColor: '${cfg.logoColor}',
+  strokeWidth: ${cfg.strokeWidth},
+  cornerRadius: ${cfg.cornerRadius},
+  outlineEnabled: ${cfg.outlineEnabled},
+  outlineColor: '${cfg.outlineColor}',
+  outlineThickness: ${cfg.outlineThickness},
+};`;
+
+    const updated = html.replace(
+      /const DEFAULTS = \{[\s\S]*?\};/,
+      newDefaults
+    );
+
+    // Also update the HTML input default values
+    let result = updated;
+    result = result.replace(/(id="gradTop" value=")#[0-9A-Fa-f]{6}"/, `$1${cfg.gradTop}"`);
+    result = result.replace(/(id="gradBottom" value=")#[0-9A-Fa-f]{6}"/, `$1${cfg.gradBottom}"`);
+    result = result.replace(/(id="logoColor" value=")#[0-9A-Fa-f]{6}"/, `$1${cfg.logoColor}"`);
+    result = result.replace(/(id="strokeWidth"[^>]*value=")(\d+)"/, `$1${cfg.strokeWidth}"`);
+    result = result.replace(/(id="cornerRadius"[^>]*value=")(\d+)"/, `$1${cfg.cornerRadius}"`);
+    result = result.replace(/(id="outlineColor" value=")#[0-9A-Fa-f]{6}"/, `$1${cfg.outlineColor}"`);
+    result = result.replace(/(id="outlineThickness"[^>]*value=")(\d+)"/, `$1${cfg.outlineThickness}"`);
+    result = result.replace(/(id="strokeLabel">)\d+</, `$1${cfg.strokeWidth}<`);
+    result = result.replace(/(id="radiusLabel">)\d+</, `$1${cfg.cornerRadius}<`);
+    result = result.replace(/(id="outlineLabel">)\d+</, `$1${cfg.outlineThickness}<`);
+
+    const blob = new Blob([result], { type: 'text/html' });
+    download(blob, 'generate-icon.html');
+    alert('Downloaded updated HTML. Replace the old file with this one to persist your settings.');
+  });
+}
+
+function loadState() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    const cfg = JSON.parse(saved);
+    setConfig(cfg);
+    document.getElementById('updateHtmlBtn').style.display = 'block';
+  } else {
+    // Use DEFAULTS from the file
+    setConfig(DEFAULTS);
+  }
+}
+
+// ── Init ──
 document.querySelectorAll('input').forEach(el => el.addEventListener('input', renderAll));
+document.getElementById('outlineEnabled').addEventListener('change', renderAll);
+loadState();
 renderAll();
 </script>
 </body>

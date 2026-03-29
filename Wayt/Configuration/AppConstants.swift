@@ -14,9 +14,9 @@ nonisolated enum AppConstants {
     // MARK: - API
 
     /// Base URL for the deployed API Gateway endpoint
-    static let apiBaseURL = "https://ajwkls2g42.execute-api.ca-central-1.amazonaws.com/dev"
+    static let apiBaseURL = "https://ndfwnjyukl.execute-api.ca-central-1.amazonaws.com/dev"
 
-    // MARK: - Search
+    // MARK: - Search 
 
     /// Default search radius in meters
     static let defaultSearchRadius: CLLocationDistance = 800
@@ -48,6 +48,14 @@ nonisolated enum AppConstants {
 
     /// Maximum distance from a venue to allow submitting a report (meters)
     static let reportProximityRadius: CLLocationDistance = 200
+
+    // MARK: - Walking
+
+    /// Additive radius increment per expand tap (meters). ~12 min walk.
+    static let expandIncrement: CLLocationDistance = 1_000
+
+    /// Maximum search radius for expand (meters). ~60 min walk.
+    static let maxWalkingRadius: CLLocationDistance = 5_000
 
     // MARK: - Cache
 

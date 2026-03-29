@@ -18,7 +18,9 @@ struct ProfileEditSheet: View {
             VStack(spacing: 24) {
                 Spacer().frame(height: 8)
 
-                WaytMascot(size: 80, expression: isFirstTime ? .looking : .happy, animated: false)
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(WaytTheme.skyPunch)
 
                 Text(isFirstTime ? "What should we call you?" : "Edit Display Name")
                     .font(WaytTheme.headlineFont)

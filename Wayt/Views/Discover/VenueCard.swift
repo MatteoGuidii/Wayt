@@ -54,36 +54,32 @@ struct VenueCard: View {
                 .font(WaytTheme.subheadFont)
                 .lineLimit(2)
 
-            if let isOpen = venue.isOpen {
+            if venue.rating != nil || venue.priceLevel != nil {
                 HStack(spacing: 4) {
-                    Circle()
-                        .fill(isOpen ? .green : .red)
-                        .frame(width: 6, height: 6)
-                    Text(isOpen ? "Open" : "Closed")
-                        .font(WaytTheme.badgeFont)
-                        .foregroundStyle(isOpen ? .green : .red)
-                    if let hours = venue.hoursToday {
-                        Text("· \(hours)")
+                    if let rating = venue.rating {
+                        Image(systemName: "star.fill")
+                            .font(WaytTheme.nanoFont)
+                            .foregroundStyle(.yellow)
+                        Text(String(format: "%.1f", rating))
+                            .font(WaytTheme.badgeFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+                    if let price = PriceLevel.format(venue.priceLevel, priceRange: venue.priceRange) {
+                        if venue.rating != nil {
+                            Text("·")
+                                .font(WaytTheme.badgeFont)
+                                .foregroundStyle(WaytTheme.secondaryText)
+                        }
+                        Text(price)
                             .font(WaytTheme.badgeFont)
                             .foregroundStyle(WaytTheme.secondaryText)
                     }
                 }
-                .lineLimit(1)
-            }
-
-            if let wait = venue.estimatedWaitMinutes, wait > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock.fill")
-                        .font(WaytTheme.microFont)
-                    Text("~\(wait) min wait")
-                        .font(WaytTheme.badgeFont)
-                }
-                .foregroundStyle(WaytTheme.secondaryText)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
-        .frame(width: 170, height: 140, alignment: .topLeading)
+        .frame(width: 170, height: 120, alignment: .topLeading)
         .background(
             ZStack {
                 WaytTheme.cardBackground

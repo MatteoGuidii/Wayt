@@ -56,7 +56,8 @@ const GEOHASH_INDEX = "GeohashIndex";
  */
 export async function queryByGeohash(
   geohash5: string,
-  skPrefix: string
+  skPrefix: string,
+  limit: number = 200
 ): Promise<Record<string, unknown>[]> {
   const result = await ddb.send(
     new QueryCommand({
@@ -67,6 +68,7 @@ export async function queryByGeohash(
         ":gh": geohash5,
         ":prefix": skPrefix,
       },
+      Limit: limit,
     })
   );
   return (result.Items ?? []) as Record<string, unknown>[];

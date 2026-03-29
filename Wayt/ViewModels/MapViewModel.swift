@@ -29,6 +29,7 @@ final class MapViewModel: ObservableObject {
     }
 
     private var filterCancellable: AnyCancellable?
+    private var reportCancellable: AnyCancellable?
 
     private func observeFilter() {
         guard let filterState else { return }
@@ -86,6 +87,17 @@ final class MapViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Init
+
+    init() {
+        reportCancellable = NotificationCenter.default.publisher(for: .reportSubmitted)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                let venueId = notification.object as? String
+                self?.refreshAfterReport(venueId: venueId)
+            }
+    }
+
     // MARK: - Internal State
 
     private let searchService = VenueSearchService()
@@ -95,6 +107,7 @@ final class MapViewModel: ObservableObject {
     internal var lastSearchedRegion: MKCoordinateRegion?
     private var searchTask: Task<Void, Never>?
     private var refreshTimer: Task<Void, Never>?
+    private var hoursTransitionTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
     private var followUpTask: Task<Void, Never>?
 
@@ -108,6 +121,7 @@ final class MapViewModel: ObservableObject {
     deinit {
         searchTask?.cancel()
         refreshTimer?.cancel()
+        hoursTransitionTask?.cancel()
         clusterDebounceTask?.cancel()
         expandTask?.cancel()
         prefetchTask?.cancel()
@@ -125,6 +139,7 @@ final class MapViewModel: ObservableObject {
     ///   single POST request. Update colors when the response arrives.
     func searchVenues(in region: MKCoordinateRegion) {
         let isInitialSearch = venues.isEmpty && lastSearchedRegion == nil
+        isSearching = false
         searchTask?.cancel()
         expandTask?.cancel()
         followUpTask?.cancel()
@@ -148,21 +163,57 @@ final class MapViewModel: ObservableObject {
             Log.map.debug("Searching region: (\(region.center.latitude), \(region.center.longitude)) span: \(region.span.latitudeDelta)")
 
             do {
-                // Phase A: Fire area pre-fetch concurrently with MapKit discovery.
-                // The pre-fetch populates the fusion cache so onBatch can color venues instantly.
-                async let prefetch: Void = fusionService.prefetchArea(
-                    lat: region.center.latitude,
-                    lng: region.center.longitude,
-                    radius: radius
-                )
+                // Phase A: Fire area pre-fetch in background — populates the fusion
+                // cache so progressive refreshes can color venues without blocking.
+                // When the prefetch returns, immediately apply cached estimates to any
+                // venues already on screen (colors first MapKit batches faster).
+                Task { [weak self, fusionService] in
+                    await fusionService.prefetchArea(
+                        lat: region.center.latitude,
+                        lng: region.center.longitude,
+                        radius: radius
+                    )
+                    guard let self, !Task.isCancelled else { return }
+                    let uncached = self.venues.filter { $0.busynessConfidence == .none }
+                    guard !uncached.isEmpty else { return }
+                    var updated = self.venues
+                    for i in updated.indices where updated[i].busynessConfidence == .none {
+                        if let cached = fusionService.cachedEstimate(for: updated[i].id) {
+                            let estimate = self.busynessEngine.estimate(from: cached)
+                            updated[i].busyness = estimate.level
+                            updated[i].busynessConfidence = estimate.confidence
+                            updated[i].reportCount = estimate.reportCount
+                            updated[i].estimatedWaitMinutes = estimate.waitMinutes
+                            updated[i].isOpen = estimate.isOpen ?? updated[i].isOpen
+                            updated[i].hoursToday = estimate.hoursToday ?? updated[i].hoursToday
+                            updated[i].businessStatus = estimate.businessStatus ?? updated[i].businessStatus
+                            if let details = cached.venueDetails {
+                                updated[i].rating = details.rating
+                                updated[i].userRatingCount = details.userRatingCount
+                                updated[i].priceLevel = details.priceLevel
+                                updated[i].priceRange = details.priceRange
+                                updated[i].primaryTypeDisplayName = details.primaryTypeDisplayName
+                            }
+                        }
+                    }
+                    self.venues = updated
+                    self.recomputeClusters()
+                    Log.map.debug("Prefetch applied cached estimates to early batches")
+                }
 
                 var results: [Venue]
                 if searchText.isEmpty {
-                    // Progressive loading: show venues as each query type completes
+                    // Progressive loading: merge new venues as each query type completes
                     results = await searchService.searchAllTypes(region: region) { [weak self] partial in
                         guard let self, !Task.isCancelled else { return }
-                        self.venues = self.applyOfflineBusyness(to: self.applyCachedEstimates(to: self.carryOverExistingBusyness(to: partial)))
-                        self.recomputeClusters(debounce: true)
+                        // Merge: append only genuinely new venues (like expandSearch)
+                        let existingIDs = Set(self.venues.map(\.id))
+                        let newVenues = partial.filter { !existingIDs.contains($0.id) }
+                        if !newVenues.isEmpty {
+                            let withBusyness = self.applyAllBusynessData(to: newVenues)
+                            self.venues.append(contentsOf: withBusyness)
+                            self.recomputeClusters(debounce: true)
+                        }
                         self.isSearching = false // stop spinner on first batch
                     }
                 } else {
@@ -172,17 +223,12 @@ final class MapViewModel: ObservableObject {
                     )
                 }
 
-                // Ensure pre-fetch completed before checking for uncached venues
-                await prefetch
-
                 guard !Task.isCancelled else { return }
 
                 Log.map.info("Found \(results.count) venues")
 
-                // Apply cached estimates from pre-fetch + carry-over + offline fallback
-                results = carryOverExistingBusyness(to: results)
-                results = applyCachedEstimates(to: results)
-                results = applyOfflineBusyness(to: results)
+                // Apply all busyness data in a single pass (carry-over + cached + offline fallback)
+                results = applyAllBusynessData(to: results)
 
                 // Phase B: Dispatch uncached venues to backend (non-blocking).
                 // The backend returns instantly and computes in the background.
@@ -217,11 +263,34 @@ final class MapViewModel: ObservableObject {
                     scheduleProgressiveRefreshes(region: region)
                 }
 
-                // Update display immediately — don't wait for backend
+                // Merge final results: keep existing in-region venues, add new ones
                 if !results.isEmpty {
-                    venues = results
+                    let newResultIDs = Set(results.map(\.id))
+                    // Retain existing venues still within the new search region
+                    var merged = venues.filter { venue in
+                        newResultIDs.contains(venue.id) || region.containsWithBuffer(venue.coordinate)
+                    }
+                    // Add genuinely new results not already present
+                    let mergedIDs = Set(merged.map(\.id))
+                    let additional = results.filter { !mergedIDs.contains($0.id) }
+                    merged.append(contentsOf: additional)
+
+                    // Sort by distance from region center, cap at limit
+                    let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+                    merged.sort { a, b in
+                        let distA = center.distance(from: CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude))
+                        let distB = center.distance(from: CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude))
+                        return distA < distB
+                    }
+                    if merged.count > AppConstants.maxVisibleVenues {
+                        merged = Array(merged.prefix(AppConstants.maxVisibleVenues))
+                    }
+
+                    venues = applyAllBusynessData(to: merged)
                     lastSearchedRegion = region
+                    lastExpandedRegion = nil
                     recomputeClusters()
+                    scheduleHoursTransitionRefresh()
                 }
                 Log.map.info("Loaded \(results.count) venues, \(self.filteredVenues.count) after filters, \(self.mapItems.count) map items")
             } catch {
@@ -300,22 +369,26 @@ final class MapViewModel: ObservableObject {
         }
     }
 
-    /// Navigate to a coordinate (e.g. from a saved venue in Profile).
-    /// Pans the camera and triggers a search in that area.
-    func navigateToCoordinate(_ coordinate: CLLocationCoordinate2D) {
+    /// Navigate to a saved venue — preserves existing venues and ensures
+    /// the target is present, then animates to it.
+    func navigateToSavedVenue(_ savedVenue: SavedVenue) {
+        let venue = Venue(savedVenue: savedVenue)
+
+        if !venues.contains(where: { $0.id == venue.id }) {
+            venues.insert(venue, at: 0)
+        }
+        recomputeClusters()
+        selectedVenue = venue
+        showSearchThisArea = true
+
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             cameraPosition = .camera(MapCamera(
-                centerCoordinate: coordinate,
+                centerCoordinate: savedVenue.coordinate,
                 distance: 800,
                 heading: 0,
                 pitch: 0
             ))
         }
-        let region = MKCoordinateRegion(
-            center: coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        )
-        Task { searchVenues(in: region) }
     }
 
     /// Expand the search area to find more venues for Discover.
@@ -326,19 +399,29 @@ final class MapViewModel: ObservableObject {
     /// Tracks the last expanded region so repeated taps keep widening.
     private var lastExpandedRegion: MKCoordinateRegion?
 
-    /// Maximum expand span (~35 km at equator) to avoid runaway API costs.
-    private static let maxExpandSpan: Double = 0.32
+    /// Whether the expand radius has reached the walking cap.
+    var isAtMaxExpand: Bool {
+        guard let region = lastExpandedRegion ?? lastSearchedRegion else { return false }
+        let maxLatSpan = (AppConstants.maxWalkingRadius * 2) / 111_000
+        return region.span.latitudeDelta >= maxLatSpan - 0.0001
+    }
 
     func expandSearch() {
-        guard !isExpandingSearch else { return }
+        guard !isSearching, !isExpandingSearch else { return }
         let base = lastExpandedRegion ?? lastSearchedRegion
         guard let base else { return }
 
-        let newLatDelta = min(base.span.latitudeDelta * 2, Self.maxExpandSpan)
-        let newLngDelta = min(base.span.longitudeDelta * 2, Self.maxExpandSpan)
+        // Expand outward by a fixed increment each tap.
+        // Deep-searching the same region with more keywords yields diminishing
+        // returns — MapKit returns the same top-25 venues regardless of keyword.
+        // A larger region is the only reliable way to find more venues.
+        let incrementDeg = AppConstants.expandIncrement / 111_000
+        let maxLatSpan = (AppConstants.maxWalkingRadius * 2) / 111_000
+        let maxLngSpan = maxLatSpan / cos(base.center.latitude * .pi / 180)
+        let newLatDelta = min(base.span.latitudeDelta + incrementDeg, maxLatSpan)
+        let newLngDelta = min(base.span.longitudeDelta + incrementDeg, maxLngSpan)
 
-        // Stop if already at max
-        guard newLatDelta > base.span.latitudeDelta else { return }
+        guard newLatDelta > base.span.latitudeDelta + 0.0001 else { return }
 
         let expanded = MKCoordinateRegion(
             center: base.center,
@@ -348,8 +431,8 @@ final class MapViewModel: ObservableObject {
             )
         )
 
-        // User-initiated expand — reset rate limiter so queries aren't silently skipped
         searchService.resetRateLimit()
+        searchService.invalidateCache()
 
         expandTask?.cancel()
         expandTask = Task {
@@ -357,7 +440,7 @@ final class MapViewModel: ObservableObject {
 
             let radius = searchRadius(for: expanded)
 
-            // Pre-fetch fusion data for expanded area so cached estimates are available
+            // Prefetch fusion data for the expanded area
             await fusionService.prefetchArea(
                 lat: expanded.center.latitude,
                 lng: expanded.center.longitude,
@@ -371,17 +454,20 @@ final class MapViewModel: ObservableObject {
                 return
             }
 
-            // Merge: keep existing venues, add new ones with busyness data
             let existingIDs = Set(venues.map(\.id))
             var additional = newResults.filter { !existingIDs.contains($0.id) }
-            additional = applyCachedEstimates(to: additional)
-            additional = applyOfflineBusyness(to: additional)
+            additional = applyAllBusynessData(to: additional)
+
+            let capacity = AppConstants.maxVisibleVenues - venues.count
+            if additional.count > capacity {
+                additional = Array(additional.prefix(max(0, capacity)))
+            }
 
             if !additional.isEmpty {
                 venues.append(contentsOf: additional)
                 recomputeClusters()
 
-                // Phase B: dispatch uncached expanded venues to backend
+                // Dispatch uncached venues for backend busyness computation
                 let uncached = additional.filter { $0.busynessConfidence == .none }
                 if !uncached.isEmpty {
                     let uncachedInfos = uncached.map { VenueInfo(venue: $0) }
@@ -408,6 +494,7 @@ final class MapViewModel: ObservableObject {
 
             lastExpandedRegion = expanded
             isExpandingSearch = false
+            Log.map.info("Expand found \(additional.count) new venues, total \(self.venues.count)")
         }
     }
 
@@ -419,10 +506,14 @@ final class MapViewModel: ObservableObject {
     }
 
     /// Refresh busyness data after a report was submitted.
-    /// Invalidates caches and re-applies busyness data to existing venues.
-    func refreshAfterReport() {
+    /// Selectively invalidates the reported venue's cache and re-applies busyness data.
+    func refreshAfterReport(venueId: String? = nil) {
         ReportService.shared.invalidateCache()
-        fusionService.invalidateCache()
+        if let venueId {
+            fusionService.invalidateCacheForVenue(venueId)
+        } else {
+            fusionService.invalidateCache()
+        }
         guard let region = lastSearchedRegion else { return }
         Task {
             var updated = venues
@@ -435,12 +526,14 @@ final class MapViewModel: ObservableObject {
     // MARK: - Progressive Follow-Up Refreshes
 
     /// Schedule progressive follow-up refreshes after dispatching venues to background compute.
-    /// Fires at 5s (warm phase), 15s (early cold), 45s (bulk cold).
-    /// Exits early if all venues already have real data or the user navigated away.
+    /// Only fetches data for venues still missing busyness (`.none` confidence),
+    /// avoiding redundant re-sends of already-colored venues.
+    /// Timing aligned to backend processing phases:
+    /// +3s catches Phase 1 batch-matched quick estimates,
+    /// +7s catches Phase 2 warm venues, +14s final sweep for cold venues.
     private func scheduleProgressiveRefreshes(region: MKCoordinateRegion) {
-        // Cumulative delays from dispatch time; sleep the delta between each.
-        // +2s catches batch-matched quick estimates, +5s catches warm venues, +12s final sweep.
-        let cumulativeDelays = [2, 5, 12]
+        let cumulativeDelays = [3, 7, 14]
+        let radius = searchRadius(for: region)
         followUpTask?.cancel()
         followUpTask = Task {
             var previous = 0
@@ -450,20 +543,31 @@ final class MapViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 guard !venues.isEmpty else { return }
 
-                // Stop if all venues have at least some busyness data (quick-estimate or better)
-                let needsRefresh = venues.contains { $0.busynessConfidence == .none }
-                guard needsRefresh else {
+                // Only fetch venues still missing busyness data
+                let uncached = venues.filter { $0.busynessConfidence == .none }
+                guard !uncached.isEmpty else {
                     Log.map.debug("Progressive refresh: all venues have real data, stopping")
                     return
                 }
 
-                Log.map.debug("Progressive refresh at +\(cumulative)s: fetching background results")
-                fusionService.invalidateCache()
-
-                var updated = venues
-                await overlayBusynessData(on: &updated, region: region)
-                venues = updated
-                recomputeClusters()
+                Log.map.debug("Progressive refresh at +\(cumulative)s: \(uncached.count) venues still need data")
+                let uncachedInfos = uncached.map { VenueInfo(venue: $0) }
+                do {
+                    let computed = try await fusionService.fetchMissingEstimates(
+                        lat: region.center.latitude,
+                        lng: region.center.longitude,
+                        radius: radius,
+                        venues: uncachedInfos
+                    )
+                    if !computed.isEmpty {
+                        var updated = venues
+                        applyFusedEstimates(computed, to: &updated)
+                        venues = updated
+                        recomputeClusters()
+                    }
+                } catch {
+                    Log.map.notice("Progressive refresh failed: \(error.localizedDescription)")
+                }
             }
             Log.map.debug("Progressive refreshes complete")
         }
@@ -485,11 +589,16 @@ final class MapViewModel: ObservableObject {
                 guard UIApplication.shared.applicationState == .active else { continue }
                 guard !venues.isEmpty, let region = lastSearchedRegion else { continue }
 
-                // Let cache TTL handle staleness — no manual invalidation needed
+                // Invalidate cache if any venue's hours transition has passed
+                if hasHoursTransitionOccurred() {
+                    fusionService.invalidateCache()
+                }
+
                 var updated = venues
                 await overlayBusynessData(on: &updated, region: region)
                 venues = updated
                 recomputeClusters()
+                scheduleHoursTransitionRefresh()
                 Log.map.debug("Live refresh complete")
             }
         }
@@ -499,6 +608,108 @@ final class MapViewModel: ObservableObject {
     func stopLiveRefresh() {
         refreshTimer?.cancel()
         refreshTimer = nil
+        hoursTransitionTask?.cancel()
+        hoursTransitionTask = nil
+    }
+
+    // MARK: - Hours Transition Refresh
+
+    /// Check if any venue's opening/closing transition has passed since we last
+    /// fetched data, meaning the cached `isOpen` is likely stale.
+    private func hasHoursTransitionOccurred() -> Bool {
+        let now = Date()
+        for venue in venues {
+            guard let hoursToday = venue.hoursToday else { continue }
+            guard let transitionTime = parseTransitionTime(from: hoursToday, isOpen: venue.isOpen) else { continue }
+            // Transition is in the past (already happened) and within the last refresh window
+            if transitionTime <= now && now.timeIntervalSince(transitionTime) < AppConstants.liveRefreshInterval + 30 {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Schedule a one-shot refresh at the next venue hours transition (open→closed or closed→open).
+    /// This ensures the UI updates within seconds of a venue opening or closing.
+    private func scheduleHoursTransitionRefresh() {
+        hoursTransitionTask?.cancel()
+
+        let now = Date()
+        var earliest: Date?
+
+        for venue in venues {
+            guard let hoursToday = venue.hoursToday else { continue }
+            guard let transitionTime = parseTransitionTime(from: hoursToday, isOpen: venue.isOpen) else { continue }
+            // Only care about upcoming transitions within the next hour
+            guard transitionTime > now, transitionTime.timeIntervalSince(now) < 3600 else { continue }
+            if earliest == nil || transitionTime < earliest! {
+                earliest = transitionTime
+            }
+        }
+
+        guard let target = earliest else { return }
+        // Add a small buffer so the backend has time to reflect the change
+        let delay = target.timeIntervalSince(now) + 5
+
+        Log.map.debug("Hours transition scheduled in \(Int(delay))s")
+        hoursTransitionTask = Task {
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            guard UIApplication.shared.applicationState == .active else { return }
+            guard !venues.isEmpty, let region = lastSearchedRegion else { return }
+
+            fusionService.invalidateCache()
+            var updated = venues
+            await overlayBusynessData(on: &updated, region: region)
+            venues = updated
+            recomputeClusters()
+            Log.map.debug("Hours transition refresh complete")
+        }
+    }
+
+    /// Parse the next open/close transition time from a `hoursToday` string.
+    ///
+    /// Recognized formats:
+    /// - "Opens 11:00 AM" → venue is closed, transition at 11:00 AM
+    /// - "Closes 10:00 PM" → venue is open, transition at 10:00 PM
+    /// - "11:00 AM – 10:00 PM" → uses `isOpen` to pick opening or closing time
+    private func parseTransitionTime(from hoursToday: String, isOpen: Bool?) -> Date? {
+        let calendar = Calendar.current
+        let now = Date()
+
+        // "Opens 11:00 AM" or "Closes 10:00 PM"
+        if let range = hoursToday.range(of: #"^(Opens|Closes)\s+"#, options: .regularExpression) {
+            let timeStr = String(hoursToday[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+            return todayDate(from: timeStr, calendar: calendar, now: now)
+        }
+
+        // "11:00 AM – 10:00 PM" (en-dash or hyphen)
+        let parts = hoursToday.components(separatedBy: CharacterSet(charactersIn: "–-"))
+        if parts.count == 2 {
+            let openStr = parts[0].trimmingCharacters(in: .whitespaces)
+            let closeStr = parts[1].trimmingCharacters(in: .whitespaces)
+            // If currently closed, next transition is opening; if open, it's closing
+            let target = (isOpen == true) ? closeStr : openStr
+            return todayDate(from: target, calendar: calendar, now: now)
+        }
+
+        return nil
+    }
+
+    private static let hoursFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "h:mm a"
+        return f
+    }()
+
+    private func todayDate(from timeString: String, calendar: Calendar, now: Date) -> Date? {
+        guard let parsed = Self.hoursFormatter.date(from: timeString) else { return nil }
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: parsed)
+        var todayComponents = calendar.dateComponents([.year, .month, .day], from: now)
+        todayComponents.hour = timeComponents.hour
+        todayComponents.minute = timeComponents.minute
+        return calendar.date(from: todayComponents)
     }
 
     // MARK: - Busyness Data Overlay
@@ -544,6 +755,15 @@ final class MapViewModel: ObservableObject {
                 venues[i].hoursToday = response.hoursToday ?? venues[i].hoursToday
                 venues[i].businessStatus = response.businessStatus ?? venues[i].businessStatus
 
+                // Always apply venue details (independent of crowd reports)
+                if let details = response.venueDetails {
+                    venues[i].rating = details.rating ?? venues[i].rating
+                    venues[i].userRatingCount = details.userRatingCount ?? venues[i].userRatingCount
+                    venues[i].priceLevel = details.priceLevel ?? venues[i].priceLevel
+                    venues[i].priceRange = details.priceRange ?? venues[i].priceRange
+                    venues[i].primaryTypeDisplayName = details.primaryTypeDisplayName ?? venues[i].primaryTypeDisplayName
+                }
+
                 // Only apply busyness scores when real signal data exists
                 guard (response.sourceCount ?? 0) > 0 else { continue }
                 let estimate = busynessEngine.estimate(from: response)
@@ -554,7 +774,7 @@ final class MapViewModel: ObservableObject {
             }
         }
 
-        // Remove permanently closed venues (ghost venues)
+        // Remove permanently closed venues (confirmed gone by Google Places)
         venues.removeAll { $0.businessStatus == "CLOSED_PERMANENTLY" }
     }
 
@@ -574,30 +794,63 @@ final class MapViewModel: ObservableObject {
         }
     }
 
-    /// Apply offline busyness estimates to venues that have no report data.
-    /// Uses the BusynessEngine offline fallback (neutral moderate / no confidence).
-    /// Carry over busyness data from the currently-displayed venues so markers
-    /// never flash grey when the same venue reappears from a fresh MapKit search.
-    private func carryOverExistingBusyness(to newVenues: [Venue]) -> [Venue] {
-        guard !venues.isEmpty else { return newVenues }
-        let lookup = Dictionary(venues.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    /// Single-pass busyness pipeline: applies existing carry-over, cached fusion estimates,
+    /// and offline fallback in one iteration instead of three separate array copies.
+    private func applyAllBusynessData(to newVenues: [Venue]) -> [Venue] {
+        let existingLookup: [String: Venue]? = venues.isEmpty ? nil : Dictionary(
+            venues.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
+        )
+
         return newVenues.map { venue in
-            guard venue.busyness == nil, let existing = lookup[venue.id],
-                  existing.busyness != nil else { return venue }
+            guard venue.busyness == nil else { return venue }
             var v = venue
-            v.busyness = existing.busyness
-            v.busynessConfidence = existing.busynessConfidence
-            v.reportCount = existing.reportCount
-            v.estimatedWaitMinutes = existing.estimatedWaitMinutes
-            v.isOpen = existing.isOpen
-            v.hoursToday = existing.hoursToday
-            v.businessStatus = existing.businessStatus
+
+            // Priority 1: Carry over from existing displayed venues (prevents grey flash)
+            if let existing = existingLookup?[venue.id], existing.busyness != nil {
+                v.busyness = existing.busyness
+                v.busynessConfidence = existing.busynessConfidence
+                v.reportCount = existing.reportCount
+                v.estimatedWaitMinutes = existing.estimatedWaitMinutes
+                v.isOpen = existing.isOpen
+                v.hoursToday = existing.hoursToday
+                v.businessStatus = existing.businessStatus
+                v.rating = existing.rating
+                v.userRatingCount = existing.userRatingCount
+                v.priceLevel = existing.priceLevel
+                v.priceRange = existing.priceRange
+                v.primaryTypeDisplayName = existing.primaryTypeDisplayName
+                return v
+            }
+
+            // Priority 2: Apply cached fusion estimates
+            if let cached = fusionService.cachedEstimate(for: venue.id) {
+                let estimate = busynessEngine.estimate(from: cached)
+                v.busyness = estimate.level
+                v.busynessConfidence = estimate.confidence
+                v.reportCount = estimate.reportCount
+                v.estimatedWaitMinutes = estimate.waitMinutes
+                v.isOpen = estimate.isOpen ?? v.isOpen
+                v.hoursToday = estimate.hoursToday ?? v.hoursToday
+                v.businessStatus = estimate.businessStatus ?? v.businessStatus
+                if let details = cached.venueDetails {
+                    v.rating = details.rating
+                    v.userRatingCount = details.userRatingCount
+                    v.priceLevel = details.priceLevel
+                    v.priceRange = details.priceRange
+                    v.primaryTypeDisplayName = details.primaryTypeDisplayName
+                }
+                return v
+            }
+
+            // Priority 3: Offline fallback (neutral moderate / no confidence)
+            let estimate = busynessEngine.estimateOffline()
+            v.busyness = estimate.level
+            v.busynessConfidence = estimate.confidence
             return v
         }
     }
 
-    /// Apply cached fusion estimates to venues before the network call completes.
-    /// Eliminates the grey flash for venues we already have data for.
+    // Keep individual methods for backward compatibility in expandSearch path
     private func applyCachedEstimates(to venues: [Venue]) -> [Venue] {
         venues.map { venue in
             guard venue.busyness == nil else { return venue }
@@ -608,9 +861,16 @@ final class MapViewModel: ObservableObject {
             v.busynessConfidence = estimate.confidence
             v.reportCount = estimate.reportCount
             v.estimatedWaitMinutes = estimate.waitMinutes
-            v.isOpen = estimate.isOpen
-            v.hoursToday = estimate.hoursToday
-            v.businessStatus = estimate.businessStatus
+            v.isOpen = estimate.isOpen ?? v.isOpen
+            v.hoursToday = estimate.hoursToday ?? v.hoursToday
+            v.businessStatus = estimate.businessStatus ?? v.businessStatus
+            if let details = cached.venueDetails {
+                v.rating = details.rating
+                v.userRatingCount = details.userRatingCount
+                v.priceLevel = details.priceLevel
+                v.priceRange = details.priceRange
+                v.primaryTypeDisplayName = details.primaryTypeDisplayName
+            }
             return v
         }
     }

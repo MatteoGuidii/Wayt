@@ -16,8 +16,12 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     /// Raw MapKit POI category for accurate internal classification and external API matching.
     let poiCategory: MKPointOfInterestCategory?
 
+    /// Explicit category override (used when creating from SavedVenue where category is already known).
+    private let categoryOverride: VenueCategory?
+
     /// Broad display category computed from MapKit POI category + name fallback.
     var category: VenueCategory {
+        if let categoryOverride { return categoryOverride }
         let fromPOI = VenueCategory.from(poiCategory: poiCategory)
         // If POI mapped to generic .food, try refining from name
         if fromPOI == .food {
@@ -42,6 +46,14 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     var isOpen: Bool?
     var hoursToday: String?
     var businessStatus: String?
+
+    // MARK: - Venue Details (from Google via backend)
+
+    var rating: Double?
+    var userRatingCount: Int?
+    var priceLevel: String?
+    var priceRange: String?
+    var primaryTypeDisplayName: String?
 
     // MARK: - Name Normalization
 
@@ -70,10 +82,28 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         self.name = venueName
         self.coordinate = coord
         self.poiCategory = mapItem.pointOfInterestCategory
+        self.categoryOverride = nil
         self.address = mapItem.placemark.formattedAddress
         self.phoneNumber = mapItem.phoneNumber
         self.url = mapItem.url
         self.mapItem = mapItem
+    }
+
+    // MARK: - Init from SavedVenue
+
+    init(savedVenue: SavedVenue) {
+        self.id = savedVenue.venueId
+        self.name = savedVenue.venueName
+        self.coordinate = savedVenue.coordinate
+        self.poiCategory = nil
+        self.categoryOverride = savedVenue.category
+        self.address = savedVenue.address
+        self.phoneNumber = nil
+        self.url = nil
+        let placemark = MKPlacemark(coordinate: savedVenue.coordinate)
+        let item = MKMapItem(placemark: placemark)
+        item.name = savedVenue.venueName
+        self.mapItem = item
     }
 
     // MARK: - Hashable
@@ -87,6 +117,11 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
             && lhs.isOpen == rhs.isOpen
             && lhs.hoursToday == rhs.hoursToday
             && lhs.businessStatus == rhs.businessStatus
+            && lhs.rating == rhs.rating
+            && lhs.userRatingCount == rhs.userRatingCount
+            && lhs.priceLevel == rhs.priceLevel
+            && lhs.priceRange == rhs.priceRange
+            && lhs.primaryTypeDisplayName == rhs.primaryTypeDisplayName
     }
 
     func hash(into hasher: inout Hasher) {
@@ -98,6 +133,11 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         hasher.combine(isOpen)
         hasher.combine(hoursToday)
         hasher.combine(businessStatus)
+        hasher.combine(rating)
+        hasher.combine(userRatingCount)
+        hasher.combine(priceLevel)
+        hasher.combine(priceRange)
+        hasher.combine(primaryTypeDisplayName)
     }
 }
 

@@ -13,6 +13,10 @@ actor APIClient {
     private let encoder: JSONEncoder
     private let session: URLSession
 
+    /// Cached auth token and its expiry to avoid calling Amplify on every request.
+    private var cachedToken: String?
+    private var tokenExpiry: Date = .distantPast
+
     private init() {
         self.decoder = JSONDecoder()
         self.decoder.dateDecodingStrategy = .iso8601
@@ -30,7 +34,7 @@ actor APIClient {
         let start = CFAbsoluteTimeGetCurrent()
         Log.api.debug("GET \(path, privacy: .public)")
         let request = try await buildRequest(method: "GET", path: path, queryItems: queryItems)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await executeWithRetry(request: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("GET \(path, privacy: .public) -> \(status) (\(ms)ms)")
@@ -54,7 +58,7 @@ actor APIClient {
         var request = try await buildRequest(method: "POST", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await executeWithRetry(request: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("POST \(path, privacy: .public) -> \(status) (\(ms)ms)")
@@ -124,6 +128,20 @@ actor APIClient {
         try validateResponse(response)
     }
 
+    // MARK: - DELETE
+
+    /// DELETE that returns no meaningful body (just success/failure)
+    func delete(path: String) async throws {
+        let start = CFAbsoluteTimeGetCurrent()
+        Log.api.debug("DELETE \(path, privacy: .public)")
+        let request = try await buildRequest(method: "DELETE", path: path)
+        let (_, response) = try await executeWithRetry(request: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        Log.api.info("DELETE \(path, privacy: .public) -> \(status) (\(ms)ms)")
+        try validateResponse(response)
+    }
+
     // MARK: - Image Upload
 
     /// Uploads raw image data to a presigned S3 URL (no auth header needed).
@@ -174,12 +192,46 @@ actor APIClient {
     }
 
     private func fetchAuthToken() async throws -> String {
+        // Return cached token if it's still valid (with 60s buffer before expiry)
+        if let cached = cachedToken, Date() < tokenExpiry {
+            return cached
+        }
+
         let session = try await Amplify.Auth.fetchAuthSession()
         guard let cognitoPlugin = session as? AuthCognitoTokensProvider,
               let tokens = try? cognitoPlugin.getCognitoTokens().get() else {
             throw APIError.unauthorized
         }
-        return tokens.idToken
+
+        let token = tokens.idToken
+        cachedToken = token
+
+        // Decode JWT expiry from the token payload (middle segment)
+        let segments = token.split(separator: ".")
+        if segments.count >= 2,
+           let data = Data(base64Encoded: Self.padBase64(String(segments[1]))),
+           let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let exp = payload["exp"] as? TimeInterval {
+            // Refresh 60 seconds before actual expiry
+            tokenExpiry = Date(timeIntervalSince1970: exp).addingTimeInterval(-60)
+        } else {
+            // Fallback: cache for 50 minutes (Cognito tokens are typically valid for 1 hour)
+            tokenExpiry = Date().addingTimeInterval(50 * 60)
+        }
+
+        return token
+    }
+
+    /// Pad a Base64URL string to standard Base64 length.
+    private static func padBase64(_ string: String) -> String {
+        var s = string
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = s.count % 4
+        if remainder > 0 {
+            s.append(contentsOf: String(repeating: "=", count: 4 - remainder))
+        }
+        return s
     }
 
     private func validateResponse(_ response: URLResponse) throws {
@@ -189,6 +241,9 @@ actor APIClient {
         switch http.statusCode {
         case 200...299: return
         case 401:
+            // Invalidate cached token on 401 so next request fetches a fresh one
+            cachedToken = nil
+            tokenExpiry = .distantPast
             Log.api.error("Unauthorized (401)")
             throw APIError.unauthorized
         case 429:
@@ -198,6 +253,32 @@ actor APIClient {
             Log.api.error("Server error (\(http.statusCode))")
             throw APIError.serverError(http.statusCode)
         }
+    }
+
+    /// Execute a URLRequest with automatic retry for transient server errors (5xx).
+    /// Retries up to 2 times with exponential backoff (200ms, 400ms).
+    private func executeWithRetry(request: URLRequest) async throws -> (Data, URLResponse) {
+        var lastError: Error?
+        for attempt in 0...2 {
+            if attempt > 0 {
+                let delayMs = 200 * (1 << (attempt - 1))  // 200ms, 400ms
+                try await Task.sleep(for: .milliseconds(delayMs))
+            }
+            do {
+                let (data, response) = try await session.data(for: request)
+                if let http = response as? HTTPURLResponse, http.statusCode >= 500, attempt < 2 {
+                    Log.api.notice("Server error \(http.statusCode), retrying (attempt \(attempt + 1))")
+                    lastError = APIError.serverError(http.statusCode)
+                    continue
+                }
+                return (data, response)
+            } catch let error as URLError where error.code == .timedOut || error.code == .networkConnectionLost {
+                Log.api.notice("Network error, retrying (attempt \(attempt + 1)): \(error.localizedDescription)")
+                lastError = error
+                continue
+            }
+        }
+        throw lastError ?? APIError.unknown
     }
 }
 

@@ -24,6 +24,7 @@ export interface ComputeInput {
   lat: number;
   lng: number;
   timezone?: string;
+  address?: string;
 }
 
 /**
@@ -36,7 +37,7 @@ export interface ComputeInput {
  * 5. Cache and return the fused result
  */
 export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEstimate> {
-  const { venueId, venueName, lat, lng, timezone } = input;
+  const { venueId, venueName, lat, lng, timezone, address } = input;
   const now = Date.now();
   const nowSeconds = Math.floor(now / 1000);
 
@@ -62,7 +63,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 
     if (staleSourceIds.length > 0) {
       const fetches = staleSourceIds.map((sourceId) =>
-        fetchSignalBySource(sourceId, venueId, venueName, lat, lng, timezone)
+        fetchSignalBySource(sourceId, venueId, venueName, lat, lng, timezone, address)
       );
       const results = await Promise.all(fetches);
 
@@ -73,11 +74,28 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
       }
     }
 
-    log.debug("Signal status", { venueId, cached: cachedSignals.length, stale: staleSourceIds });
+    log.debug("Signal status", {
+      venueId,
+      cachedCount: cachedSignals.length,
+      cachedSources: cachedSignals.map((s) => s.sourceId),
+      staleSources: staleSourceIds,
+      freshCount: freshSignals.length - cachedSignals.length,
+    });
 
     // Step 2b: Fetch Google hours for open/closed status (parallel with signals)
-    const googleHours = await getGoogleHoursData(venueId, venueName, lat, lng);
+    const googleResult = await getGoogleHoursData(venueId, venueName, lat, lng, address);
+    const googleHours = googleResult?.hours ?? null;
     const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
+
+    if (googleHours) {
+      log.debug("Google hours resolved", {
+        venueId,
+        businessStatus: googleHours.businessStatus,
+        isOpen: openStatus?.isOpen,
+        hoursToday: openStatus?.hoursToday,
+        periodCount: googleHours.regularPeriods.length,
+      });
+    }
 
     // Step 3: Fuse all available signals
     const fused = freshSignals.length > 0
@@ -89,17 +107,47 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
     fused.hoursToday = openStatus?.hoursToday ?? null;
     fused.businessStatus = googleHours?.businessStatus ?? null;
 
+    // If no external source matched, leave businessStatus as null.
+    // MapKit found the venue so it likely exists — absence from Foursquare/Google
+    // doesn't mean it's gone (many small/new venues aren't indexed there).
+
+    // Attach venue details summary (returned in-memory from the same API call)
+    const googleVenueDetails = googleResult?.venueDetails ?? null;
+    if (googleVenueDetails) {
+      fused.venueDetails = {
+        primaryType: googleVenueDetails.primaryType,
+        primaryTypeDisplayName: googleVenueDetails.primaryTypeDisplayName,
+        rating: googleVenueDetails.rating,
+        userRatingCount: googleVenueDetails.userRatingCount,
+        priceLevel: googleVenueDetails.priceLevel,
+        priceRange: googleVenueDetails.priceRange,
+      };
+    }
+
     // When venue is closed, override busyness to zero
     if (openStatus?.isOpen === false) {
+      log.debug("Busyness overridden to 0 — venue closed", {
+        venueId,
+        originalScore: fused.busynessScore,
+        hoursToday: openStatus.hoursToday,
+      });
       fused.busynessScore = 0.0;
     }
 
-    log.info("Fused estimate computed", { venueId, score: fused.busynessScore, confidence: fused.confidence, sources: fused.sources, isOpen: fused.isOpen });
+    log.info("Fused estimate computed", {
+      venueId,
+      score: fused.busynessScore,
+      confidence: fused.confidence,
+      sources: fused.sources,
+      isOpen: fused.isOpen,
+      hoursToday: fused.hoursToday,
+    });
 
     // Step 5: Cache the fused result with geohash for spatial queries.
-    // Only cache if we have real signals — don't persist empty estimates
-    // (no Foursquare match + no user reports) so the system retries next time.
-    if (freshSignals.length > 0) {
+    // Only cache when we have real signal data or Google hours — empty estimates
+    // are not cached so the system retries on the next request.
+    const shouldCache = freshSignals.length > 0 || googleHours !== null;
+    if (shouldCache) {
       const geohash = encode(lat, lng);
       await putItem({
         PK: venueKey(venueId),
@@ -171,11 +219,12 @@ async function fetchSignalBySource(
   venueName: string,
   lat: number,
   lng: number,
-  timezone?: string
+  timezone?: string,
+  address?: string
 ): Promise<VenueSignal | null> {
   switch (sourceId) {
     case "foursquare":
-      return fetchFoursquareSignal(venueId, venueName, lat, lng, timezone);
+      return fetchFoursquareSignal(venueId, venueName, lat, lng, timezone, address);
     case "user_reports":
       return aggregateUserReports(venueId);
     default:

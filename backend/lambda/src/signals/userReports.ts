@@ -1,19 +1,47 @@
 import { QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { ddb, REPORTS_TABLE } from "../db";
+import { ddb, REPORTS_TABLE, venueKey, getItem, putItem } from "../db";
 import { VenueSignal, SOURCE_CONFIG, normalizeLevel } from "./types";
 import { createLogger } from "../logger";
 
 /** How far back to look for reports (2 hours, matching the DynamoDB TTL). */
 const MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
+/** Cache aggregated report signal for 5 minutes to avoid re-scanning reports on every request. */
+const AGGREGATION_CACHE_TTL_SECONDS = 5 * 60;
+const REPORT_AGG_SK = "SIGNAL#user_reports_agg";
+
 /**
  * Aggregate user reports from the existing VenueReports table into a single
  * VenueSignal. Uses exponential decay weighting (mirrors the iOS BusynessEngine).
+ *
+ * Results are cached for 5 minutes in the signals table to avoid re-scanning
+ * hundreds of reports on every request for popular venues.
  *
  * Returns null if there are no recent reports for this venue.
  */
 export async function aggregateUserReports(venueId: string): Promise<VenueSignal | null> {
   try {
+    // Check for cached aggregation first
+    const cached = await getItem(venueKey(venueId), REPORT_AGG_SK);
+    if (cached) {
+      const ttl = cached.ttl as number | undefined;
+      if (!ttl || ttl >= Math.floor(Date.now() / 1000)) {
+        const log = createLogger("userReports");
+        log.debug("Aggregation cache hit", { venueId });
+        return {
+          sourceId: "user_reports",
+          venueId,
+          busynessScore: cached.busynessScore as number,
+          confidence: cached.confidence as number,
+          baseWeight: cached.baseWeight as number,
+          timestamp: cached.timestamp as number,
+          ttlSeconds: cached.ttlSeconds as number,
+          reportCount: cached.reportCount as number,
+          waitMinutes: (cached.waitMinutes as number | undefined) ?? undefined,
+        };
+      }
+    }
+
     const now = Date.now();
     const cutoff = now - MAX_AGE_MS;
 
@@ -28,6 +56,7 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
           ":cutoff": cutoff,
         },
         ScanIndexForward: false, // newest first
+        Limit: 500,
       })
     );
 
@@ -72,7 +101,7 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
     // Confidence: higher with more reports
     const confidence = reportCount >= 3 ? 0.9 : reportCount >= 2 ? 0.7 : 0.5;
 
-    return {
+    const signal: VenueSignal = {
       sourceId: "user_reports",
       venueId,
       busynessScore: normalizeLevel(avgBusyness),
@@ -83,6 +112,19 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
       reportCount,
       waitMinutes: avgWait,
     };
+
+    // Cache the aggregated signal for 5 minutes
+    const nowSeconds = Math.floor(now / 1000);
+    await putItem({
+      PK: venueKey(venueId),
+      SK: REPORT_AGG_SK,
+      ...signal,
+      ttl: nowSeconds + AGGREGATION_CACHE_TTL_SECONDS,
+    }).catch(() => {
+      // Non-critical: if cache write fails, next request will re-aggregate
+    });
+
+    return signal;
   } catch (err) {
     const log = createLogger("userReports");
     log.error("Failed to aggregate reports", { venueId }, err);

@@ -47,8 +47,10 @@ export interface FusedEstimate {
   isOpen?: boolean | null;
   /** Today's operating hours for display (e.g. "11:00 AM – 10:00 PM"). null = unknown. */
   hoursToday?: string | null;
-  /** Google Places business status. null = unknown. */
+  /** Google Places business status. null = unknown or not yet resolved. */
   businessStatus?: "OPERATIONAL" | "CLOSED_TEMPORARILY" | "CLOSED_PERMANENTLY" | null;
+  /** Lightweight venue details (categories, rating, price). Null if not yet fetched. */
+  venueDetails?: VenueDetailsSummary | null;
 }
 
 // -----------------------------------------------
@@ -64,6 +66,51 @@ export const SOURCE_CONFIG: Record<SignalSource, { weight: number; ttlSeconds: n
   user_reports: { weight: 0.75, ttlSeconds: 7_200 },   // 2 hours
   foursquare:   { weight: 0.25, ttlSeconds: 600 },     // 10 min (score recomputed from 30-day cached data)
 };
+
+// -----------------------------------------------
+// Google venue details (categories, ratings, reviews)
+// -----------------------------------------------
+
+/** A single Google review cached from Place Details. */
+export interface GoogleReview {
+  authorName: string;
+  rating: number;              // 1-5
+  text: string;
+  relativePublishTime: string; // e.g. "2 months ago"
+  publishTime: string;         // ISO timestamp
+}
+
+/** Cached Google venue details stored in DynamoDB (SK: GDETAILS#CURRENT). */
+export interface CachedVenueDetails {
+  types: string[];
+  primaryType: string | null;
+  primaryTypeDisplayName: string | null;
+  rating: number | null;              // 1.0-5.0 (Google scale)
+  userRatingCount: number | null;
+  priceLevel: string | null;          // e.g. "PRICE_LEVEL_MODERATE"
+  priceRange: string | null;          // e.g. "$10–25" (formatted from Google priceRange)
+  reviews: GoogleReview[];
+  editorialSummary: string | null;
+  cachedAt: string;
+}
+
+/** Lightweight venue details included in list responses. */
+export interface VenueDetailsSummary {
+  primaryType: string | null;
+  primaryTypeDisplayName: string | null;
+  rating: number | null;
+  userRatingCount: number | null;
+  priceLevel: string | null;
+  priceRange: string | null;
+}
+
+/** Full venue details included in single-venue responses. */
+export interface VenueDetailsFull extends VenueDetailsSummary {
+  types: string[];
+  reviews: GoogleReview[];
+  editorialSummary: string | null;
+  googleMapsUrl: string | null;
+}
 
 // -----------------------------------------------
 // Helpers

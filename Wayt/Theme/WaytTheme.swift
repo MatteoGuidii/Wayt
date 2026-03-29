@@ -20,7 +20,7 @@ enum WaytTheme {
         dark:  UIColor(red: 0.22, green: 0.48, blue: 0.65, alpha: 1)   // muted sky blue, easier on eyes
     )
 
-    /// Ultra Blue — gradient accent for mascot pin body
+    /// Ultra Blue — gradient accent
     static let ultraBlue = adaptive(
         light: UIColor(red: 0.20, green: 0.20, blue: 1.00, alpha: 1),  // #3333FF
         dark:  UIColor(red: 0.18, green: 0.18, blue: 0.45, alpha: 1)   // muted indigo
@@ -30,36 +30,6 @@ enum WaytTheme {
     static let mapsBlue = adaptive(
         light: UIColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1),  // #007AFF
         dark:  UIColor(red: 0.25, green: 0.48, blue: 0.72, alpha: 1)   // softer maps blue
-    )
-
-    /// Mascot body top — vibrant sky blue, stays bright so Vee looks the same in both modes
-    static let mascotBodyTop = adaptive(
-        light: UIColor(red: 0.00, green: 0.70, blue: 0.95, alpha: 1),  // same as light skyPunch
-        dark:  UIColor(red: 0.00, green: 0.62, blue: 0.88, alpha: 1)   // slightly toned but still vivid blue
-    )
-
-    /// Mascot body bottom — vivid indigo, keeps the mascot pop in dark mode
-    static let mascotBodyBottom = adaptive(
-        light: UIColor(red: 0.20, green: 0.20, blue: 1.00, alpha: 1),  // same as light ultraBlue
-        dark:  UIColor(red: 0.20, green: 0.20, blue: 0.85, alpha: 1)   // slightly toned indigo
-    )
-
-    /// Dark ink — mascot face features (eyes, mouth); same in both modes so face is always visible
-    static let ink = adaptive(
-        light: UIColor(red: 0.25, green: 0.20, blue: 0.35, alpha: 1),  // #403357
-        dark:  UIColor(red: 0.25, green: 0.20, blue: 0.35, alpha: 1)   // same — stays dark on white face
-    )
-
-    /// Mascot outline strokes — black in both modes to preserve mascot identity
-    static let mascotOutline = adaptive(
-        light: .black,
-        dark:  .black
-    )
-
-    /// Mascot face oval fill — white in both modes (mascot identity)
-    static let mascotFace = adaptive(
-        light: UIColor(white: 1.0, alpha: 0.95),
-        dark:  UIColor(white: 1.0, alpha: 0.95)
     )
 
     /// Saved/bookmark accent — matches busyness "Busy" orange
@@ -103,16 +73,16 @@ enum WaytTheme {
 
     // MARK: - Backgrounds
 
-    /// Cool ice-blue gradient for auth/onboarding screens; deep navy with subtle blue in dark mode
+    /// Cool ice-blue gradient for screens; deep navy with subtle blue in dark mode
     static let backgroundGradient = LinearGradient(
         colors: [
             adaptive(
                 light: UIColor(red: 0.93, green: 0.97, blue: 0.99, alpha: 1),  // icy white #EEF7FC
-                dark:  UIColor(red: 0.075, green: 0.082, blue: 0.12, alpha: 1) // deep navy with blue tint
+                dark:  UIColor(red: 0.13, green: 0.14, blue: 0.18, alpha: 1)   // lifted navy
             ),
             adaptive(
                 light: UIColor(red: 0.88, green: 0.94, blue: 0.98, alpha: 1),  // faint sky #E0F0FA
-                dark:  UIColor(red: 0.055, green: 0.058, blue: 0.082, alpha: 1) // deep dark blue-black
+                dark:  UIColor(red: 0.10, green: 0.11, blue: 0.15, alpha: 1)   // softer dark blue
             ),
         ],
         startPoint: .topLeading,
@@ -121,7 +91,7 @@ enum WaytTheme {
 
     static let cardBackground = adaptive(
         light: .systemBackground,
-        dark:  UIColor(red: 0.10, green: 0.105, blue: 0.14, alpha: 1)  // subtle navy, blends with background
+        dark:  UIColor(red: 0.16, green: 0.17, blue: 0.20, alpha: 1)   // lifted dark card
     )
 
     /// Adaptive shadow for cards — subtle in light, stronger in dark
@@ -130,16 +100,10 @@ enum WaytTheme {
         dark:  UIColor(red: 0, green: 0, blue: 0, alpha: 0.35)
     )
 
-    /// Signal pulse banner base color
-    static let signalPulseBase = adaptive(
-        light: UIColor(red: 0.06, green: 0.06, blue: 0.12, alpha: 1),
-        dark:  UIColor(red: 0.10, green: 0.10, blue: 0.16, alpha: 1)
-    )
-
     /// Avatar outer ring
     static let avatarRing = adaptive(
-        light: UIColor(red: 0.93, green: 0.97, blue: 0.99, alpha: 1),
-        dark:  UIColor(red: 0.18, green: 0.19, blue: 0.24, alpha: 1)
+        light: UIColor(red: 1.00, green: 0.97, blue: 0.93, alpha: 1),
+        dark:  UIColor(red: 0.18, green: 0.19, blue: 0.22, alpha: 1)
     )
 
     /// Avatar inner circle / camera badge background
@@ -277,7 +241,7 @@ extension View {
 // MARK: - Pin Shape (Wayt brand icon container)
 
 /// Teardrop / map-pin silhouette — rounded top half tapering to a point.
-/// Shared brand shape echoing the Wayt mascot.
+/// Shared brand shape for map pins and markers.
 struct PinShape: Shape {
     func path(in rect: CGRect) -> Path {
         let headRadius = rect.width / 2

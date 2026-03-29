@@ -14,6 +14,7 @@ final class VenueDetailViewModel: ObservableObject {
     @Published var showReportSheet: Bool = false
     @Published var reportSubmitted: Bool = false
     @Published var isWithinReportRange: Bool = false
+    @Published var venueDetailsFull: VenueDetailsFull?
 
     // MARK: - Private
 
@@ -34,7 +35,8 @@ final class VenueDetailViewModel: ObservableObject {
                 waitMinutes: venue.estimatedWaitMinutes,
                 isOpen: venue.isOpen,
                 hoursToday: venue.hoursToday,
-                businessStatus: venue.businessStatus
+                businessStatus: venue.businessStatus,
+                venueDetails: nil
             )
         } else {
             self.estimate = busynessEngine.estimateOffline()
@@ -67,27 +69,32 @@ final class VenueDetailViewModel: ObservableObject {
         isLoadingReports = false
     }
 
-    /// Try to get a fused estimate — uses the nearby cache first to avoid a redundant API call,
-    /// only hitting the single-venue endpoint if the cache doesn't have this venue.
+    /// Fetch full venue data from the single-venue endpoint.
+    /// Always prefers the fresh response (has hours, rating, reviews, price)
+    /// over the nearby cache which may be incomplete for cold venues.
     private func loadFusedEstimate() async -> BusynessEstimate? {
-        // Check if the map's nearby fetch already cached this venue
-        if let cached = FusionService.shared.cachedEstimate(for: venue.id) {
-            Log.fusion.debug("Using cached fusion estimate for detail \(self.venue.id, privacy: .public)")
-            return busynessEngine.estimate(from: cached)
-        }
-
-        // Cache miss — fetch from the single-venue endpoint
-        Log.fusion.debug("Fusion cache miss for detail, fetching single-venue")
+        let vid = venue.id
+        Log.fusion.info("[Detail] Fetching for \(vid, privacy: .public)")
         do {
             let response = try await FusionService.shared.fetchVenueBusyness(
                 venueId: venue.id,
                 venueName: venue.name,
                 lat: venue.coordinate.latitude,
-                lng: venue.coordinate.longitude
+                lng: venue.coordinate.longitude,
+                address: venue.address
             )
+            let hasDetails = response.venueDetails != nil
+            let hours = response.hoursToday ?? "nil"
+            let rating = response.venueDetails?.rating
+            Log.fusion.info("[Detail] OK: isOpen=\(String(describing: response.isOpen)) hours=\(hours, privacy: .public) hasDetails=\(hasDetails) rating=\(String(describing: rating))")
+            venueDetailsFull = response.venueDetails
             return busynessEngine.estimate(from: response.toFusedEstimate())
         } catch {
-            Log.fusion.notice("Fusion unavailable for detail: \(error.localizedDescription)")
+            Log.fusion.error("[Detail] FAILED: \(String(describing: error))")
+            // Fall back to nearby cache if single-venue endpoint fails
+            if let cached = FusionService.shared.cachedEstimate(for: venue.id) {
+                return busynessEngine.estimate(from: cached)
+            }
             return nil
         }
     }
@@ -140,7 +147,8 @@ final class VenueDetailViewModel: ObservableObject {
             waitMinutes: waitMinutes ?? estimate.waitMinutes,
             isOpen: estimate.isOpen,
             hoursToday: estimate.hoursToday,
-            businessStatus: estimate.businessStatus
+            businessStatus: estimate.businessStatus,
+            venueDetails: estimate.venueDetails
         )
         reportSubmitted = true
 
@@ -153,7 +161,7 @@ final class VenueDetailViewModel: ObservableObject {
                     waitMinutes: waitMinutes
                 )
                 await MainActor.run {
-                    NotificationCenter.default.post(name: .reportSubmitted, object: nil)
+                    NotificationCenter.default.post(name: .reportSubmitted, object: venue.id)
                 }
                 Log.reports.info("Report submitted successfully for \(venue.id, privacy: .public)")
             } catch {
