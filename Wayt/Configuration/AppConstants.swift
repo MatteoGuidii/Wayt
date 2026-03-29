@@ -27,6 +27,10 @@ nonisolated enum AppConstants {
     /// Per-query timeout for MapKit searches (seconds)
     static let mapKitQueryTimeout: TimeInterval = 8
 
+    /// Minimum region span (degrees) passed to MapKit searches.
+    /// Ensures MapKit searches a large enough area even when zoomed in tight.
+    static let minimumSearchSpan: Double = 0.01
+
     /// Minimum camera movement before "Search This Area" appears (degrees)
     static let searchThisAreaThreshold: Double = 0.005
 

@@ -265,9 +265,10 @@ final class VenueSearchService {
 
         recordRequest()
 
+        let searchRegion = Self.clampedSearchRegion(region)
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
-        request.region = region
+        request.region = searchRegion
         request.resultTypes = .pointOfInterest
 
         let search = MKLocalSearch(request: request)
@@ -293,9 +294,9 @@ final class VenueSearchService {
                 return nil
             }
 
-            // Filter to venues within the search region + 10% buffer (MKLocalSearch returns results beyond it)
+            // Filter to venues within the clamped search region + 10% buffer
             let coord = item.placemark.coordinate
-            if !region.containsWithBuffer(coord) {
+            if !searchRegion.containsWithBuffer(coord) {
                 return nil
             }
 
@@ -391,7 +392,8 @@ final class VenueSearchService {
 
         recordRequest()
 
-        let request = MKLocalPointsOfInterestRequest(coordinateRegion: region)
+        let searchRegion = Self.clampedSearchRegion(region)
+        let request = MKLocalPointsOfInterestRequest(coordinateRegion: searchRegion)
         request.pointOfInterestFilter = MKPointOfInterestFilter(including: [category])
 
         let search = MKLocalSearch(request: request)
@@ -409,7 +411,7 @@ final class VenueSearchService {
             }
 
             let coord = item.placemark.coordinate
-            if !region.containsWithBuffer(coord) { return nil }
+            if !searchRegion.containsWithBuffer(coord) { return nil }
 
             return Venue(mapItem: item)
         }
@@ -614,6 +616,19 @@ final class VenueSearchService {
         }
 
         return accumulated
+    }
+
+    // MARK: - Region Clamping
+
+    /// Returns a region with span clamped to at least `minimumSearchSpan`.
+    /// Ensures MapKit searches a large enough area when the map is zoomed in tight.
+    private static func clampedSearchRegion(_ region: MKCoordinateRegion) -> MKCoordinateRegion {
+        let minSpan = AppConstants.minimumSearchSpan
+        let clampedSpan = MKCoordinateSpan(
+            latitudeDelta: max(region.span.latitudeDelta, minSpan),
+            longitudeDelta: max(region.span.longitudeDelta, minSpan)
+        )
+        return MKCoordinateRegion(center: region.center, span: clampedSpan)
     }
 
 }
