@@ -144,6 +144,7 @@ final class MapViewModel: ObservableObject {
         followUpTask?.cancel()
         isExpandingSearch = false
         lastExpandedRegion = nil
+        hasDeepSearched = false
 
         // User-initiated search — reset rate limiter so queries aren't silently skipped
         searchService.resetRateLimit()
@@ -390,6 +391,10 @@ final class MapViewModel: ObservableObject {
     /// Merges new results into existing venues without affecting the Map's search state.
     @Published var isExpandingSearch: Bool = false
 
+    /// Whether we've already run deep-search keywords in the current region.
+    /// Reset on every new `searchVenues` call so "See more" always deepens first.
+    private var hasDeepSearched = false
+
     private var expandTask: Task<Void, Never>?
     /// Tracks the last expanded region so repeated taps keep widening.
     private var lastExpandedRegion: MKCoordinateRegion?
@@ -402,18 +407,77 @@ final class MapViewModel: ObservableObject {
     }
 
     func expandSearch() {
-        guard !isExpandingSearch else { return }
+        guard !isSearching, !isExpandingSearch else { return }
         let base = lastExpandedRegion ?? lastSearchedRegion
         guard let base else { return }
 
-        // Additive increment (~400m per tap) capped at walking radius (~2.5km)
+        // Phase 1: Deep-search the current region with extra keywords first.
+        // Only expand outward once we've exhausted the current area.
+        if !hasDeepSearched {
+            hasDeepSearched = true
+            searchService.resetRateLimit()
+
+            expandTask?.cancel()
+            expandTask = Task {
+                isExpandingSearch = true
+
+                let radius = searchRadius(for: base)
+                let newResults = await searchService.deepSearch(region: base)
+
+                guard !Task.isCancelled else {
+                    isExpandingSearch = false
+                    return
+                }
+
+                let existingIDs = Set(venues.map(\.id))
+                var additional = newResults.filter { !existingIDs.contains($0.id) }
+                additional = applyAllBusynessData(to: additional)
+
+                let capacity = AppConstants.maxVisibleVenues - venues.count
+                if additional.count > capacity {
+                    additional = Array(additional.prefix(max(0, capacity)))
+                }
+
+                if !additional.isEmpty {
+                    venues.append(contentsOf: additional)
+                    recomputeClusters()
+
+                    let uncached = additional.filter { $0.busynessConfidence == .none }
+                    if !uncached.isEmpty {
+                        let uncachedInfos = uncached.map { VenueInfo(venue: $0) }
+                        Task {
+                            do {
+                                let computed = try await fusionService.fetchMissingEstimates(
+                                    lat: base.center.latitude,
+                                    lng: base.center.longitude,
+                                    radius: radius,
+                                    venues: uncachedInfos
+                                )
+                                if !computed.isEmpty {
+                                    var updated = self.venues
+                                    self.applyFusedEstimates(computed, to: &updated)
+                                    self.venues = updated
+                                    self.recomputeClusters()
+                                }
+                            } catch {
+                                Log.map.notice("Deep search dispatch failed: \(error.localizedDescription)")
+                            }
+                        }
+                    }
+                }
+
+                isExpandingSearch = false
+            }
+            return
+        }
+
+        // Phase 2: Current region exhausted — expand outward
         let incrementDeg = AppConstants.expandIncrement / 111_000
         let maxLatSpan = (AppConstants.maxWalkingRadius * 2) / 111_000
         let maxLngSpan = maxLatSpan / cos(base.center.latitude * .pi / 180)
         let newLatDelta = min(base.span.latitudeDelta + incrementDeg, maxLatSpan)
         let newLngDelta = min(base.span.longitudeDelta + incrementDeg, maxLngSpan)
 
-        // Stop if already at max
         guard newLatDelta > base.span.latitudeDelta + 0.0001 else { return }
 
         let expanded = MKCoordinateRegion(
@@ -424,73 +488,9 @@ final class MapViewModel: ObservableObject {
             )
         )
 
-        // User-initiated expand — reset rate limiter so queries aren't silently skipped
-        searchService.resetRateLimit()
-
-        expandTask?.cancel()
-        expandTask = Task {
-            isExpandingSearch = true
-
-            let radius = searchRadius(for: expanded)
-
-            // Pre-fetch fusion data for expanded area so cached estimates are available
-            await fusionService.prefetchArea(
-                lat: expanded.center.latitude,
-                lng: expanded.center.longitude,
-                radius: radius
-            )
-
-            let newResults = await searchService.searchAllTypes(region: expanded)
-
-            guard !Task.isCancelled else {
-                isExpandingSearch = false
-                return
-            }
-
-            // Merge: keep existing venues, add new ones with busyness data
-            let existingIDs = Set(venues.map(\.id))
-            var additional = newResults.filter { !existingIDs.contains($0.id) }
-            additional = applyCachedEstimates(to: additional)
-            additional = applyOfflineBusyness(to: additional)
-
-            // Cap total venues to prevent unbounded memory growth
-            let capacity = AppConstants.maxVisibleVenues - venues.count
-            if additional.count > capacity {
-                additional = Array(additional.prefix(max(0, capacity)))
-            }
-
-            if !additional.isEmpty {
-                venues.append(contentsOf: additional)
-                recomputeClusters()
-
-                // Phase B: dispatch uncached expanded venues to backend
-                let uncached = additional.filter { $0.busynessConfidence == .none }
-                if !uncached.isEmpty {
-                    let uncachedInfos = uncached.map { VenueInfo(venue: $0) }
-                    Task {
-                        do {
-                            let computed = try await fusionService.fetchMissingEstimates(
-                                lat: expanded.center.latitude,
-                                lng: expanded.center.longitude,
-                                radius: radius,
-                                venues: uncachedInfos
-                            )
-                            if !computed.isEmpty {
-                                var updated = self.venues
-                                self.applyFusedEstimates(computed, to: &updated)
-                                self.venues = updated
-                                self.recomputeClusters()
-                            }
-                        } catch {
-                            Log.map.notice("Expand dispatch failed: \(error.localizedDescription)")
-                        }
-                    }
-                }
-            }
-
-            lastExpandedRegion = expanded
-            isExpandingSearch = false
-        }
+        // Invalidate search cache so the larger region queries MapKit fresh
+        searchService.invalidateCache()
+        searchVenues(in: expanded)
     }
 
     /// Clear search text and selection

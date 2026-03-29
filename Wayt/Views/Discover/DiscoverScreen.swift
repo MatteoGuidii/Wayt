@@ -630,7 +630,7 @@ struct DiscoverScreen: View {
                     seeMoreButton
                 }
 
-                if mapViewModel.isExpandingSearch {
+                if mapViewModel.isSearching || mapViewModel.isExpandingSearch {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)

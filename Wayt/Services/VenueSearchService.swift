@@ -47,6 +47,14 @@ final class VenueSearchService {
         Self.requestTimestamps.removeAll()
     }
 
+    /// Clear all cached search results so the next search hits MapKit fresh.
+    /// Call before expand searches where the region grew but the cache key
+    /// would still match the previous (smaller) region.
+    func invalidateCache() {
+        queryCache.removeAll()
+        oldestCacheTimestamp = .distantFuture
+    }
+
     // MARK: - Query Normalization & Cache
 
     private func normalizedQuery(_ query: String) -> String {
@@ -429,6 +437,10 @@ final class VenueSearchService {
                 Log.search.notice("Category '\(label, privacy: .public)' timed out (attempt \(attempt + 1))")
             } catch is CancellationError {
                 return []
+            } catch let error as MKError where error.code == .placemarkNotFound {
+                // No results for this category in this area — retrying won't help
+                Log.search.debug("Category '\(label, privacy: .public)' not found in area")
+                return []
             } catch {
                 Log.search.error("Category '\(label, privacy: .public)' failed (attempt \(attempt + 1)): \(error.localizedDescription)")
             }
@@ -515,6 +527,66 @@ final class VenueSearchService {
         }
 
         Log.search.info("Multi-type search complete: \(accumulated.count) venues after distance cap")
+        return accumulated
+    }
+
+    // MARK: - Deep Search (Additional Keywords)
+
+    /// Additional keywords that complement the initial search.
+    /// Run in the same region to discover venues the first 6 keywords missed.
+    private static let deepKeywords = [
+        "cafe", "coffee", "bistro", "grill", "pizza", "sushi",
+        "steakhouse", "seafood", "cocktail", "wine bar",
+        "bakery", "patisserie", "tapas", "ramen", "pho",
+        "breakfast", "dessert", "ice cream",
+    ]
+
+    /// Search the same region with additional keywords to find venues
+    /// the initial `searchAllTypes` missed. Batched to stay within rate limits.
+    func deepSearch(
+        region: MKCoordinateRegion,
+        onBatch: (([Venue]) -> Void)? = nil
+    ) async -> [Venue] {
+        let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+
+        var seen = Set<String>()
+        var accumulated: [Venue] = []
+
+        // Split into two batches to stay within the 35 req/60s budget
+        let batchSize = Self.deepKeywords.count / 2
+        let batch1 = Array(Self.deepKeywords.prefix(batchSize))
+        let batch2 = Array(Self.deepKeywords.dropFirst(batchSize))
+        Log.search.debug("Starting deep search: \(batch1.count) + \(batch2.count) keywords in 2 batches")
+
+        for keywords in [batch1, batch2] {
+            await withTaskGroup(of: [Venue].self) { group in
+                for keyword in keywords {
+                    group.addTask {
+                        await self.searchWithTimeout(query: keyword, region: region)
+                    }
+                }
+
+                for await batch in group {
+                    for venue in batch where !seen.contains(venue.id) {
+                        seen.insert(venue.id)
+                        accumulated.append(venue)
+                    }
+                    onBatch?(accumulated)
+                }
+            }
+        }
+
+        Log.search.info("Deep search complete: \(accumulated.count) total unique venues")
+
+        accumulated.sort { a, b in
+            let distA = center.distance(from: CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude))
+            let distB = center.distance(from: CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude))
+            return distA < distB
+        }
+        if accumulated.count > AppConstants.maxVisibleVenues {
+            accumulated = Array(accumulated.prefix(AppConstants.maxVisibleVenues))
+        }
+
         return accumulated
     }
 

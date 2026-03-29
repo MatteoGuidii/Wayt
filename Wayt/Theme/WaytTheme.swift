@@ -78,11 +78,11 @@ enum WaytTheme {
         colors: [
             adaptive(
                 light: UIColor(red: 0.93, green: 0.97, blue: 0.99, alpha: 1),  // icy white #EEF7FC
-                dark:  UIColor(red: 0.075, green: 0.082, blue: 0.12, alpha: 1) // deep navy with blue tint
+                dark:  UIColor(red: 0.13, green: 0.14, blue: 0.18, alpha: 1)   // lifted navy
             ),
             adaptive(
                 light: UIColor(red: 0.88, green: 0.94, blue: 0.98, alpha: 1),  // faint sky #E0F0FA
-                dark:  UIColor(red: 0.055, green: 0.058, blue: 0.082, alpha: 1) // deep dark blue-black
+                dark:  UIColor(red: 0.10, green: 0.11, blue: 0.15, alpha: 1)   // softer dark blue
             ),
         ],
         startPoint: .topLeading,
@@ -91,7 +91,7 @@ enum WaytTheme {
 
     static let cardBackground = adaptive(
         light: .systemBackground,
-        dark:  UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1)   // neutral dark card
+        dark:  UIColor(red: 0.16, green: 0.17, blue: 0.20, alpha: 1)   // lifted dark card
     )
 
     /// Adaptive shadow for cards — subtle in light, stronger in dark
