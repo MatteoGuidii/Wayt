@@ -35,40 +35,39 @@ struct StreakStrip: View {
 
                 Spacer()
 
-                // 4-week squares
-                HStack(spacing: 4) {
-                    Text("4W")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .foregroundStyle(WaytTheme.secondaryText)
-                        .padding(.trailing, 2)
-
+                // Weekly squares
+                HStack(spacing: 6) {
                     ForEach(Array(last4Weeks.enumerated()), id: \.offset) { index, weekDates in
                         let isCurrentWeek = index == last4Weeks.count - 1
                         let hasReport = weekDates.contains(where: { reportDates.contains($0) })
 
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(hasReport ? Self.flameOrange : Color(.systemGray5))
-                            .frame(width: 18, height: 18)
-                            .overlay {
-                                if hasReport {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 8, weight: .black))
-                                        .foregroundStyle(.white)
+                        VStack(spacing: 3) {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(hasReport ? Self.flameOrange : Color(.systemGray5))
+                                .frame(width: 18, height: 18)
+                                .overlay {
+                                    if hasReport {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 8, weight: .black))
+                                            .foregroundStyle(.white)
+                                    }
                                 }
+
+                            if isCurrentWeek {
+                                Circle()
+                                    .fill(Self.flameOrange)
+                                    .frame(width: 4, height: 4)
+                            } else {
+                                Spacer().frame(height: 4)
                             }
-                            .overlay {
-                                if isCurrentWeek {
-                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                        .stroke(Self.flameOrange.opacity(0.5), lineWidth: 2)
-                                        .frame(width: 23, height: 23)
-                                }
-                            }
+                        }
                     }
 
                     // Chevron hint
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(WaytTheme.secondaryText)
+                        .padding(.bottom, 7)
                 }
             }
             .padding(.horizontal, 16)
