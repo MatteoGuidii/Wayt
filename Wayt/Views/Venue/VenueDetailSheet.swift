@@ -413,15 +413,10 @@ struct VenueDetailSheet: View {
                     if !mapViewModel.venues.contains(where: { $0.id == venue.id }) {
                         mapViewModel.venues.append(venue)
                     }
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                        mapViewModel.cameraPosition = .camera(MapCamera(
-                            centerCoordinate: venue.coordinate,
-                            distance: 800,
-                            heading: 0,
-                            pitch: 0
-                        ))
-                    }
                     tabSelection.selectedTab = .map
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        mapViewModel.selectVenue(venue)
+                    }
                 }
             }
 

@@ -161,7 +161,15 @@ final class VenueDetailViewModel: ObservableObject {
                     waitMinutes: waitMinutes
                 )
                 await MainActor.run {
-                    NotificationCenter.default.post(name: .reportSubmitted, object: venue.id)
+                    NotificationCenter.default.post(
+                        name: .reportSubmitted,
+                        object: venue.id,
+                        userInfo: [
+                            "venueName": venue.name,
+                            "venueType": venue.category.rawValue,
+                            "busynessLevel": level.rawValue,
+                        ]
+                    )
                 }
                 Log.reports.info("Report submitted successfully for \(venue.id, privacy: .public)")
             } catch {
