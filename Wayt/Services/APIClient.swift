@@ -128,6 +128,20 @@ actor APIClient {
         try validateResponse(response)
     }
 
+    // MARK: - DELETE
+
+    /// DELETE that returns no meaningful body (just success/failure)
+    func delete(path: String) async throws {
+        let start = CFAbsoluteTimeGetCurrent()
+        Log.api.debug("DELETE \(path, privacy: .public)")
+        let request = try await buildRequest(method: "DELETE", path: path)
+        let (_, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        Log.api.info("DELETE \(path, privacy: .public) -> \(status) (\(ms)ms)")
+        try validateResponse(response)
+    }
+
     // MARK: - Image Upload
 
     /// Uploads raw image data to a presigned S3 URL (no auth header needed).

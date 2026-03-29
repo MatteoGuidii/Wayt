@@ -1,11 +1,9 @@
 import SwiftUI
-import CoreLocation
 
 /// Bold card-style venue row — playful, glanceable, Waze-inspired.
 struct VenueRow: View {
 
     let venue: Venue
-    var userLocation: CLLocation?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -27,21 +25,10 @@ struct VenueRow: View {
                     .font(WaytTheme.cardTitleFont)
                     .lineLimit(1)
 
-                HStack(spacing: 6) {
-                    Text(venue.primaryTypeDisplayName ?? venue.category.shortName)
-                        .font(WaytTheme.captionLightFont)
-                        .foregroundStyle(WaytTheme.secondaryText)
-                        .lineLimit(1)
-
-                    if let distance = formattedDistance {
-                        Circle()
-                            .fill(Color.secondary.opacity(0.5))
-                            .frame(width: 3, height: 3)
-                        Text(distance)
-                            .font(WaytTheme.captionLightFont)
-                            .foregroundStyle(WaytTheme.secondaryText)
-                    }
-                }
+                Text(venue.primaryTypeDisplayName ?? venue.category.shortName)
+                    .font(WaytTheme.captionLightFont)
+                    .foregroundStyle(WaytTheme.secondaryText)
+                    .lineLimit(1)
 
                 // Hours row
                 if let isOpen = venue.isOpen {
@@ -81,23 +68,4 @@ struct VenueRow: View {
         .busynessGlow(venue.isOpen == false ? nil : venue.busyness?.color, radius: 6, y: 3)
     }
 
-    // MARK: - Distance
-
-    private var formattedDistance: String? {
-        guard let userLocation else { return nil }
-        let venueLocation = CLLocation(
-            latitude: venue.coordinate.latitude,
-            longitude: venue.coordinate.longitude
-        )
-        let meters = userLocation.distance(from: venueLocation)
-        let walkMinutes = Int(ceil(meters / AppConstants.walkingSpeedMetersPerMinute))
-
-        if walkMinutes <= 1 {
-            return "1 min walk"
-        } else if walkMinutes < 60 {
-            return "\(walkMinutes) min walk"
-        } else {
-            return String(format: "%.1f km", meters / 1000)
-        }
-    }
 }

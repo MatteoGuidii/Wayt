@@ -57,9 +57,6 @@ nonisolated enum AppConstants {
     /// Maximum search radius for expand (meters). ~30 min walk.
     static let maxWalkingRadius: CLLocationDistance = 2_500
 
-    /// Average walking speed (meters per minute) for walk time estimates.
-    static let walkingSpeedMetersPerMinute: Double = 80
-
     // MARK: - Cache
 
     /// In-memory fusion cache TTL (seconds).

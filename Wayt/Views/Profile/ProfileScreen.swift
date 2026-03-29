@@ -17,7 +17,6 @@ struct ProfileScreen: View {
     @State private var showImagePreview = false
     @State private var showFirstTimeNameSheet = false
     @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var pulsePhase: CGFloat = 0
 
     var body: some View {
         NavigationStack {
@@ -224,153 +223,87 @@ struct ProfileScreen: View {
     // MARK: - Hero Header
 
     private func profileHero(displayName: String, rank: UserRank) -> some View {
-        VStack(spacing: 0) {
-            // Signal Pulse Banner
-            ZStack {
-                // Dark base with rank-tinted gradient
-                LinearGradient(
-                    colors: [
-                        WaytTheme.signalPulseBase,
-                        rank.color.opacity(0.35),
-                        WaytTheme.signalPulseBase
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-
-                // Orbital contour lines (static)
-                GeometryReader { geo in
-                    let cx = geo.size.width * 0.5
-                    let cy = geo.size.height + 20
-
-                    ForEach(0..<3, id: \.self) { i in
-                        let radius = CGFloat(i) * 44 + 40
-                        Ellipse()
-                            .stroke(
-                                rank.color.opacity(0.14 + Double(i) * 0.04),
-                                lineWidth: 1.2
-                            )
-                            .frame(
-                                width: radius * 2.6 + 40,
-                                height: radius * 1.2 + 20
-                            )
-                            .position(x: cx, y: cy)
+        VStack(spacing: 12) {
+            // Avatar
+            ZStack(alignment: .bottomTrailing) {
+                Button {
+                    if viewModel.profileImageUrl != nil {
+                        showImagePreview = true
+                    } else {
+                        showPhotoPicker = true
                     }
-
-                    Ellipse()
-                        .stroke(rank.color.opacity(0.18), lineWidth: 1.0)
-                        .frame(width: geo.size.width * 0.85, height: 90)
-                        .rotationEffect(.degrees(-25))
-                        .position(x: cx, y: cy - 35)
-
-                    // Pulsing signal rings — driven by repeating animation
-                    ForEach(0..<2, id: \.self) { i in
-                        let ringPhase = (pulsePhase + CGFloat(i) * 0.5)
-                            .truncatingRemainder(dividingBy: 1.0)
-                        let ringSize = 40 + ringPhase * max(geo.size.width, geo.size.height) * 0.8
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(WaytTheme.avatarRing)
+                            .frame(width: 100, height: 100)
 
                         Circle()
-                            .stroke(
-                                rank.color.opacity(0.4 * (1 - ringPhase)),
-                                lineWidth: 1.5 - ringPhase
-                            )
-                            .frame(width: ringSize, height: ringSize)
-                            .position(x: cx, y: cy)
-                    }
-                }
-            }
-            .frame(height: 140)
-            .onAppear {
-                withAnimation(.linear(duration: 5).repeatForever(autoreverses: false)) {
-                    pulsePhase = 1.0
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(alignment: .bottom) {
-                // Avatar floats half over the banner
-                ZStack(alignment: .bottomTrailing) {
-                    Button {
-                        if viewModel.profileImageUrl != nil {
-                            showImagePreview = true
-                        } else {
-                            showPhotoPicker = true
-                        }
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(WaytTheme.avatarRing)
-                                .frame(width: 100, height: 100)
+                            .fill(WaytTheme.avatarBackground)
+                            .frame(width: 92, height: 92)
+                            .shadow(color: WaytTheme.cardShadow, radius: 10, y: 4)
 
-                            Circle()
-                                .fill(WaytTheme.avatarBackground)
-                                .frame(width: 92, height: 92)
-                                .shadow(color: WaytTheme.cardShadow, radius: 10, y: 4)
-
-                            if let cachedData = viewModel.cachedImageData,
-                               let uiImage = UIImage(data: cachedData) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 86, height: 86)
-                                    .clipShape(Circle())
-                            } else if let imageUrl = viewModel.profileImageUrl,
-                               let url = URL(string: imageUrl) {
-                                AsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case .success(let image):
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: 86, height: 86)
-                                            .clipShape(Circle())
-                                    default:
-                                        Text(initials(for: displayName))
-                                            .font(WaytTheme.largeTitleFont)
-                                            .foregroundStyle(WaytTheme.skyPunch)
-                                    }
+                        if let cachedData = viewModel.cachedImageData,
+                           let uiImage = UIImage(data: cachedData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 86, height: 86)
+                                .clipShape(Circle())
+                        } else if let imageUrl = viewModel.profileImageUrl,
+                           let url = URL(string: imageUrl) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 86, height: 86)
+                                        .clipShape(Circle())
+                                default:
+                                    Text(initials(for: displayName))
+                                        .font(WaytTheme.largeTitleFont)
+                                        .foregroundStyle(WaytTheme.skyPunch)
                                 }
-                            } else {
-                                Text(initials(for: displayName))
-                                    .font(WaytTheme.largeTitleFont)
-                                    .foregroundStyle(WaytTheme.skyPunch)
                             }
-                        }
-                        .overlay {
-                            if viewModel.isSavingImage {
-                                Circle()
-                                    .fill(Color.black.opacity(0.4))
-                                    .frame(width: 92, height: 92)
-                                ProgressView()
-                                    .tint(.white)
-                            }
+                        } else {
+                            Text(initials(for: displayName))
+                                .font(WaytTheme.largeTitleFont)
+                                .foregroundStyle(WaytTheme.skyPunch)
                         }
                     }
-                    .buttonStyle(.plain)
-
-                    // Camera badge
-                    Button { showPhotoPicker = true } label: {
-                        ZStack {
+                    .overlay {
+                        if viewModel.isSavingImage {
                             Circle()
-                                .fill(WaytTheme.avatarBackground)
-                                .frame(width: 34, height: 34)
-                            Circle()
-                                .fill(WaytTheme.skyPunch)
-                                .frame(width: 30, height: 30)
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.white)
+                                .fill(Color.black.opacity(0.4))
+                                .frame(width: 92, height: 92)
+                            ProgressView()
+                                .tint(.white)
                         }
-                        .offset(x: 2, y: 2)
                     }
-                    .buttonStyle(.plain)
                 }
-                .offset(y: 46)
+                .buttonStyle(.plain)
+
+                // Camera badge
+                Button { showPhotoPicker = true } label: {
+                    ZStack {
+                        Circle()
+                            .fill(WaytTheme.avatarBackground)
+                            .frame(width: 34, height: 34)
+                        Circle()
+                            .fill(WaytTheme.skyPunch)
+                            .frame(width: 30, height: 30)
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .offset(x: 2, y: 2)
+                }
+                .buttonStyle(.plain)
             }
 
-            // Name below avatar
+            // Name + rank
             VStack(spacing: 4) {
-                Spacer().frame(height: 50)
-
                 HStack(spacing: 6) {
                     Image(systemName: rank.icon)
                         .font(.system(size: 16, weight: .bold))
@@ -390,8 +323,7 @@ struct ProfileScreen: View {
                     .font(WaytTheme.subheadLightFont)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
+        .padding(.top, 16)
     }
 
     // MARK: - Stats Strip
@@ -606,19 +538,18 @@ struct ProfileScreen: View {
 
             Divider().padding(.leading, 40)
 
-            HStack {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(WaytTheme.secondaryText)
-                Text("Settings")
-                    .font(WaytTheme.subheadFont)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.tertiary)
+            NavigationLink(destination: SettingsScreen()) {
+                HStack {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(WaytTheme.secondaryText)
+                    Text("Settings")
+                        .font(WaytTheme.subheadFont)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 13)
         }
         .background(WaytTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))

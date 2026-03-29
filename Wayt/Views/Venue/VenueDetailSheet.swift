@@ -65,6 +65,7 @@ struct VenueDetailSheet: View {
     @State private var isLoadingLookAround = true
     @State private var showFullLookAround = false
     @State private var showReviewsSheet = false
+    @AppStorage("wayt_distanceUnit") private var distanceUnit: String = "km"
 
     init(venue: Venue) {
         self.venue = venue
@@ -340,7 +341,7 @@ struct VenueDetailSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 if let distance = viewModel.distanceToVenue(from: locationService.userLocation) {
-                    Text("You're \(Int(distance))m away - must be within \(Int(AppConstants.reportProximityRadius))m")
+                    Text("You're \(formattedShortDistance(distance)) away - must be within \(formattedShortDistance(AppConstants.reportProximityRadius))")
                         .font(WaytTheme.captionFont)
                         .foregroundStyle(WaytTheme.secondaryText)
                 }
@@ -491,6 +492,15 @@ struct VenueDetailSheet: View {
                     ProgressView()
                         .tint(.secondary)
                 }
+        }
+    }
+
+    private func formattedShortDistance(_ meters: Double) -> String {
+        if distanceUnit == "mi" {
+            let feet = Int(meters * 3.28084)
+            return "\(feet)ft"
+        } else {
+            return "\(Int(meters))m"
         }
     }
 

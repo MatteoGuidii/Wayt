@@ -261,7 +261,7 @@ struct DiscoverScreen: View {
             VStack(spacing: 8) {
                 ForEach(nearbySavedVenues) { venue in
                     Button { selectedVenue = venue } label: {
-                        VenueRow(venue: venue, userLocation: locationService.userLocation)
+                        VenueRow(venue: venue)
                     }
                     .buttonStyle(.plain)
                 }
@@ -619,7 +619,7 @@ struct DiscoverScreen: View {
                 LazyVStack(spacing: 8) {
                     ForEach(viewModel.filteredVenues) { venue in
                         Button { selectedVenue = venue } label: {
-                            VenueRow(venue: venue, userLocation: locationService.userLocation)
+                            VenueRow(venue: venue)
                         }
                         .buttonStyle(.plain)
                     }

@@ -100,12 +100,6 @@ enum WaytTheme {
         dark:  UIColor(red: 0, green: 0, blue: 0, alpha: 0.35)
     )
 
-    /// Signal pulse banner base color
-    static let signalPulseBase = adaptive(
-        light: UIColor(red: 0.06, green: 0.06, blue: 0.12, alpha: 1),
-        dark:  UIColor(red: 0.10, green: 0.10, blue: 0.16, alpha: 1)
-    )
-
     /// Avatar outer ring
     static let avatarRing = adaptive(
         light: UIColor(red: 1.00, green: 0.97, blue: 0.93, alpha: 1),
