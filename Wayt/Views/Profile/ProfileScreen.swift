@@ -418,13 +418,8 @@ struct ProfileScreen: View {
 
             // Rank
             VStack(spacing: 4) {
-                HStack(spacing: 4) {
-                    Image(systemName: rank.icon)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(rank.color)
-                    Text("Lv.\(rank.level)")
-                        .font(WaytTheme.headlineFont)
-                }
+                Text("Lv.\(rank.level)")
+                    .font(WaytTheme.headlineFont)
                 Text("rank")
                     .font(WaytTheme.subheadLightFont)
             }
@@ -478,10 +473,6 @@ struct ProfileScreen: View {
                 if let next = rank.nextRank {
                     // Progress bar with rank icons at each end
                     HStack(spacing: 8) {
-                        Image(systemName: rank.icon)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(rank.color)
-
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
                                 RoundedRectangle(cornerRadius: 5)
