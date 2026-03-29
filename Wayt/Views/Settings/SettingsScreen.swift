@@ -21,8 +21,8 @@ struct SettingsScreen: View {
             VStack(spacing: 16) {
                 appearanceCard
                 unitsCard
-                privacyCard
                 aboutCard
+                privacyCard
             }
             .padding(.vertical, 16)
         }
@@ -174,9 +174,7 @@ struct SettingsScreen: View {
     }
 
     private var appVersion: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "–"
-        return "\(version) (\(build))"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
     }
 
     private func deleteAccount() async {
