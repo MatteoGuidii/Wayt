@@ -51,11 +51,11 @@ nonisolated enum AppConstants {
 
     // MARK: - Walking
 
-    /// Additive radius increment per expand tap (meters). ~5 min walk.
-    static let expandIncrement: CLLocationDistance = 400
+    /// Additive radius increment per expand tap (meters). ~12 min walk.
+    static let expandIncrement: CLLocationDistance = 1_000
 
-    /// Maximum search radius for expand (meters). ~30 min walk.
-    static let maxWalkingRadius: CLLocationDistance = 2_500
+    /// Maximum search radius for expand (meters). ~60 min walk.
+    static let maxWalkingRadius: CLLocationDistance = 5_000
 
     // MARK: - Cache
 
