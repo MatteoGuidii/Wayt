@@ -31,8 +31,8 @@ struct VenueMarkerView: View {
                         .offset(y: -1)
                 }
 
-                // Saved bookmark badge (top-left of circle, hidden when wait time is shown)
-                if isSaved && (venue.estimatedWaitMinutes ?? 0) <= 0 {
+                // Saved bookmark badge (top-left of circle, hidden when wait time badge is shown)
+                if isSaved && (venue.isOpen == false || (venue.estimatedWaitMinutes ?? 0) <= 0) {
                     Image(systemName: "bookmark.fill")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
@@ -42,8 +42,8 @@ struct VenueMarkerView: View {
                         .offset(x: -6, y: -4)
                 }
 
-                // Wait-time badge (top-right of circle)
-                if let wait = venue.estimatedWaitMinutes, wait > 0 {
+                // Wait-time badge (top-right of circle, hidden when closed)
+                if venue.isOpen != false, let wait = venue.estimatedWaitMinutes, wait > 0 {
                     waitBadge(minutes: wait)
                         .offset(x: 6, y: -4)
                 }
