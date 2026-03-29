@@ -16,8 +16,12 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
     /// Raw MapKit POI category for accurate internal classification and external API matching.
     let poiCategory: MKPointOfInterestCategory?
 
+    /// Explicit category override (used when creating from SavedVenue where category is already known).
+    private let categoryOverride: VenueCategory?
+
     /// Broad display category computed from MapKit POI category + name fallback.
     var category: VenueCategory {
+        if let categoryOverride { return categoryOverride }
         let fromPOI = VenueCategory.from(poiCategory: poiCategory)
         // If POI mapped to generic .food, try refining from name
         if fromPOI == .food {
@@ -78,10 +82,28 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         self.name = venueName
         self.coordinate = coord
         self.poiCategory = mapItem.pointOfInterestCategory
+        self.categoryOverride = nil
         self.address = mapItem.placemark.formattedAddress
         self.phoneNumber = mapItem.phoneNumber
         self.url = mapItem.url
         self.mapItem = mapItem
+    }
+
+    // MARK: - Init from SavedVenue
+
+    init(savedVenue: SavedVenue) {
+        self.id = savedVenue.venueId
+        self.name = savedVenue.venueName
+        self.coordinate = savedVenue.coordinate
+        self.poiCategory = nil
+        self.categoryOverride = savedVenue.category
+        self.address = savedVenue.address
+        self.phoneNumber = nil
+        self.url = nil
+        let placemark = MKPlacemark(coordinate: savedVenue.coordinate)
+        let item = MKMapItem(placemark: placemark)
+        item.name = savedVenue.venueName
+        self.mapItem = item
     }
 
     // MARK: - Hashable

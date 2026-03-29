@@ -514,7 +514,7 @@ struct ProfileScreen: View {
     }
 
     private func navigateToSavedVenue(_ venue: SavedVenue) {
-        mapViewModel.navigateToCoordinate(venue.coordinate)
+        mapViewModel.navigateToSavedVenue(venue)
         tabSelection.selectedTab = .map
     }
 

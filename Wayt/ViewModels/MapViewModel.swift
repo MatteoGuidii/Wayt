@@ -368,22 +368,22 @@ final class MapViewModel: ObservableObject {
         }
     }
 
-    /// Navigate to a coordinate (e.g. from a saved venue in Profile).
-    /// Pans the camera and triggers a search in that area.
-    func navigateToCoordinate(_ coordinate: CLLocationCoordinate2D) {
+    /// Navigate to a saved venue — shows only that venue on the map
+    /// without triggering an area search.
+    func navigateToSavedVenue(_ savedVenue: SavedVenue) {
+        let venue = Venue(savedVenue: savedVenue)
+        venues = [venue]
+        recomputeClusters()
+        selectedVenue = venue
+
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             cameraPosition = .camera(MapCamera(
-                centerCoordinate: coordinate,
+                centerCoordinate: savedVenue.coordinate,
                 distance: 800,
                 heading: 0,
                 pitch: 0
             ))
         }
-        let region = MKCoordinateRegion(
-            center: coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        )
-        Task { searchVenues(in: region) }
     }
 
     /// Expand the search area to find more venues for Discover.

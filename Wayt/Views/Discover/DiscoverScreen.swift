@@ -600,7 +600,7 @@ struct DiscoverScreen: View {
                     } label: {
                         Text("Clear filters")
                             .font(WaytTheme.captionFont)
-                            .foregroundStyle(WaytTheme.skyPunch)
+                            .foregroundStyle(WaytTheme.mapsBlue)
                     }
                 }
             }

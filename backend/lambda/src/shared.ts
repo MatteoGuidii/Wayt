@@ -7,6 +7,7 @@ import { APIGatewayProxyResult } from "aws-lambda";
 export const USERS_TABLE = process.env.USERS_TABLE!;
 export const PROFILE_IMAGES_BUCKET = process.env.PROFILE_IMAGES_BUCKET!;
 export const SAVED_VENUES_TABLE = process.env.SAVED_VENUES_TABLE!;
+export const USER_POOL_ID = process.env.USER_POOL_ID ?? "";
 
 // -----------------------------------------------
 // Report TTL: 2 hours
@@ -66,7 +67,7 @@ export interface SaveVenueBody {
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
 };
 
 export function success(body: unknown): APIGatewayProxyResult {

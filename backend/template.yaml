@@ -55,7 +55,7 @@ Resources:
           ThrottlingBurstLimit: 2000
           ThrottlingRateLimit: 1000
       Cors:
-        AllowMethods: "'GET,POST,PUT,OPTIONS'"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization'"
         AllowOrigin: "'*'"
 
@@ -240,6 +240,43 @@ Resources:
             RestApiId: !Ref WaytApi
             Path: /user/saved-venues
             Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  # -----------------------------------------------
+  # Account Deletion
+  # -----------------------------------------------
+  DeleteAccountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/deleteAccount.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref WaytUserPool
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VenueReportsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserProfilesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SavedVenuesTable
+        - Statement:
+            - Effect: Allow
+              Action: s3:DeleteObject
+              Resource: !Sub "arn:aws:s3:::wayt-profile-images-${AWS::AccountId}-${Stage}/profiles/*"
+        - Statement:
+            - Effect: Allow
+              Action: cognito-idp:AdminDeleteUser
+              Resource: !GetAtt WaytUserPool.Arn
+      Events:
+        DeleteAccount:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WaytApi
+            Path: /user/account
+            Method: DELETE
     Metadata:
       BuildMethod: makefile
 
