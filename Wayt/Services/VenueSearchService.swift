@@ -152,13 +152,22 @@ final class VenueSearchService {
         return bestEntry?.results
     }
 
-    // MARK: - Excluded Categories
+    // MARK: - Category Filtering
 
+    /// POI categories that are definitely NOT venues we want.
     private static let excludedCategories: Set<MKPointOfInterestCategory> = [
         .gasStation, .atm, .bank, .hospital, .pharmacy,
         .police, .fireStation, .parking, .carRental,
         .evCharger, .laundry, .postOffice, .store,
         .foodMarket
+    ]
+
+    /// POI categories that ARE the venues we want.
+    /// Used as an allowlist for keyword searches — MapKit's natural language queries
+    /// return anything with the keyword in the name (e.g. "Restaurant Imports"),
+    /// so we only keep results whose POI category matches a real venue type.
+    private static let allowedCategories: Set<MKPointOfInterestCategory> = [
+        .restaurant, .cafe, .nightlife, .bakery, .brewery, .winery
     ]
 
     // MARK: - Non-Venue Filtering
@@ -184,6 +193,15 @@ final class VenueSearchService {
         "bartender", "bartending",
         "event planner", "event planning", "event rental",
         "food truck",
+        // Commercial / industrial / retail (not actual dining venues)
+        "imports", "import", "wholesale", "distributor", "distribution",
+        "supply", "supplies", "supplier", "equipment",
+        "storage", "warehouse", "depot",
+        "repair", "maintenance", "auto ", "automotive",
+        "parts", "hardware", "lumber", "flooring",
+        "printing", "signage", "packaging",
+        "rental", "rentals",
+        "hotel supplies", "restaurant supply", "restaurant equipment",
         // Medical / health — compound terms only to avoid false positives
         // (e.g., "The Clinic Bar" or "Remedy Café" are legit venues)
         "medical centre", "medical center", "medical clinic",
@@ -264,6 +282,14 @@ final class VenueSearchService {
             // Filter excluded categories
             if let category = item.pointOfInterestCategory,
                Self.excludedCategories.contains(category) {
+                return nil
+            }
+
+            // Allowlist: keyword searches return anything with the keyword in the name
+            // (e.g. "Restaurant Imports", "Carribean Specialty Storage").
+            // If MapKit assigned a POI category, it must be one we actually want.
+            if let category = item.pointOfInterestCategory,
+               !Self.allowedCategories.contains(category) {
                 return nil
             }
 
