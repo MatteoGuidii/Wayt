@@ -125,14 +125,10 @@ export async function handler(
         };
       }
 
-      // Backfill GDETAILS for venues missing details or missing priceRange
-      // (added later — stale cache entries need a re-fetch).
+      // Backfill GDETAILS for venues that have Google hours but no details cached.
       // Runs in parallel, capped at 10 per request to limit Google API cost.
       const needsBackfill = cachedVenueIds.filter(
-        (id) => googleDataMap.has(id) && (
-          !googleDetailsMap.has(id) ||
-          !(googleDetailsMap.get(id)?.priceRange)
-        )
+        (id) => googleDataMap.has(id) && !googleDetailsMap.has(id)
       );
       if (needsBackfill.length > 0) {
         log.info("Backfilling venue details", { count: needsBackfill.length });

@@ -26,6 +26,7 @@ export class CircuitBreaker {
   private state: CircuitState = "CLOSED";
   private consecutiveFailures = 0;
   private lastFailureTime = 0;
+  private halfOpenProbeInFlight = false;
   private readonly options: CircuitBreakerOptions;
 
   constructor(options: CircuitBreakerOptions) {
@@ -35,6 +36,7 @@ export class CircuitBreaker {
   /**
    * Returns true if the request should be allowed through.
    * When OPEN, checks if cooldown has elapsed to transition to HALF_OPEN.
+   * In HALF_OPEN, only one probe request is allowed at a time.
    */
   allowRequest(): boolean {
     if (this.state === "CLOSED") return true;
@@ -43,18 +45,22 @@ export class CircuitBreaker {
       const elapsed = Date.now() - this.lastFailureTime;
       if (elapsed >= this.options.cooldownMs) {
         this.state = "HALF_OPEN";
+        this.halfOpenProbeInFlight = true;
         return true;
       }
       return false;
     }
 
-    // HALF_OPEN: allow one probe request
+    // HALF_OPEN: only allow one probe request at a time
+    if (this.halfOpenProbeInFlight) return false;
+    this.halfOpenProbeInFlight = true;
     return true;
   }
 
   /** Record a successful request. Resets the breaker to CLOSED. */
   recordSuccess(): void {
     this.consecutiveFailures = 0;
+    this.halfOpenProbeInFlight = false;
     this.state = "CLOSED";
   }
 
@@ -62,8 +68,9 @@ export class CircuitBreaker {
   recordFailure(): void {
     this.consecutiveFailures++;
     this.lastFailureTime = Date.now();
+    this.halfOpenProbeInFlight = false;
 
-    if (this.consecutiveFailures >= this.options.failureThreshold) {
+    if (this.state === "HALF_OPEN" || this.consecutiveFailures >= this.options.failureThreshold) {
       this.state = "OPEN";
     }
   }

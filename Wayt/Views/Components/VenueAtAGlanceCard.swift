@@ -55,9 +55,10 @@ struct VenueAtAGlanceCard: View {
     private func compactStars(rating: Double) -> some View {
         HStack(spacing: 1) {
             ForEach(1...5, id: \.self) { i in
-                Image(systemName: starIcon(for: i, rating: rating))
+                let iconName = starIcon(for: i, rating: rating)
+                Image(systemName: iconName)
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Double(i) <= rating ? .orange : Color.gray.opacity(0.3))
+                    .foregroundStyle(iconName == "star" ? Color.gray.opacity(0.3) : .orange)
             }
         }
     }

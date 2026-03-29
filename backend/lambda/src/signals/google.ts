@@ -263,9 +263,9 @@ export async function getGoogleHoursData(
 export async function ensureVenueDetails(venueId: string): Promise<CachedVenueDetails | null> {
   const log = createLogger("google:backfill");
 
-  // Check if already cached — re-fetch if missing priceRange (field added later)
+  // Check if already cached (with all expected fields)
   const existing = await getGoogleVenueDetails(venueId);
-  if (existing && existing.priceRange !== null) return existing;
+  if (existing) return existing;
 
   // Read cached Google mapping to get the Place ID
   const mapping = await getItem(venueKey(venueId), mappingSK("google"));

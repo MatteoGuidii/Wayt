@@ -584,6 +584,31 @@ Resources:
         Enabled: true
 
 
+
+  # -----------------------------------------------
+  # S3 — Profile Images
+  # -----------------------------------------------
+  # NOTE: If deploying to a new stage/account, this creates the bucket automatically.
+  # For existing stacks where the bucket was created outside CloudFormation, import it
+  # first: aws cloudformation import --stack-name <stack> --resources-to-import ...
+  ProfileImagesBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "wayt-profile-images-${AWS::AccountId}-${Stage}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, PUT]
+            AllowedOrigins: ["*"]
+            MaxAge: 3600
+
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL

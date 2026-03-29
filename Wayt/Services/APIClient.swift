@@ -135,7 +135,7 @@ actor APIClient {
         let start = CFAbsoluteTimeGetCurrent()
         Log.api.debug("DELETE \(path, privacy: .public)")
         let request = try await buildRequest(method: "DELETE", path: path)
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await executeWithRetry(request: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("DELETE \(path, privacy: .public) -> \(status) (\(ms)ms)")
