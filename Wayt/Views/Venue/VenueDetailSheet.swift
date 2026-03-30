@@ -133,6 +133,8 @@ struct VenueDetailSheet: View {
         }
         .sheet(isPresented: $showAuthGate) {
             AuthGateSheet {
+                authState.pendingVenue = venue
+                authState.pendingVenueTab = tabSelection.selectedTab
                 authState.requestSignIn()
             }
             .presentationDetents([.medium, .large])

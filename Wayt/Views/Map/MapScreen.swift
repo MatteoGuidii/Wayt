@@ -152,6 +152,14 @@ struct MapScreen: View {
                 viewModel.selectedVenue = nil
             }
         }
+        .onChange(of: authState.venueRestoreToken) { _, _ in
+            if let venue = authState.pendingVenue,
+               authState.pendingVenueTab == .map || authState.pendingVenueTab == nil {
+                authState.pendingVenue = nil
+                authState.pendingVenueTab = nil
+                viewModel.selectedVenue = venue
+            }
+        }
     }
 
     // MARK: - Search Bar

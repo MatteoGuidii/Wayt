@@ -13,15 +13,23 @@ struct AuthRootView: View {
     @EnvironmentObject private var authState: AuthState
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var screen: Screen = .onboarding
+    /// Once true, MainTabView stays in the tree forever — auth overlays on top.
+    @State private var hasEnteredBrowsing = false
 
     var body: some View {
         ZStack {
-            switch screen {
-            case .onboarding:
+            // MainTabView persists once entered — never destroyed by auth overlay
+            if hasEnteredBrowsing {
+                MainTabView()
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
+
+            if screen == .onboarding {
                 OnboardingView(
                     onGetStarted: {
                         hasCompletedOnboarding = true
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                            hasEnteredBrowsing = true
                             screen = .browsing
                         }
                     },
@@ -32,12 +40,9 @@ struct AuthRootView: View {
                     }
                 )
                 .transition(.opacity.combined(with: .move(edge: .leading)))
+            }
 
-            case .browsing:
-                MainTabView()
-                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
-
-            case .authenticator:
+            if screen == .authenticator {
                 authenticatorView
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
@@ -45,6 +50,7 @@ struct AuthRootView: View {
         .onAppear {
             // Skip onboarding if user already passed it or is signed in
             if authState.isSignedIn || hasCompletedOnboarding {
+                hasEnteredBrowsing = true
                 screen = .browsing
             }
 
@@ -59,6 +65,7 @@ struct AuthRootView: View {
             await authState.checkCurrentSession()
             if authState.isSignedIn {
                 hasCompletedOnboarding = true
+                hasEnteredBrowsing = true
                 screen = .browsing
             }
         }
@@ -76,8 +83,10 @@ struct AuthRootView: View {
                 HStack {
                     Button {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            hasEnteredBrowsing = true
                             screen = .browsing
                         }
+                        authState.triggerVenueRestore()
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "chevron.left")
@@ -100,9 +109,11 @@ struct AuthRootView: View {
                 AuthenticatorContainer(onSignedIn: { username in
                     authState.didSignIn(username: username)
                     hasCompletedOnboarding = true
+                    hasEnteredBrowsing = true
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                         screen = .browsing
                     }
+                    authState.triggerVenueRestore()
                 })
             }
         }

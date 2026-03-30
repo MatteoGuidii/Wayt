@@ -9,6 +9,7 @@ struct DiscoverScreen: View {
     @EnvironmentObject private var mapViewModel: MapViewModel
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
+    @EnvironmentObject private var tabSelection: TabSelection
     @State private var selectedVenue: Venue?
     @State private var isSavedExpanded: Bool = false
 
@@ -59,6 +60,20 @@ struct DiscoverScreen: View {
         }) { venue in
             VenueDetailSheet(venue: venue)
                 .presentationDetents([.large])
+        }
+        .onChange(of: authState.dismissSheets) { _, shouldDismiss in
+            if shouldDismiss {
+                selectedVenue = nil
+            }
+        }
+        .onChange(of: authState.venueRestoreToken) { _, _ in
+            if let venue = authState.pendingVenue,
+               authState.pendingVenueTab == .discover {
+                authState.pendingVenue = nil
+                authState.pendingVenueTab = nil
+                tabSelection.selectedTab = .discover
+                selectedVenue = venue
+            }
         }
     }
 

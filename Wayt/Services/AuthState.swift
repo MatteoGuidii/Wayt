@@ -15,6 +15,14 @@ final class AuthState: ObservableObject {
     /// Callback set by AuthRootView so guest→sign-in can be triggered from anywhere.
     var onRequestSignIn: (() -> Void)?
 
+    /// Venue the user was viewing when auth was requested (restored after sign-in).
+    @Published var pendingVenue: Venue?
+    /// Which tab the user was on when auth was requested, so we restore on the correct tab.
+    var pendingVenueTab: Tab?
+
+    /// Toggled to signal tabs to restore the pending venue (after sign-in or auth cancel).
+    @Published private(set) var venueRestoreToken = UUID()
+
     /// Fired before navigating to auth so sheets/overlays can dismiss first.
     @Published private(set) var dismissSheets = false
 
@@ -53,6 +61,8 @@ final class AuthState: ObservableObject {
     func didSignOut() {
         username = nil
         displayName = nil
+        pendingVenue = nil
+        pendingVenueTab = nil
         isSignedIn = false
         Log.auth.info("User signed out")
     }
@@ -60,6 +70,11 @@ final class AuthState: ObservableObject {
     /// Updates the display name from the profile view model.
     func updateDisplayName(_ name: String) {
         displayName = name
+    }
+
+    /// Signals tabs to consume `pendingVenue` and reopen the venue detail sheet.
+    func triggerVenueRestore() {
+        venueRestoreToken = UUID()
     }
 
     /// Prompts the sign-in flow from wherever the user is.
