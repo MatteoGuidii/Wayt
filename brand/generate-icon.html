@@ -35,6 +35,8 @@
     .section-title { font-size: 14px; font-weight: 600; margin-top: 12px; padding-top: 12px; border-top: 1px solid #333; }
     .saved-indicator { font-size: 12px; color: #4CAF50; margin-left: 8px; opacity: 0; transition: opacity 0.3s; }
     .saved-indicator.show { opacity: 1; }
+    .banner-preview { background: #111; border-radius: 16px; padding: 16px; margin-top: 24px; }
+    .banner-preview h3 { font-size: 14px; margin-bottom: 12px; color: #aaa; }
   </style>
 </head>
 <body>
@@ -42,8 +44,14 @@
   <p>Edit colors and export at any size. Open this file in any browser.</p>
 
   <div class="container">
-    <div class="preview">
-      <canvas id="main" width="512" height="512"></canvas>
+    <div>
+      <div class="preview">
+        <canvas id="main" width="512" height="512"></canvas>
+      </div>
+      <div class="banner-preview">
+        <h3>OG Banner Preview (1200x630)</h3>
+        <canvas id="bannerPreview" width="600" height="315" style="width: 600px; height: 315px; border-radius: 8px;"></canvas>
+      </div>
     </div>
 
     <div class="controls">
@@ -87,6 +95,12 @@
         </div>
       </div>
 
+      <div class="section-title">Banner Text</div>
+      <div>
+        <label>Text Color</label>
+        <input type="color" id="bannerTextColor" value="#1a1a2e">
+      </div>
+
       <div class="section-title">Export</div>
       <button onclick="exportSVG()">Download SVG (1024x1024)</button>
       <button onclick="exportPNG(1024)">Download PNG (1024x1024)</button>
@@ -127,6 +141,7 @@ const DEFAULTS = {
   outlineEnabled: false,
   outlineColor: '#000000',
   outlineThickness: 20,
+  bannerTextColor: '#1a1a2e',
 };
 
 // ── Icon geometry (1024x1024 coordinate space) ──
@@ -159,6 +174,7 @@ function getConfig() {
     outlineEnabled: document.getElementById('outlineEnabled').checked,
     outlineColor: document.getElementById('outlineColor').value,
     outlineThickness: parseInt(document.getElementById('outlineThickness').value),
+    bannerTextColor: document.getElementById('bannerTextColor').value,
   };
 }
 
@@ -171,6 +187,7 @@ function setConfig(cfg) {
   document.getElementById('outlineEnabled').checked = cfg.outlineEnabled;
   document.getElementById('outlineColor').value = cfg.outlineColor;
   document.getElementById('outlineThickness').value = cfg.outlineThickness;
+  document.getElementById('bannerTextColor').value = cfg.bannerTextColor || '#1a1a2e';
   toggleOutlineControls();
 }
 
@@ -223,6 +240,66 @@ function drawIcon(canvas) {
     ctx.lineTo(l.x2 * scale, l.y2 * scale);
     ctx.stroke();
   });
+}
+
+function drawBanner(canvas, exportMode) {
+  const W = exportMode ? 1200 : canvas.width;
+  const H = exportMode ? 630 : canvas.height;
+  if (exportMode) { canvas.width = W; canvas.height = H; }
+  const ctx = canvas.getContext('2d');
+  const cfg = getConfig();
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Full gradient background
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, cfg.gradTop);
+  grad.addColorStop(1, cfg.gradBottom);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw the W logo — big and centered vertically with text
+  const iconSize = H * 0.62;
+  const scale = iconSize / ICON.viewBox;
+  const textFontSize = Math.round(H * 0.13);
+  const totalHeight = iconSize + textFontSize + H * 0.04;
+  const startY = (H - totalHeight) / 2;
+  const offsetX = (W - iconSize) / 2;
+  const offsetY = startY;
+
+  const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
+
+  if (cfg.outlineEnabled && cfg.outlineThickness > 0) {
+    ctx.strokeStyle = cfg.outlineColor;
+    ctx.lineWidth = (cfg.strokeWidth + cfg.outlineThickness * 2) * scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    allLines.forEach(l => {
+      ctx.beginPath();
+      ctx.moveTo(l.x1 * scale + offsetX, l.y1 * scale + offsetY);
+      ctx.lineTo(l.x2 * scale + offsetX, l.y2 * scale + offsetY);
+      ctx.stroke();
+    });
+  }
+
+  ctx.strokeStyle = cfg.logoColor;
+  ctx.lineWidth = cfg.strokeWidth * scale;
+  ctx.lineCap = 'round';
+  allLines.forEach(l => {
+    ctx.beginPath();
+    ctx.moveTo(l.x1 * scale + offsetX, l.y1 * scale + offsetY);
+    ctx.lineTo(l.x2 * scale + offsetX, l.y2 * scale + offsetY);
+    ctx.stroke();
+  });
+
+  // "Wayt" text below the logo
+  const textY = offsetY + iconSize + H * 0.04 + textFontSize / 2;
+  ctx.fillStyle = cfg.bannerTextColor;
+  ctx.font = `800 ${textFontSize}px -apple-system, SF Pro Display, Helvetica Neue, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.letterSpacing = '4px';
+  ctx.fillText('Wayt', W / 2, textY);
 }
 
 function drawIconForExport(canvas) {
@@ -293,6 +370,7 @@ function renderAll() {
   document.getElementById('outlineLabel').textContent = document.getElementById('outlineThickness').value;
   toggleOutlineControls();
   ['main', 's60', 's40', 's29'].forEach(id => drawIcon(document.getElementById(id)));
+  drawBanner(document.getElementById('bannerPreview'), false);
 }
 
 function buildSVG() {
@@ -344,60 +422,8 @@ function exportPNG(targetSize) {
 }
 
 function exportBanner() {
-  const cfg = getConfig();
-  const W = 1200, H = 630;
   const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-
-  // Full gradient background
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, cfg.gradTop);
-  grad.addColorStop(1, cfg.gradBottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  // Draw the W logo centered — bigger for OG thumbnail visibility
-  const iconSize = H * 0.72;
-  const scale = iconSize / ICON.viewBox;
-  const offsetX = (W - iconSize) / 2;
-  const offsetY = H * 0.02;
-
-  const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
-
-  if (cfg.outlineEnabled && cfg.outlineThickness > 0) {
-    ctx.strokeStyle = cfg.outlineColor;
-    ctx.lineWidth = (cfg.strokeWidth + cfg.outlineThickness * 2) * scale;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    allLines.forEach(l => {
-      ctx.beginPath();
-      ctx.moveTo(l.x1 * scale + offsetX, l.y1 * scale + offsetY);
-      ctx.lineTo(l.x2 * scale + offsetX, l.y2 * scale + offsetY);
-      ctx.stroke();
-    });
-  }
-
-  ctx.strokeStyle = cfg.logoColor;
-  ctx.lineWidth = cfg.strokeWidth * scale;
-  ctx.lineCap = 'round';
-  allLines.forEach(l => {
-    ctx.beginPath();
-    ctx.moveTo(l.x1 * scale + offsetX, l.y1 * scale + offsetY);
-    ctx.lineTo(l.x2 * scale + offsetX, l.y2 * scale + offsetY);
-    ctx.stroke();
-  });
-
-  // "Wayt" text below the logo — black for contrast
-  const textY = offsetY + iconSize + H * 0.08;
-  ctx.fillStyle = '#1a1a2e';
-  ctx.font = `800 ${Math.round(H * 0.15)}px -apple-system, SF Pro Display, Helvetica Neue, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.letterSpacing = '6px';
-  ctx.fillText('Wayt', W / 2, textY);
-
+  drawBanner(canvas, true);
   canvas.toBlob(blob => download(blob, 'wayt-banner-1200x630.png'), 'image/png');
 }
 
@@ -438,6 +464,7 @@ function updateHtml() {
   outlineEnabled: ${cfg.outlineEnabled},
   outlineColor: '${cfg.outlineColor}',
   outlineThickness: ${cfg.outlineThickness},
+  bannerTextColor: '${cfg.bannerTextColor}',
 };`;
 
     const updated = html.replace(
@@ -454,6 +481,7 @@ function updateHtml() {
     result = result.replace(/(id="cornerRadius"[^>]*value=")(\d+)"/, `$1${cfg.cornerRadius}"`);
     result = result.replace(/(id="outlineColor" value=")#[0-9A-Fa-f]{6}"/, `$1${cfg.outlineColor}"`);
     result = result.replace(/(id="outlineThickness"[^>]*value=")(\d+)"/, `$1${cfg.outlineThickness}"`);
+    result = result.replace(/(id="bannerTextColor" value=")#[0-9A-Fa-f]{6}"/, `$1${cfg.bannerTextColor}"`);
     result = result.replace(/(id="strokeLabel">)\d+</, `$1${cfg.strokeWidth}<`);
     result = result.replace(/(id="radiusLabel">)\d+</, `$1${cfg.cornerRadius}<`);
     result = result.replace(/(id="outlineLabel">)\d+</, `$1${cfg.outlineThickness}<`);
