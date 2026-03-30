@@ -92,6 +92,7 @@
       <button onclick="exportPNG(1024)">Download PNG (1024x1024)</button>
       <button onclick="exportPNG(512)">Download PNG (512x512)</button>
       <button onclick="exportPNG(180)">Download PNG (180x180 -- iOS)</button>
+      <button onclick="exportBanner()">Download Banner (1200x630 -- OG)</button>
 
       <div class="section-title">Save State</div>
       <button class="save-btn" onclick="saveState()">Save current settings<span id="savedIndicator" class="saved-indicator">Saved!</span></button>
@@ -340,6 +341,64 @@ function exportPNG(targetSize) {
     ctx.drawImage(canvas, 0, 0, targetSize, targetSize);
     out.toBlob(blob => download(blob, `wayt-icon-${targetSize}.png`), 'image/png');
   }
+}
+
+function exportBanner() {
+  const cfg = getConfig();
+  const W = 1200, H = 630;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Full gradient background
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, cfg.gradTop);
+  grad.addColorStop(1, cfg.gradBottom);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw the W logo centered — bigger for OG thumbnail visibility
+  const iconSize = H * 0.72;
+  const scale = iconSize / ICON.viewBox;
+  const offsetX = (W - iconSize) / 2;
+  const offsetY = H * 0.02;
+
+  const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
+
+  if (cfg.outlineEnabled && cfg.outlineThickness > 0) {
+    ctx.strokeStyle = cfg.outlineColor;
+    ctx.lineWidth = (cfg.strokeWidth + cfg.outlineThickness * 2) * scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    allLines.forEach(l => {
+      ctx.beginPath();
+      ctx.moveTo(l.x1 * scale + offsetX, l.y1 * scale + offsetY);
+      ctx.lineTo(l.x2 * scale + offsetX, l.y2 * scale + offsetY);
+      ctx.stroke();
+    });
+  }
+
+  ctx.strokeStyle = cfg.logoColor;
+  ctx.lineWidth = cfg.strokeWidth * scale;
+  ctx.lineCap = 'round';
+  allLines.forEach(l => {
+    ctx.beginPath();
+    ctx.moveTo(l.x1 * scale + offsetX, l.y1 * scale + offsetY);
+    ctx.lineTo(l.x2 * scale + offsetX, l.y2 * scale + offsetY);
+    ctx.stroke();
+  });
+
+  // "Wayt" text below the logo — black for contrast
+  const textY = offsetY + iconSize + H * 0.08;
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = `800 ${Math.round(H * 0.15)}px -apple-system, SF Pro Display, Helvetica Neue, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.letterSpacing = '6px';
+  ctx.fillText('Wayt', W / 2, textY);
+
+  canvas.toBlob(blob => download(blob, 'wayt-banner-1200x630.png'), 'image/png');
 }
 
 function download(blob, filename) {
