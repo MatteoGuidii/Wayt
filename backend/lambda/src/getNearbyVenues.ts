@@ -6,7 +6,7 @@ import { FusedEstimate, classifyVenueCategory } from "./signals/types";
 import { ComputeInput } from "./computeVenueBusyness";
 import { emptyEstimate, foursquareConfidenceLevel } from "./signals/fusion";
 import { computeTimeAwareBusyness } from "./signals/foursquare";
-import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod, ensureVenueDetails } from "./signals/google";
+import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod } from "./signals/google";
 import { createLogger } from "./logger";
 
 /** Max allowed search radius (10 km). */
@@ -125,31 +125,11 @@ export async function handler(
         };
       }
 
-      // Backfill GDETAILS for venues that have Google hours but no details cached.
-      // Runs in parallel, capped at 10 per request to limit Google API cost.
-      const needsBackfill = cachedVenueIds.filter(
-        (id) => googleDataMap.has(id) && !googleDetailsMap.has(id)
-      );
-      if (needsBackfill.length > 0) {
-        log.info("Backfilling venue details", { count: needsBackfill.length });
-        const backfilled = await Promise.all(
-          needsBackfill.slice(0, 10).map((id) => ensureVenueDetails(id).catch(() => null))
-        );
-        for (let i = 0; i < backfilled.length; i++) {
-          const details = backfilled[i];
-          if (!details) continue;
-          const existing = nearbyFused.get(needsBackfill[i]);
-          if (!existing) continue;
-          existing.venueDetails = {
-            primaryType: details.primaryType,
-            primaryTypeDisplayName: details.primaryTypeDisplayName,
-            rating: details.rating,
-            userRatingCount: details.userRatingCount,
-            priceLevel: details.priceLevel,
-            priceRange: details.priceRange,
-          };
-        }
-      }
+      // GDETAILS backfill removed — venue details (rating, reviews, price)
+      // are now fetched lazily via ensureVenueDetails() when a user taps
+      // into the single-venue detail view (getVenueBusyness endpoint).
+      // This avoids up to 10 Enterprise-tier Place Details calls ($25/1K)
+      // on every /v1/venues/nearby request.
     }
 
     // Step 2: Fast inline path for warm venues (have cached Foursquare raw data)
@@ -225,8 +205,13 @@ export async function handler(
       const coldVenues = missing.filter((v) => !fsqDataMap.has(v.venueId));
       coldCount = coldVenues.length;
 
-      // Dispatch ALL missing venues to background for full computation + cache writes
-      if (BACKGROUND_FUNCTION) {
+      // Dispatch ALL missing venues to background for full computation + DynamoDB
+      // cache writes. Even warm venues computed inline above need background
+      // processing to persist their fused estimates (inline path does no writes).
+      // Duplicate Google API calls are avoided by getGoogleHoursData()'s built-in
+      // GDATA cache — if the background Lambda already wrote GDATA, subsequent
+      // calls from progressive refreshes will be cache hits (DynamoDB read only).
+      if (BACKGROUND_FUNCTION && missing.length > 0) {
         try {
           await lambdaClient.send(
             new InvokeCommand({

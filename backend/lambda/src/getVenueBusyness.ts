@@ -103,11 +103,14 @@ export async function handler(
       });
 
     // Fetch full venue details (including reviews) for single-venue response.
-    // If not cached, try to resolve via Google API (handles venues where
-    // batch processing skipped details due to circuit breaker / timeout).
-    let cachedDetails = await getGoogleVenueDetails(venueId);
+    // ensureVenueDetails() checks whether Enterprise-tier fields (rating,
+    // reviews, price) are already cached and only calls Google API if they
+    // are missing. This handles both cold venues and Basic-tier-only entries
+    // written by getGoogleHoursData() (which only fetches hours/types).
+    let cachedDetails = await ensureVenueDetails(venueId);
     if (!cachedDetails) {
-      cachedDetails = await ensureVenueDetails(venueId);
+      // No Google mapping exists — fall back to whatever is cached
+      cachedDetails = await getGoogleVenueDetails(venueId);
     }
     // Build Google Maps URL using Place ID for exact venue (handles chains)
     const mapping = await getItem(venueKey(venueId), mappingSK("google"));

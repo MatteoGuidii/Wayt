@@ -91,6 +91,9 @@ export interface CachedVenueDetails {
   priceRange: string | null;          // e.g. "$10–25" (formatted from Google priceRange)
   reviews: GoogleReview[];
   editorialSummary: string | null;
+  /** True when Enterprise-tier fields (rating, reviews, price) have been fetched.
+   *  Distinguishes Basic-tier-only entries from venues that genuinely have no rating. */
+  enterpriseFetched?: boolean;
   cachedAt: string;
 }
 
