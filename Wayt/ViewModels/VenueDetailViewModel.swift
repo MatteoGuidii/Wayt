@@ -225,9 +225,11 @@ final class VenueDetailViewModel: ObservableObject {
                 Log.reports.info("Report submitted successfully for \(venueSnapshot.id, privacy: .public)")
             } catch APIError.rateLimited {
                 // Backend rejected due to cooldown — roll back optimistic update
-                await MainActor.run {
-                    self?.estimate = rollbackEstimate
-                    self?.reportSubmitted = false
+                if let vm = self {
+                    await MainActor.run {
+                        vm.estimate = rollbackEstimate
+                        vm.reportSubmitted = false
+                    }
                 }
                 Log.reports.notice("Report cooldown active for \(venueSnapshot.id, privacy: .public)")
             } catch {
