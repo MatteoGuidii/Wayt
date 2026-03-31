@@ -5,7 +5,7 @@ import {
   putItem,
 } from "./db";
 import { encode } from "./geohash";
-import { VenueSignal, FusedEstimate, SOURCE_CONFIG, SignalSource } from "./signals/types";
+import { VenueSignal, FusedEstimate, SOURCE_CONFIG, SignalSource, classifyVenueCategory } from "./signals/types";
 import { fuseSignals, emptyEstimate } from "./signals/fusion";
 import { fetchFoursquareSignal } from "./signals/foursquare";
 import { aggregateUserReports } from "./signals/userReports";
@@ -44,9 +44,27 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
   const log = createLogger("computeVenueBusyness");
 
   try {
-    // Step 1: Check for cached signals
-    const cachedItems = await queryByPK(venueKey(venueId), "SIGNAL#");
+    // Step 1: Check cached signals + fetch Google data in parallel
+    // Google data is needed for venue category (affects Foursquare curve shape)
+    const [cachedItems, googleResult] = await Promise.all([
+      queryByPK(venueKey(venueId), "SIGNAL#"),
+      getGoogleHoursData(venueId, venueName, lat, lng, address),
+    ]);
+
     const cachedSignals = parseCachedSignals(cachedItems, now);
+    const googleHours = googleResult?.hours ?? null;
+    const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
+    const googlePrimaryType = googleResult?.venueDetails?.primaryType ?? null;
+
+    if (googleHours) {
+      log.debug("Google hours resolved", {
+        venueId,
+        businessStatus: googleHours.businessStatus,
+        isOpen: openStatus?.isOpen,
+        hoursToday: openStatus?.hoursToday,
+        periodCount: googleHours.regularPeriods.length,
+      });
+    }
 
     // Determine which sources need refreshing
     const freshSources = new Set(cachedSignals.map((s) => s.sourceId));
@@ -63,7 +81,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 
     if (staleSourceIds.length > 0) {
       const fetches = staleSourceIds.map((sourceId) =>
-        fetchSignalBySource(sourceId, venueId, venueName, lat, lng, timezone, address)
+        fetchSignalBySource(sourceId, venueId, venueName, lat, lng, timezone, address, googlePrimaryType)
       );
       const results = await Promise.all(fetches);
 
@@ -81,21 +99,6 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
       staleSources: staleSourceIds,
       freshCount: freshSignals.length - cachedSignals.length,
     });
-
-    // Step 2b: Fetch Google hours for open/closed status (parallel with signals)
-    const googleResult = await getGoogleHoursData(venueId, venueName, lat, lng, address);
-    const googleHours = googleResult?.hours ?? null;
-    const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
-
-    if (googleHours) {
-      log.debug("Google hours resolved", {
-        venueId,
-        businessStatus: googleHours.businessStatus,
-        isOpen: openStatus?.isOpen,
-        hoursToday: openStatus?.hoursToday,
-        periodCount: googleHours.regularPeriods.length,
-      });
-    }
 
     // Step 3: Fuse all available signals
     const fused = freshSignals.length > 0
@@ -220,11 +223,12 @@ async function fetchSignalBySource(
   lat: number,
   lng: number,
   timezone?: string,
-  address?: string
+  address?: string,
+  googlePrimaryType?: string | null
 ): Promise<VenueSignal | null> {
   switch (sourceId) {
     case "foursquare":
-      return fetchFoursquareSignal(venueId, venueName, lat, lng, timezone, address);
+      return fetchFoursquareSignal(venueId, venueName, lat, lng, timezone, address, classifyVenueCategory(googlePrimaryType));
     case "user_reports":
       return aggregateUserReports(venueId);
     default:

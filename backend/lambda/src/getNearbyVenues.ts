@@ -2,7 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda
 import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 import { queryNearbyFused, batchGetItems } from "./db";
 import { haversineDistance, success, badRequest, serverError } from "./shared";
-import { FusedEstimate } from "./signals/types";
+import { FusedEstimate, classifyVenueCategory } from "./signals/types";
 import { ComputeInput } from "./computeVenueBusyness";
 import { emptyEstimate, foursquareConfidenceLevel } from "./signals/fusion";
 import { computeTimeAwareBusyness } from "./signals/foursquare";
@@ -189,7 +189,9 @@ export async function handler(
             openStatus = isOpenNow(cachedHours, nowMs, timezone);
           }
 
-          const { score, confidence } = computeTimeAwareBusyness(data, nowMs, timezone, openStatus?.isOpen);
+          const detailsData = missingDetailsMap.get(v.venueId);
+          const category = classifyVenueCategory(detailsData?.primaryType as string | null);
+          const { score, confidence } = computeTimeAwareBusyness(data, nowMs, timezone, openStatus?.isOpen, category);
           nearbyFused.set(v.venueId, {
             venueId: v.venueId,
             busynessScore: Math.round(score * 1000) / 1000,
@@ -205,7 +207,6 @@ export async function handler(
             businessStatus: googleData ? (googleData.businessStatus as FusedEstimate["businessStatus"]) ?? null : null,
           });
           // Attach venue details summary if cached
-          const detailsData = missingDetailsMap.get(v.venueId);
           if (detailsData) {
             nearbyFused.get(v.venueId)!.venueDetails = {
               primaryType: (detailsData.primaryType as string) ?? null,

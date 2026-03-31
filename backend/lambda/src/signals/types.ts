@@ -113,6 +113,49 @@ export interface VenueDetailsFull extends VenueDetailsSummary {
 }
 
 // -----------------------------------------------
+// Venue category (for busyness curve shaping)
+// -----------------------------------------------
+
+/** Behavioral category that controls temporal curve shape and day-of-week multipliers. */
+export type VenueCategory = "restaurant" | "bar" | "coffee" | "nightclub" | "default";
+
+/**
+ * Map a Google Places `primaryType` string to a VenueCategory for busyness modelling.
+ * Reference: https://developers.google.com/maps/documentation/places/web-service/place-types
+ *
+ * Uses exact match or boundary-safe checks to avoid false positives like
+ * "barbecue_restaurant" matching "bar".
+ */
+export function classifyVenueCategory(primaryType: string | null | undefined): VenueCategory {
+  if (!primaryType) return "default";
+  const t = primaryType.toLowerCase();
+
+  // Coffee shops, cafés, bakeries, tea houses
+  if (t.includes("cafe") || t.includes("coffee") || t.includes("tea_house") || t.includes("bakery")) {
+    return "coffee";
+  }
+  // Nightclubs, dance clubs, karaoke
+  if (t.includes("night_club") || t.includes("disco") || t === "karaoke") {
+    return "nightclub";
+  }
+  // Bars, pubs, breweries — boundary-safe to avoid matching "barbecue_restaurant"
+  // Google bar types: bar, bar_and_grill, cocktail_bar, lounge_bar, sports_bar, wine_bar
+  if (t === "bar" || t.endsWith("_bar") || t.startsWith("bar_") || t.includes("pub") || t.includes("brewery")) {
+    return "bar";
+  }
+  // Restaurants (broad catch-all for dining)
+  if (
+    t.includes("restaurant") || t.includes("meal") || t.includes("steak") ||
+    t.includes("pizza") || t.includes("sushi") || t.includes("ramen") ||
+    t.includes("seafood") || t.includes("bbq") || t.includes("diner") ||
+    t.includes("bistro") || t.includes("fast_food")
+  ) {
+    return "restaurant";
+  }
+  return "default";
+}
+
+// -----------------------------------------------
 // Helpers
 // -----------------------------------------------
 

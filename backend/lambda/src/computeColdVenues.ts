@@ -7,7 +7,7 @@ import {
   computeTimeAwareBusyness,
 } from "./signals/foursquare";
 import { getGoogleHoursData, isOpenNow, GoogleHoursResult } from "./signals/google";
-import { CachedVenueDetails } from "./signals/types";
+import { CachedVenueDetails, classifyVenueCategory } from "./signals/types";
 import { foursquareConfidenceLevel } from "./signals/fusion";
 
 /**
@@ -111,13 +111,14 @@ export async function handler(event: BackgroundEvent): Promise<void> {
 
       for (const [venueId, match] of matched) {
         const openStatus = googleHoursMap.get(venueId) ?? null;
-        const { score, confidence } = computeTimeAwareBusyness(match.data, nowMs, timezone, openStatus?.isOpen);
+        const details = googleDetailsMap.get(venueId);
+        const category = classifyVenueCategory(details?.primaryType ?? null);
+        const { score, confidence } = computeTimeAwareBusyness(match.data, nowMs, timezone, openStatus?.isOpen, category);
         const venue = coldVenueMap.get(venueId);
         const lat = venue?.lat ?? 0;
         const lng = venue?.lng ?? 0;
         const geohash = encode(lat, lng);
 
-        const details = googleDetailsMap.get(venueId);
         const venueDetails = details ? {
           primaryType: details.primaryType,
           primaryTypeDisplayName: details.primaryTypeDisplayName,
