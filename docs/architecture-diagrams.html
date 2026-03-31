@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wayt Architecture — Map & Discover</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0;
+  }
+  .hero {
+    background: linear-gradient(135deg, #1a1f35 0%, #0d1117 50%, #0a1628 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 60px 40px 50px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #58a6ff, #bc8cff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero p { color: var(--text-muted); font-size: 18px; margin-top: 12px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 40px 32px; }
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 48px;
+  }
+  .toc h2 { font-size: 18px; color: var(--accent); margin-bottom: 16px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: var(--text); text-decoration: none; }
+  .toc a:hover { color: var(--accent); text-decoration: underline; }
+
+  section {
+    margin-bottom: 56px;
+    scroll-margin-top: 24px;
+  }
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    color: var(--accent);
+  }
+  h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 28px 0 12px;
+    color: var(--purple);
+  }
+  h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 20px 0 8px;
+    color: var(--text);
+  }
+  p, li { color: var(--text); font-size: 15px; }
+  p { margin: 8px 0; }
+  ul, ol { padding-left: 24px; margin: 8px 0; }
+  li { margin: 4px 0; }
+
+  .diagram-wrapper {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+  .diagram-wrapper .mermaid {
+    display: flex;
+    justify-content: center;
+  }
+  .diagram-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 12px;
+    font-style: italic;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  th {
+    background: var(--surface);
+    color: var(--accent);
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    font-weight: 600;
+  }
+  td {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: rgba(22,27,34,0.5); }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: rgba(110,118,129,0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #f0883e;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 12px 0;
+  }
+  pre code { background: none; padding: 0; color: var(--text); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 2px 4px;
+  }
+  .badge-green { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+  .badge-orange { background: rgba(210,153,34,0.15); color: var(--orange); border: 1px solid rgba(210,153,34,0.3); }
+  .badge-red { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.3); }
+  .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge-purple { background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+
+  .callout {
+    border-left: 4px solid;
+    padding: 16px 20px;
+    margin: 16px 0;
+    border-radius: 0 8px 8px 0;
+    font-size: 14px;
+  }
+  .callout-danger { border-color: var(--red); background: rgba(248,81,73,0.08); }
+  .callout-warning { border-color: var(--orange); background: rgba(210,153,34,0.08); }
+  .callout-info { border-color: var(--accent); background: rgba(88,166,255,0.08); }
+  .callout-success { border-color: var(--green); background: rgba(63,185,80,0.08); }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 16px 0;
+  }
+  @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .card h4 { margin-top: 0; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Wayt Architecture Guide</h1>
+  <p>Map & Discover — Deep Dive for New Developers</p>
+  <p style="font-size:14px; margin-top:6px; color:#58a6ff;">iOS &nbsp;·&nbsp; Swift / SwiftUI &nbsp;·&nbsp; MVVM &nbsp;·&nbsp; MapKit &nbsp;·&nbsp; AWS</p>
+</div>
+
+<div class="container">
+
+<!-- TABLE OF CONTENTS -->
+<nav class="toc">
+  <h2>Table of Contents</h2>
+  <ol>
+    <li><a href="#s1">High-Level Architecture</a></li>
+    <li><a href="#s2">App Entry Point & Navigation</a></li>
+    <li><a href="#s3">Map Feature — Deep Dive</a></li>
+    <li><a href="#s4">Discover Feature — Deep Dive</a></li>
+    <li><a href="#s5">Shared Services & Data Flow</a></li>
+    <li><a href="#s6">Critical: Do Not Modify</a></li>
+    <li><a href="#s7">Improvement Opportunities</a></li>
+    <li><a href="#s8">Key Constants Reference</a></li>
+  </ol>
+</nav>
+
+<!-- ================================================================ -->
+<!-- 1. HIGH-LEVEL ARCHITECTURE -->
+<!-- ================================================================ -->
+<section id="s1">
+<h2>1. High-Level Architecture</h2>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>Platform & Framework</h4>
+    <p><span class="badge badge-blue">iOS Native</span> <span class="badge badge-purple">SwiftUI</span></p>
+    <p>Architecture: <strong>MVVM</strong> with SwiftUI Environment injection</p>
+    <p>Map: Apple <strong>MapKit</strong> (SwiftUI <code>Map</code> view)</p>
+  </div>
+  <div class="card">
+    <h4>Backend & Auth</h4>
+    <p><span class="badge badge-orange">AWS</span> API Gateway → Lambda (<code>ca-central-1</code>)</p>
+    <p>Auth: <strong>AWS Cognito</strong> via Amplify SDK</p>
+    <p>API Client: Actor-based, JWT auth, auto-retry</p>
+  </div>
+</div>
+
+<h3>System Overview</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+graph TB
+    subgraph External["External Services"]
+        MK["🗺 Apple MapKit"]
+        CL["📍 CoreLocation"]
+        COG["🔐 AWS Cognito"]
+        API["☁️ AWS API Gateway<br/><small>ca-central-1</small>"]
+    end
+
+    subgraph App["Wayt iOS App"]
+        WA["WaytApp<br/><small>Entry Point</small>"]
+        AR["AuthRootView<br/><small>Auth Gate</small>"]
+
+        subgraph MainTab["MainTabView — State Owner"]
+            direction TB
+            MVM["MapViewModel<br/><small>@StateObject</small>"]
+            FS["VenueFilterState<br/><small>@StateObject</small>"]
+            TS["TabSelection<br/><small>@StateObject</small>"]
+            PVM["ProfileViewModel<br/><small>@StateObject</small>"]
+            SVM["SavedVenuesVM<br/><small>@StateObject</small>"]
+        end
+
+        subgraph Tabs["Tab Views"]
+            MAP["🗺 MapScreen"]
+            DIS["🔍 DiscoverScreen"]
+            PRO["👤 ProfileScreen"]
+        end
+
+        subgraph Services["Services Layer"]
+            VSS["VenueSearchService<br/><small>MapKit wrapper + cache</small>"]
+            FUS["FusionService<br/><small>Busyness estimates</small>"]
+            REP["ReportService<br/><small>Submit reports</small>"]
+            SVS["SavedVenuesService<br/><small>Bookmarks</small>"]
+            AC["APIClient<br/><small>Actor, JWT, retry</small>"]
+        end
+    end
+
+    WA --> AR
+    AR --> MainTab
+    MainTab --> MAP & DIS & PRO
+
+    MVM --> VSS & FUS
+    MAP --> MVM & FS
+    DIS --> MVM & FS
+
+    VSS --> MK
+    CL --> MAP & DIS
+    COG --> AR
+    AC --> API
+    FUS --> AC
+    REP --> AC
+    SVS --> AC
+
+    style External fill:#1a1f35,stroke:#30363d,color:#e6edf3
+    style App fill:#0d1117,stroke:#30363d,color:#e6edf3
+    style MainTab fill:#161b22,stroke:#58a6ff,color:#e6edf3
+    style Tabs fill:#161b22,stroke:#bc8cff,color:#e6edf3
+    style Services fill:#161b22,stroke:#3fb950,color:#e6edf3
+  </pre>
+  <div class="diagram-label">System architecture — data flows downward, services communicate with external APIs</div>
+</div>
+
+<h3>Environment Object Injection</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+graph LR
+    MTV["MainTabView<br/><small>creates all @StateObject</small>"]
+
+    MTV -->|".environmentObject()"| E1["MapViewModel"]
+    MTV -->|".environmentObject()"| E2["VenueFilterState"]
+    MTV -->|".environmentObject()"| E3["TabSelection"]
+    MTV -->|".environmentObject()"| E4["ProfileViewModel"]
+    MTV -->|".environmentObject()"| E5["SavedVenuesVM"]
+    MTV -->|"from parent"| E6["AuthState"]
+    MTV -->|"from parent"| E7["LocationService"]
+
+    subgraph MapReads["MapScreen reads"]
+        M1["MapViewModel"]
+        M2["LocationService"]
+        M3["AuthState"]
+        M4["VenueFilterState"]
+        M5["SavedVenuesVM"]
+    end
+
+    subgraph DiscReads["DiscoverScreen reads"]
+        D0["DiscoverViewModel<br/><small>own @StateObject</small>"]
+        D1["MapViewModel"]
+        D2["LocationService"]
+        D3["AuthState"]
+        D4["VenueFilterState"]
+        D5["SavedVenuesVM"]
+        D6["TabSelection"]
+    end
+
+    E1 --> M1 & D1
+    E2 --> M4 & D4
+    E3 --> D6
+    E5 --> M5 & D5
+    E6 --> M3 & D3
+    E7 --> M2 & D2
+
+    style MTV fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+    style MapReads fill:#0a1628,stroke:#3fb950,color:#e6edf3
+    style DiscReads fill:#0a1628,stroke:#bc8cff,color:#e6edf3
+  </pre>
+  <div class="diagram-label">All shared state is created in MainTabView and injected via .environmentObject()</div>
+</div>
+
+</section>
+
+<!-- ================================================================ -->
+<!-- 2. NAVIGATION -->
+<!-- ================================================================ -->
+<section id="s2">
+<h2>2. App Entry Point & Navigation</h2>
+
+<h3>Key Files</h3>
+<table>
+  <tr><th>File</th><th>Role</th></tr>
+  <tr><td><code>Wayt/App/WaytApp.swift</code></td><td>Entry point. Sets up Amplify, creates <code>AuthState</code> and <code>LocationService</code>.</td></tr>
+  <tr><td><code>Wayt/Views/MainTabView.swift</code></td><td>The <strong>single source of truth</strong> for all shared state. Three tabs: Map (<code>.map</code>), Discover (<code>.discover</code>), Profile (<code>.profile</code>).</td></tr>
+</table>
+
+<h3>App Launch Flow</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart TD
+    A["WaytApp.swift<br/><small>Configure Amplify, create AuthState + LocationService</small>"] --> B["AuthRootView"]
+    B --> C{Auth Status?}
+    C -->|"Signed In<br/>or Guest"| D["MainTabView"]
+    C -->|"Needs Auth"| E["AuthGateSheet"]
+    E -->|"Sign up / Sign in"| F["OnboardingView<br/><small>First-time: name entry</small>"]
+    F --> D
+    D --> G["🗺 Map Tab"]
+    D --> H["🔍 Discover Tab"]
+    D --> I["👤 Profile Tab"]
+
+    style A fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+    style D fill:#161b22,stroke:#3fb950,color:#e6edf3
+    style E fill:#161b22,stroke:#d29922,color:#e6edf3
+  </pre>
+</div>
+
+<h3>Auth-Protected Action Flow</h3>
+<p>When a user taps "Save" or "Report" while not signed in, the app preserves their context and restores it after authentication:</p>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant Detail as VenueDetailSheet
+    participant Auth as AuthState
+    participant Gate as AuthGateSheet
+    participant Tab as TabSelection
+    participant Screen as Map/Discover Screen
+
+    User->>Detail: Tap "Save" or "Report"
+    Detail->>Auth: pendingVenue = venue
+    Detail->>Auth: pendingVenueTab = .discover
+    Detail->>Auth: onRequestSignIn()
+    Auth->>Gate: Present sign-in sheet
+    User->>Gate: Complete sign-in
+    Gate->>Auth: isSignedIn = true
+    Auth->>Auth: venueRestoreToken changes (UUID)
+    Auth-->>Screen: .onChange(venueRestoreToken) fires
+    Screen->>Tab: selectedTab = pendingVenueTab
+    Screen->>Screen: selectedVenue = pendingVenue
+    Screen->>Detail: VenueDetailSheet re-opens
+    Note over User,Detail: User is now authenticated,<br/>back on the same venue
+  </pre>
+</div>
+
+<h3>Tab Switching — "See on Map"</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant Disc as DiscoverScreen
+    participant MVM as MapViewModel
+    participant TS as TabSelection
+    participant Map as MapScreen
+
+    User->>Disc: Tap "See on Map" in detail sheet
+    Disc->>MVM: insertVenueIfMissing(venue)
+    Disc->>TS: selectedTab = .map
+    Disc->>MVM: selectVenue(venue)
+    MVM->>Map: Camera animates to venue (800m)
+    Map->>Map: VenueDetailSheet opens
+  </pre>
+</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- 3. MAP DEEP DIVE -->
+<!-- ================================================================ -->
+<section id="s3">
+<h2>3. Map Feature — Deep Dive</h2>
+
+<h3>Key Files</h3>
+<table>
+  <tr><th>File</th><th>Role</th></tr>
+  <tr><td><code>Views/Map/MapScreen.swift</code></td><td>SwiftUI view with <code>Map()</code>, overlays, controls</td></tr>
+  <tr><td><code>ViewModels/MapViewModel.swift</code></td><td>Search orchestration, clustering, busyness, state</td></tr>
+  <tr><td><code>Views/Map/VenueMarker.swift</code></td><td>Individual venue pin (icon + name + badges)</td></tr>
+  <tr><td><code>Views/Map/ClusterMarkerView.swift</code></td><td>Cluster circle with venue count</td></tr>
+  <tr><td><code>Services/VenueSearchService.swift</code></td><td>MapKit search wrapper, caching, rate-limiting</td></tr>
+  <tr><td><code>Services/VenueClusterer.swift</code></td><td>Grid-based O(n) clustering algorithm</td></tr>
+  <tr><td><code>Services/FusionService.swift</code></td><td>Backend busyness estimates (Signal Fusion Engine)</td></tr>
+  <tr><td><code>Engine/BusynessEngine.swift</code></td><td>Score→Level conversion, confidence mapping</td></tr>
+  <tr><td><code>Services/VenueFilterState.swift</code></td><td>Shared category + busyness filter (used by both Map and Discover)</td></tr>
+</table>
+
+<h3>Complete Search Pipeline</h3>
+<p>This is the core of the Map feature. Called on first appear and when the user taps "Search This Area".</p>
+
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart TD
+    START["searchVenues(in: region)<br/><small>MapViewModel.swift:140</small>"]
+
+    START --> CANCEL["Cancel previous tasks<br/><small>searchTask, expandTask, followUpTask</small>"]
+    CANCEL --> RATE["Reset rate limiter<br/><small>user-initiated search</small>"]
+    RATE --> DEBOUNCE{"First launch?"}
+    DEBOUNCE -->|Yes| PHASEAB["Skip debounce"]
+    DEBOUNCE -->|No| WAIT["Debounce 300ms"]
+    WAIT --> PHASEAB
+
+    subgraph PhaseA["⚡ Phase A — Concurrent"]
+        direction LR
+        PREFETCH["Area Pre-fetch<br/><small>FusionService.prefetchArea()</small><br/><small>POST /v1/venues/nearby</small><br/><small>(no venue list = cached only)</small><br/><br/>Populates fusion cache"]
+        MAPKIT["MapKit Multi-Search<br/><small>VenueSearchService.searchAllTypes()</small><br/><br/><strong>Batch 1</strong> (6 concurrent):<br/>restaurant, cafe, nightlife,<br/>bakery, brewery, winery<br/><br/><strong>Batch 2</strong> (6 concurrent):<br/>bar, lounge, brunch,<br/>pub, diner, restaurant"]
+    end
+
+    PHASEAB --> PhaseA
+
+    PREFETCH -->|"Cache ready"| APPLY_EARLY["Apply cached estimates<br/>to early batches<br/><small>(colors pins faster)</small>"]
+    MAPKIT -->|"Each batch"| ONBATCH["onBatch callback:<br/>• Merge new venues<br/>• Apply busyness<br/>• Recompute clusters<br/><small>(debounced 100ms)</small><br/>• Stop spinner"]
+
+    ONBATCH --> MERGE
+    APPLY_EARLY --> MERGE
+
+    MERGE["Busyness Application<br/><small>(single pass, priority order)</small><br/><br/>1️⃣ Carry-over existing busyness<br/><small>(prevents grey flash)</small><br/>2️⃣ Cached fusion estimates<br/>3️⃣ Offline fallback<br/><small>(neutral / no confidence)</small>"]
+
+    MERGE --> CHECK{"Uncached venues<br/>remaining?"}
+    CHECK -->|"None"| DONE
+    CHECK -->|"Yes"| PHASEB
+
+    subgraph PhaseB["🔄 Phase B — Background"]
+        DISPATCH["POST /v1/venues/nearby<br/><small>with venue list</small><br/><small>Backend returns instantly,</small><br/><small>computes asynchronously</small>"]
+        FOLLOWUP["Progressive Refreshes<br/>+3s → overlay busyness<br/>+7s → overlay busyness<br/>+14s → overlay busyness"]
+        DISPATCH --> FOLLOWUP
+    end
+
+    PHASEB --> PhaseB
+    PhaseB --> DONE
+
+    DONE["Final Merge<br/>• Keep in-region venues<br/>• Add new results<br/>• Sort by distance<br/>• Cap at 300<br/>• Schedule hours refresh"]
+
+    style PhaseA fill:#0a2e1a,stroke:#3fb950,color:#e6edf3
+    style PhaseB fill:#2a1a0a,stroke:#d29922,color:#e6edf3
+    style START fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+    style DONE fill:#161b22,stroke:#bc8cff,color:#e6edf3
+  </pre>
+  <div class="diagram-label">Two-phase search pipeline — Phase A gets instant colors, Phase B fills gaps asynchronously</div>
+</div>
+
+<h3>Clustering Algorithm</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart TD
+    INPUT["Input: filteredVenues + visible MKCoordinateRegion"]
+    INPUT --> CHECK{"region span<br/>< 0.005°?<br/><small>(~500m, zoomed in)</small>"}
+    CHECK -->|"Yes"| NOCLUB["Clustering DISABLED<br/>All venues → .single()"]
+    CHECK -->|"No"| GRID["Divide region into 8×8 grid<br/><small>Cell size = latDelta/8 × lngDelta/8</small>"]
+    GRID --> ASSIGN["Assign each venue to grid cell<br/><small>O(n) — single pass</small>"]
+    ASSIGN --> EVAL["For each cell:"]
+    EVAL --> CELLCHECK{"Venues in cell ≥ 2?"}
+    CELLCHECK -->|"Yes"| CLUSTER["Create VenueCluster<br/>• Position = centroid<br/>• Count = venue count<br/>• Color = avg busyness<br/><small>(open venues only)</small>"]
+    CELLCHECK -->|"No"| SINGLE["Keep as .single(Venue)"]
+    CLUSTER --> OUTPUT
+    SINGLE --> OUTPUT
+    NOCLUB --> OUTPUT
+    OUTPUT["Output: [VenueMapItem]<br/><small>.single(Venue) | .cluster(VenueCluster)</small>"]
+
+    style INPUT fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+    style OUTPUT fill:#161b22,stroke:#3fb950,color:#e6edf3
+  </pre>
+</div>
+
+<div class="callout callout-info">
+  <strong>Recompute triggers:</strong>
+  Region change (pan/zoom), filter change (via Combine), venue data update (busyness overlay), new search results. Debounced at 100ms during progressive loading to prevent flicker.
+</div>
+
+<h3>Map Interactions</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart LR
+    subgraph Interactions["User Interactions"]
+        TAP_PIN["Tap Venue Pin"]
+        TAP_CLUSTER["Tap Cluster"]
+        PAN["Pan / Zoom"]
+        SEARCH_BTN["Search This Area"]
+        RECENTER["Recenter Button"]
+        TOGGLE3D["3D Toggle"]
+    end
+
+    TAP_PIN --> A1["selectVenue(venue)"]
+    A1 --> A2["Animate camera → 800m"]
+    A2 --> A3["Pin scales 1.12×, zIndex 100"]
+    A3 --> A4["Present VenueDetailSheet"]
+
+    TAP_CLUSTER --> B1["Zoom: span ÷ 3"]
+    B1 --> B2["Spring animation"]
+    B2 --> B3["Clusters may split"]
+
+    PAN --> C1["onMapCameraChange fires"]
+    C1 --> C2["Update currentRegion"]
+    C2 --> C3["Recompute clusters"]
+    C1 --> C4{"Moved > 0.005°<br/>or zoomed > 1.5×?"}
+    C4 -->|Yes| C5["Show 'Search This Area'"]
+    C4 -->|No| C6["Pre-fetch fusion data"]
+
+    SEARCH_BTN --> D1["Reset rate limiter"]
+    D1 --> D2["searchVenues(visibleRegion)"]
+
+    RECENTER --> E1["Camera → userLocation"]
+    TOGGLE3D --> F1["Pitch: 0° ↔ 45°"]
+    F1 --> F2["Elevation: flat ↔ realistic"]
+
+    style Interactions fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+  </pre>
+</div>
+
+<h3>Venue Pin Anatomy</h3>
+<div class="diagram-wrapper" style="text-align:center; padding: 32px;">
+  <svg viewBox="0 0 400 340" width="380" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, sans-serif">
+    <!-- Wait time badge -->
+    <rect x="248" y="20" width="56" height="24" rx="12" fill="#d29922" opacity="0.2" stroke="#d29922"/>
+    <text x="276" y="36" text-anchor="middle" fill="#d29922" font-size="11" font-weight="600">5 min</text>
+    <line x1="260" y1="44" x2="230" y2="70" stroke="#30363d" stroke-dasharray="4"/>
+
+    <!-- Saved badge -->
+    <rect x="96" y="20" width="52" height="24" rx="12" fill="#f85149" opacity="0.2" stroke="#f85149"/>
+    <text x="122" y="36" text-anchor="middle" fill="#f85149" font-size="11" font-weight="600">Saved</text>
+    <line x1="135" y1="44" x2="170" y2="70" stroke="#30363d" stroke-dasharray="4"/>
+
+    <!-- Main circle -->
+    <circle cx="200" cy="110" r="44" fill="#161b22" stroke="#3fb950" stroke-width="3"/>
+    <text x="200" y="118" text-anchor="middle" fill="#e6edf3" font-size="28">🍕</text>
+
+    <!-- Confidence ring label -->
+    <line x1="248" y1="100" x2="290" y2="85" stroke="#30363d" stroke-dasharray="4"/>
+    <text x="295" y="82" fill="#8b949e" font-size="11">Confidence ring:</text>
+    <text x="295" y="96" fill="#8b949e" font-size="10">Dashed = Estimated</text>
+    <text x="295" y="108" fill="#8b949e" font-size="10">Solid = High conf.</text>
+
+    <!-- Busyness color label -->
+    <line x1="152" y1="100" x2="108" y2="85" stroke="#30363d" stroke-dasharray="4"/>
+    <text x="20" y="82" fill="#8b949e" font-size="11">Circle color = busyness:</text>
+    <text x="20" y="96" fill="#3fb950" font-size="10">■ Green = Empty</text>
+    <text x="20" y="108" fill="#d29922" font-size="10">■ Orange = Busy</text>
+    <text x="20" y="120" fill="#f85149" font-size="10">■ Red = Packed</text>
+
+    <!-- Anchor triangle -->
+    <polygon points="188,154 200,174 212,154" fill="#161b22" stroke="#3fb950" stroke-width="2"/>
+
+    <!-- Name label -->
+    <rect x="130" y="185" width="140" height="28" rx="6" fill="#161b22" stroke="#30363d"/>
+    <text x="200" y="204" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="500">Pizza Palace</text>
+
+    <!-- Selected state note -->
+    <rect x="100" y="250" width="200" height="60" rx="8" fill="rgba(88,166,255,0.08)" stroke="#58a6ff"/>
+    <text x="200" y="272" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">Selected State</text>
+    <text x="200" y="290" text-anchor="middle" fill="#8b949e" font-size="11">Scale 1.12× · zIndex 100</text>
+    <text x="200" y="304" text-anchor="middle" fill="#8b949e" font-size="11">Draws on top of all others</text>
+  </svg>
+  <div class="diagram-label">Venue pin — 40×40pt circle with category icon, colored by busyness level</div>
+</div>
+
+<h3>Rate Limiting & Caching Strategy</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart TD
+    REQ["MapKit Search Request"]
+    REQ --> CACHE{"Cache hit?<br/><small>key = query + bucketed region</small>"}
+    CACHE -->|"Hit & fresh<br/><small>(< 5 min)</small>"| RETURN["Return cached results"]
+    CACHE -->|"Miss or stale"| RATE{"Rate limit OK?<br/><small>< 35 req / 60s</small>"}
+    RATE -->|"Yes"| FIRE["Fire MKLocalSearch"]
+    RATE -->|"No"| STALE{"Stale cache<br/>available?"}
+    STALE -->|"Yes"| FALLBACK["Return stale cache<br/><small>(better than nothing)</small>"]
+    STALE -->|"No"| SKIP["Skip search<br/><small>wait for window</small>"]
+    FIRE --> STORE["Store in cache<br/><small>max 50 entries, LRU eviction</small>"]
+    STORE --> RETURN
+
+    EXPLICIT["'Search This Area' tap"] --> RESET["Reset rate limiter<br/><small>timestamps.removeAll()</small>"]
+    RESET --> REQ
+
+    style REQ fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+    style RETURN fill:#161b22,stroke:#3fb950,color:#e6edf3
+    style FALLBACK fill:#161b22,stroke:#d29922,color:#e6edf3
+  </pre>
+  <div class="diagram-label">Apple enforces 50 req/60s across ALL MapKit calls — we budget 35, reserving 15 for internal annotation renders</div>
+</div>
+
+<h3>Live Refresh & Hours Transition</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart TD
+    START["startLiveRefresh()<br/><small>Called from MainTabView.task</small>"]
+    START --> LOOP["Every 120 seconds"]
+    LOOP --> ACTIVE{"App active?"}
+    ACTIVE -->|"No"| SKIP["Skip refresh<br/><small>(save battery)</small>"]
+    ACTIVE -->|"Yes"| OVERLAY["overlayBusynessData()<br/>• Re-fetch from FusionService cache<br/>• Apply updated levels/confidence<br/>• Recompute clusters"]
+    OVERLAY --> LOOP
+
+    START --> HOURS["scheduleHoursTransitionRefresh()"]
+    HOURS --> PARSE["Parse hoursToday strings<br/><small>'Opens 11:00 AM'</small><br/><small>'Closes 10:00 PM'</small>"]
+    PARSE --> SCHEDULE["Schedule one-shot at next transition + 5s"]
+    SCHEDULE --> FIRE["On fire: invalidate fusion cache<br/>+ re-overlay busyness"]
+
+    CANCEL["Cancelled on:<br/>• Tab disappear<br/>• App background<br/>• ViewModel deinit"]
+
+    style START fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+    style OVERLAY fill:#161b22,stroke:#3fb950,color:#e6edf3
+    style FIRE fill:#161b22,stroke:#d29922,color:#e6edf3
+  </pre>
+</div>
+
+<h3>Expand Search (Pagination)</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart TD
+    BTN["User taps 'See more venues'<br/><small>in Discover</small>"]
+    BTN --> CALL["mapViewModel.expandSearch()"]
+    CALL --> CALC["Expand region by 1000m<br/>beyond lastExpandedRegion"]
+    CALC --> CAP{"Radius > 5000m?"}
+    CAP -->|"Yes"| MAX["'Showing all walkable venues'"]
+    CAP -->|"No"| INV["Invalidate search cache<br/><small>(region grew, old keys stale)</small>"]
+    INV --> SEARCH["searchAllTypes(expanded region)"]
+    SEARCH --> MERGE["Merge new + existing<br/>• Deduplicate by venue ID<br/>• Apply busyness<br/>• Recompute clusters"]
+    MERGE --> CHECK{"Count < 300<br/>AND radius < 5km?"}
+    CHECK -->|"Yes"| ENABLED["'See more venues' stays enabled"]
+    CHECK -->|"No"| MAX
+
+    style BTN fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+    style MAX fill:#161b22,stroke:#d29922,color:#e6edf3
+  </pre>
+</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- 4. DISCOVER DEEP DIVE -->
+<!-- ================================================================ -->
+<section id="s4">
+<h2>4. Discover Feature — Deep Dive</h2>
+
+<h3>Key Files</h3>
+<table>
+  <tr><th>File</th><th>Role</th></tr>
+  <tr><td><code>Views/Discover/DiscoverScreen.swift</code></td><td>UI layout, sections, filter chips, carousels</td></tr>
+  <tr><td><code>ViewModels/DiscoverViewModel.swift</code></td><td>Filter pipeline, derived collections, stats</td></tr>
+  <tr><td><code>Services/VenueFilterState.swift</code></td><td>Shared filter (category + busyness, also used by Map)</td></tr>
+</table>
+
+<h3>Screen Layout</h3>
+<div class="diagram-wrapper" style="text-align:center; padding:32px;">
+  <svg viewBox="0 0 380 720" width="360" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, sans-serif">
+    <!-- Phone frame -->
+    <rect x="10" y="10" width="360" height="700" rx="24" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+    <!-- Status bar -->
+    <rect x="10" y="10" width="360" height="36" rx="24" fill="#161b22"/>
+    <text x="190" y="32" text-anchor="middle" fill="#8b949e" font-size="12">9:41 AM</text>
+
+    <!-- Greeting -->
+    <text x="30" y="72" fill="#e6edf3" font-size="20" font-weight="700">Good morning!</text>
+    <text x="30" y="92" fill="#8b949e" font-size="13">Find a cozy coffee spot</text>
+
+    <!-- Vibe Pulse -->
+    <rect x="20" y="108" width="340" height="100" rx="10" fill="#161b22" stroke="#30363d"/>
+    <text x="30" y="128" fill="#bc8cff" font-size="12" font-weight="600">Vibe Pulse</text>
+    <!-- Bars -->
+    <rect x="45" y="170" width="36" height="20" rx="4" fill="#3fb950" opacity="0.6"/>
+    <rect x="105" y="158" width="36" height="32" rx="4" fill="#85e89d" opacity="0.6"/>
+    <rect x="165" y="140" width="36" height="50" rx="4" fill="#d29922" opacity="0.7"/>
+    <rect x="225" y="155" width="36" height="35" rx="4" fill="#f0883e" opacity="0.6"/>
+    <rect x="285" y="168" width="36" height="22" rx="4" fill="#f85149" opacity="0.6"/>
+    <text x="63" y="200" text-anchor="middle" fill="#8b949e" font-size="8">Empty</text>
+    <text x="123" y="200" text-anchor="middle" fill="#8b949e" font-size="8">Quiet</text>
+    <text x="183" y="200" text-anchor="middle" fill="#8b949e" font-size="8">Mod</text>
+    <text x="243" y="200" text-anchor="middle" fill="#8b949e" font-size="8">Busy</text>
+    <text x="303" y="200" text-anchor="middle" fill="#8b949e" font-size="8">Packed</text>
+
+    <!-- Category pills -->
+    <rect x="20" y="218" width="80" height="28" rx="14" fill="#58a6ff" opacity="0.2" stroke="#58a6ff"/>
+    <text x="60" y="236" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="600">🍽 Restaurants 45</text>
+    <rect x="108" y="218" width="64" height="28" rx="14" fill="#161b22" stroke="#30363d"/>
+    <text x="140" y="236" text-anchor="middle" fill="#e6edf3" font-size="10">🍺 Bars 23</text>
+    <rect x="180" y="218" width="64" height="28" rx="14" fill="#161b22" stroke="#30363d"/>
+    <text x="212" y="236" text-anchor="middle" fill="#e6edf3" font-size="10">🌙 Clubs 8</text>
+    <rect x="252" y="218" width="68" height="28" rx="14" fill="#161b22" stroke="#30363d"/>
+    <text x="286" y="236" text-anchor="middle" fill="#e6edf3" font-size="10">☕ Cafés 31</text>
+
+    <!-- Discover filters -->
+    <rect x="20" y="256" width="68" height="26" rx="13" fill="#3fb950" opacity="0.15" stroke="#3fb950"/>
+    <text x="54" y="273" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="600">Open Now</text>
+    <rect x="96" y="256" width="42" height="26" rx="13" fill="#161b22" stroke="#30363d"/>
+    <text x="117" y="273" text-anchor="middle" fill="#8b949e" font-size="10">3.5+</text>
+    <rect x="146" y="256" width="34" height="26" rx="13" fill="#161b22" stroke="#30363d"/>
+    <text x="163" y="273" text-anchor="middle" fill="#8b949e" font-size="10">4+</text>
+    <rect x="188" y="256" width="42" height="26" rx="13" fill="#161b22" stroke="#30363d"/>
+    <text x="209" y="273" text-anchor="middle" fill="#8b949e" font-size="10">4.5+</text>
+    <rect x="238" y="256" width="28" height="26" rx="13" fill="#161b22" stroke="#30363d"/>
+    <text x="252" y="273" text-anchor="middle" fill="#8b949e" font-size="10">$</text>
+    <rect x="274" y="256" width="32" height="26" rx="13" fill="#161b22" stroke="#30363d"/>
+    <text x="290" y="273" text-anchor="middle" fill="#8b949e" font-size="10">$$</text>
+
+    <!-- Go Now section -->
+    <text x="30" y="308" fill="#3fb950" font-size="14" font-weight="700">🟢 Go Now</text>
+    <text x="118" y="308" fill="#8b949e" font-size="11"> — Sweet spots</text>
+    <!-- Cards -->
+    <rect x="20" y="318" width="105" height="84" rx="10" fill="#161b22" stroke="#30363d"/>
+    <text x="72" y="350" text-anchor="middle" fill="#e6edf3" font-size="18">☕</text>
+    <text x="72" y="368" text-anchor="middle" fill="#e6edf3" font-size="10" font-weight="600">Café Roma</text>
+    <rect x="40" y="376" width="64" height="16" rx="8" fill="#3fb950" opacity="0.15"/>
+    <text x="72" y="388" text-anchor="middle" fill="#3fb950" font-size="9">Quiet</text>
+
+    <rect x="133" y="318" width="105" height="84" rx="10" fill="#161b22" stroke="#30363d"/>
+    <text x="185" y="350" text-anchor="middle" fill="#e6edf3" font-size="18">🍽</text>
+    <text x="185" y="368" text-anchor="middle" fill="#e6edf3" font-size="10" font-weight="600">The Diner</text>
+    <rect x="153" y="376" width="64" height="16" rx="8" fill="#85e89d" opacity="0.15"/>
+    <text x="185" y="388" text-anchor="middle" fill="#85e89d" font-size="9">Empty</text>
+
+    <rect x="246" y="318" width="105" height="84" rx="10" fill="#161b22" stroke="#30363d"/>
+    <text x="298" y="350" text-anchor="middle" fill="#e6edf3" font-size="18">🍺</text>
+    <text x="298" y="368" text-anchor="middle" fill="#e6edf3" font-size="10" font-weight="600">Oak & Vine</text>
+    <rect x="266" y="376" width="64" height="16" rx="8" fill="#d29922" opacity="0.15"/>
+    <text x="298" y="388" text-anchor="middle" fill="#d29922" font-size="9">Moderate</text>
+
+    <!-- On Fire section -->
+    <text x="30" y="430" fill="#f85149" font-size="14" font-weight="700">🔥 On Fire</text>
+    <text x="108" y="430" fill="#8b949e" font-size="11"> — Buzzing right now</text>
+    <rect x="20" y="440" width="105" height="84" rx="10" fill="#161b22" stroke="#30363d"/>
+    <text x="72" y="472" text-anchor="middle" fill="#e6edf3" font-size="18">🌙</text>
+    <text x="72" y="490" text-anchor="middle" fill="#e6edf3" font-size="10" font-weight="600">Club Nova</text>
+    <rect x="40" y="498" width="64" height="16" rx="8" fill="#f85149" opacity="0.15"/>
+    <text x="72" y="510" text-anchor="middle" fill="#f85149" font-size="9">Packed</text>
+
+    <rect x="133" y="440" width="105" height="84" rx="10" fill="#161b22" stroke="#30363d"/>
+    <text x="185" y="472" text-anchor="middle" fill="#e6edf3" font-size="18">🍺</text>
+    <text x="185" y="490" text-anchor="middle" fill="#e6edf3" font-size="10" font-weight="600">The Spot</text>
+    <rect x="153" y="498" width="64" height="16" rx="8" fill="#f0883e" opacity="0.15"/>
+    <text x="185" y="510" text-anchor="middle" fill="#f0883e" font-size="9">Busy</text>
+
+    <!-- All Spots -->
+    <text x="30" y="554" fill="#e6edf3" font-size="14" font-weight="700">All Spots</text>
+    <rect x="20" y="564" width="340" height="56" rx="10" fill="#161b22" stroke="#30363d"/>
+    <circle cx="48" cy="592" r="16" fill="#3fb950" opacity="0.3"/>
+    <text x="48" y="596" text-anchor="middle" fill="#e6edf3" font-size="14">🍽</text>
+    <text x="76" y="584" fill="#e6edf3" font-size="12" font-weight="600">Burger Joint</text>
+    <text x="76" y="600" fill="#8b949e" font-size="10">Restaurant · Open · ★ 4.5</text>
+    <rect x="290" y="580" width="56" height="20" rx="10" fill="#d29922" opacity="0.15"/>
+    <text x="318" y="594" text-anchor="middle" fill="#d29922" font-size="9">Moderate</text>
+
+    <rect x="20" y="628" width="340" height="56" rx="10" fill="#161b22" stroke="#30363d"/>
+    <circle cx="48" cy="656" r="16" fill="#58a6ff" opacity="0.3"/>
+    <text x="48" y="660" text-anchor="middle" fill="#e6edf3" font-size="14">☕</text>
+    <text x="76" y="648" fill="#e6edf3" font-size="12" font-weight="600">Bean Counter</text>
+    <text x="76" y="664" fill="#8b949e" font-size="10">Coffee · Open · ★ 4.2</text>
+    <rect x="290" y="644" width="56" height="20" rx="10" fill="#3fb950" opacity="0.15"/>
+    <text x="318" y="658" text-anchor="middle" fill="#3fb950" font-size="9">Quiet</text>
+
+    <!-- Bottom tab bar -->
+    <rect x="10" y="686" width="360" height="24" rx="0" fill="#161b22"/>
+    <text x="70" y="700" text-anchor="middle" fill="#8b949e" font-size="10">🗺 Map</text>
+    <text x="190" y="700" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="700">🔍 Discover</text>
+    <text x="310" y="700" text-anchor="middle" fill="#8b949e" font-size="10">👤 Profile</text>
+  </svg>
+  <div class="diagram-label">Discover screen layout — all sections shown when data is available</div>
+</div>
+
+<h3>Discover Data Flow</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart TD
+    MVM["MapViewModel.venues"]
+    MVM -->|".onChange"| UPDATE["DiscoverViewModel.updateVenues"]
+    UPDATE --> SORT_CHECK{"User moved or<br/>venue set changed?"}
+    SORT_CHECK -->|"Yes"| SORT["Sort by distance"]
+    SORT_CHECK -->|"No"| MERGE_UPDATE["Merge data, keep order"]
+    SORT --> FILTER["applyFilter"]
+    MERGE_UPDATE --> FILTER
+
+    FILTER --> DERIVED["recomputeDerivedState"]
+    DERIVED --> VP["vibePulse — bar chart"]
+    DERIVED --> CC["categoryCounts — pill counts"]
+
+    FILTER --> SHARED["Shared: category + busyness"]
+    SHARED --> BASE["base filtered venues"]
+
+    BASE --> OPEN["openNowOnly filter"]
+    OPEN --> RATING["ratingFilter: 3.5+ / 4+ / 4.5+"]
+    RATING --> PRICE["priceFilter: budget / mid / upscale"]
+
+    PRICE --> POP["popularVenues — busy+packed, max 10"]
+    PRICE --> SWEET["sweetSpotVenues — quiet+moderate, max 8"]
+    PRICE --> ALLV["filteredVenues — all remaining"]
+
+    style MVM fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+    style FILTER fill:#161b22,stroke:#bc8cff,color:#e6edf3
+    style POP fill:#2a0a0a,stroke:#f85149,color:#e6edf3
+    style SWEET fill:#0a2e1a,stroke:#3fb950,color:#e6edf3
+    style ALLV fill:#161b22,stroke:#58a6ff,color:#e6edf3
+  </pre>
+  <div class="diagram-label">Discover derives ALL its venue data from MapViewModel — it never fetches independently</div>
+</div>
+
+<h3>Section Visibility Rules</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart TD
+    subgraph Always["Always Visible"]
+        GREET["Greeting Header"]
+        VIBE["Vibe Pulse"]
+        CATS["Category Pills"]
+        CHIPS["Filter Chips"]
+        ALL["All Spots"]
+    end
+
+    subgraph Conditional["Conditionally Visible"]
+        SAVED["Saved Places"]
+        GONOW["Go Now"]
+        ONFIRE["On Fire"]
+    end
+
+    SAVED -.- SC1{"authState.isSignedIn?"}
+    SC1 -->|"AND"| SC2{"nearbySavedVenues<br/>not empty?"}
+    SC2 -->|"Yes"| SHOW1["✅ Show"]
+
+    GONOW -.- GC1{"sweetSpotVenues<br/>not empty?"}
+    GC1 -->|"AND"| GC2{"No active busyness<br/>filter ≥ 4?"}
+    GC2 -->|"Yes"| SHOW2["✅ Show"]
+
+    ONFIRE -.- OC1{"popularVenues<br/>not empty?"}
+    OC1 -->|"AND"| OC2{"No active busyness<br/>filter ≤ 3?"}
+    OC2 -->|"Yes"| SHOW3["✅ Show"]
+
+    style Always fill:#0a2e1a,stroke:#3fb950,color:#e6edf3
+    style Conditional fill:#2a1a0a,stroke:#d29922,color:#e6edf3
+  </pre>
+</div>
+<h3>Filter Pipeline Detail</h3>
+<div class="callout callout-info">
+  <strong>applyFilter() — DiscoverViewModel.swift</strong>
+  <p>Four-stage filter pipeline applied to distance-sorted venues:</p>
+  <ol>
+    <li><strong>VenueFilterState.apply()</strong> — <code>selectedCategory?</code> → filter by category match; <code>selectedBusynessLevel?</code> → filter by level match</li>
+    <li><strong>openNowOnly?</strong> → filter <code>venue.isOpen == true</code></li>
+    <li><strong>ratingFilter?</strong> → filter <code>venue.rating >= threshold</code> (3.5, 4.0, or 4.5)</li>
+    <li><strong>priceFilter?</strong> → filter by price bucket:
+      <ul>
+        <li><code>$</code> → FREE or INEXPENSIVE</li>
+        <li><code>$$</code> → MODERATE</li>
+        <li><code>$$$+</code> → EXPENSIVE or VERY_EXPENSIVE</li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>Output splits:</strong></p>
+  <ul>
+    <li><code>popularVenues</code>: base + busyness ≥ 4, sorted desc, max 10</li>
+    <li><code>sweetSpotVenues</code>: base + busyness 1-3, max 8</li>
+    <li><code>filteredVenues</code>: base (sorted by rating if ratingFilter active)</li>
+  </ul>
+</div>
+
+<h3>Derived Statistics</h3>
+<table>
+  <tr><th>Property</th><th>Source</th><th>Purpose</th></tr>
+  <tr><td><code>vibePulse</code></td><td>ALL venues (unfiltered)</td><td>Area mood bar chart</td></tr>
+  <tr><td><code>categoryCounts</code></td><td>Venues filtered by busyness only</td><td>Category pill counts</td></tr>
+  <tr><td><code>areaMood</code></td><td>Average of all venue busyness levels</td><td>Greeting context</td></tr>
+  <tr><td><code>greeting</code></td><td>Current hour</td><td>"Good morning/evening/..."</td></tr>
+  <tr><td><code>greetingSubtitle</code></td><td>Current hour</td><td>"Find a cozy coffee spot" etc.</td></tr>
+</table>
+
+</section>
+
+<!-- ================================================================ -->
+<!-- 5. SHARED SERVICES -->
+<!-- ================================================================ -->
+<section id="s5">
+<h2>5. Shared Services & Data Flow</h2>
+
+<h3>APIClient — Actor-Based HTTP Client</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart LR
+    subgraph Callers["Service Callers"]
+        FS["FusionService"]
+        RS["ReportService"]
+        SVS["SavedVenuesService"]
+    end
+
+    FS & RS & SVS --> AC
+
+    subgraph AC["APIClient (actor — thread-safe)"]
+        direction TB
+        AUTH["JWT Token Cache<br/><small>Cognito ID token</small><br/><small>Refreshes 60s before expiry</small>"]
+        RETRY["Retry Logic<br/><small>5xx errors only</small><br/><small>200ms → 400ms backoff</small><br/><small>Max 2 retries</small>"]
+        METHODS["get() · post() · put() · delete()<br/><small>All auto-attach JWT header</small>"]
+    end
+
+    AC --> AWS["AWS API Gateway<br/><small>ca-central-1</small>"]
+
+    style Callers fill:#161b22,stroke:#bc8cff,color:#e6edf3
+    style AC fill:#1a1f35,stroke:#58a6ff,color:#e6edf3
+  </pre>
+</div>
+
+<h4>Method Signatures</h4>
+<pre><code>get&lt;T: Decodable&gt;(path:) → T
+post&lt;Body: Encodable, T: Decodable&gt;(path:body:) → T
+put&lt;Body: Encodable, T: Decodable&gt;(path:body:) → T
+delete(path:)
+uploadImage(presignedURL:imageData:)</code></pre>
+
+<h3>FusionService — Busyness Pipeline</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart TD
+    subgraph Cache["Local Cache (LRU)"]
+        direction LR
+        STORE["nearbyCache<br/><small>[venueId: FusedEstimateResponse]</small><br/><small>Max 500 entries</small><br/><small>TTL: 5 minutes</small>"]
+        INVALID["Invalidated when:<br/>• User moves > 500m<br/>• TTL expires<br/>• refreshAfterReport()"]
+    end
+
+    A["prefetchArea(lat, lng)"] -->|"POST /v1/venues/nearby<br/><small>(empty venue list)</small>"| BACKEND["Backend"]
+    BACKEND -->|"Returns all cached<br/>estimates in area"| STORE
+
+    B["fetchNearbyEstimates<br/>(lat, lng, venues)"] -->|"POST /v1/venues/nearby<br/><small>(with venue list)</small>"| BACKEND
+    BACKEND -->|"Returns cached +<br/>dispatches uncached"| STORE
+
+    C["fetchVenueBusyness<br/>(venueId)"] -->|"GET /v1/venues/{id}/busyness"| BACKEND
+    BACKEND -->|"Full details for<br/>single venue"| DETAIL["VenueDetailSheet"]
+
+    D["cachedEstimate(for: id)"] --> STORE
+
+    style Cache fill:#161b22,stroke:#d29922,color:#e6edf3
+  </pre>
+</div>
+
+<h4>Response Shape (FusedEstimateResponse)</h4>
+<table>
+  <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>busynessScore</code></td><td>Double (0.0 – 1.0)</td><td>Normalized busyness level</td></tr>
+  <tr><td><code>confidence</code></td><td>String</td><td>NONE / LOW / MEDIUM / HIGH / VERY_HIGH / ESTIMATED</td></tr>
+  <tr><td><code>reportCount</code></td><td>Int</td><td>Number of user reports</td></tr>
+  <tr><td><code>waitMinutes</code></td><td>Int?</td><td>Estimated wait time</td></tr>
+  <tr><td><code>isOpen</code></td><td>Bool?</td><td>Current open/closed status</td></tr>
+  <tr><td><code>hoursToday</code></td><td>String?</td><td>e.g. "Opens 11:00 AM", "Closes 10 PM"</td></tr>
+  <tr><td><code>businessStatus</code></td><td>String?</td><td>Google business status</td></tr>
+  <tr><td><code>venueDetails</code></td><td>Object</td><td>rating, userRatingCount, priceLevel, ...</td></tr>
+</table>
+
+<div class="callout callout-info">
+  <strong>Backend computation:</strong> Backend computes busyness using Google Popular Times + user reports. <code>prefetchArea()</code> with empty venue list returns only cached estimates. With venue list, it dispatches uncached venues for async computation.
+</div>
+
+<h3>BusynessEngine — Score Conversion</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart LR
+    SCORE["busynessScore<br/><small>0.0 – 1.0</small>"]
+    SCORE --> E1["0.0 – 0.2"]
+    SCORE --> E2["0.2 – 0.4"]
+    SCORE --> E3["0.4 – 0.6"]
+    SCORE --> E4["0.6 – 0.8"]
+    SCORE --> E5["0.8 – 1.0"]
+
+    E1 --> L1["Empty (1)"]
+    E2 --> L2["Quiet (2)"]
+    E3 --> L3["Moderate (3)"]
+    E4 --> L4["Busy (4)"]
+    E5 --> L5["Packed (5)"]
+
+    CONF["confidence string"]
+    CONF --> C1["NONE → .none<br/><small>Grey, no data</small>"]
+    CONF --> C2["ESTIMATED → .estimated<br/><small>Dashed ring</small>"]
+    CONF --> C3["LOW/MEDIUM → .low/.medium"]
+    CONF --> C4["HIGH → .high<br/><small>Solid ring</small>"]
+    CONF --> C5["VERY_HIGH → .veryHigh<br/><small>Thick solid ring</small>"]
+
+    style L1 fill:#0a2e1a,stroke:#3fb950,color:#3fb950
+    style L2 fill:#1a2e0a,stroke:#85e89d,color:#85e89d
+    style L3 fill:#2a2a0a,stroke:#d29922,color:#d29922
+    style L4 fill:#2a1a0a,stroke:#f0883e,color:#f0883e
+    style L5 fill:#2a0a0a,stroke:#f85149,color:#f85149
+  </pre>
+</div>
+
+<h3>Cross-Tab Communication</h3>
+<div class="diagram-wrapper">
+  <pre class="mermaid">
+flowchart LR
+    subgraph MapTab["🗺 Map Tab"]
+        MS["MapScreen"]
+        MVM2["MapViewModel<br/><small>(source of truth)</small>"]
+    end
+
+    subgraph DiscoverTab["🔍 Discover Tab"]
+        DS["DiscoverScreen"]
+        DVM["DiscoverViewModel<br/><small>(local derivations)</small>"]
+    end
+
+    MVM2 -->|"venues (read)"| DS
+    DS -->|".onChange → updateVenues()"| DVM
+
+    FS2["VenueFilterState"] <-->|"selectedCategory<br/>selectedBusynessLevel"| MS
+    FS2 <-->|"bidirectional"| DS
+
+    DS -->|"'See on Map'<br/>tab switch + select"| MS
+    DS -->|"'See more venues'<br/>expandSearch()"| MVM2
+    DS -->|"detail dismiss<br/>refreshAfterReport()"| MVM2
+
+    NC["NotificationCenter<br/>.reportSubmitted"] --> MVM2
+    NC --> DVM
+
+    style MapTab fill:#0a1628,stroke:#58a6ff,color:#e6edf3
+    style DiscoverTab fill:#1a0a28,stroke:#bc8cff,color:#e6edf3
+  </pre>
+  <div class="diagram-label">Discover is read-only from MapViewModel — all venue fetching happens in Map</div>
+</div>
+
+<h3>VenueFilterState (Shared)</h3>
+<div class="card" style="border-color: var(--purple); margin: 16px 0;">
+  <h4 style="color: var(--purple);">VenueFilterState — <code>@MainActor, ObservableObject</code></h4>
+  <p><strong>Published properties:</strong></p>
+  <ul>
+    <li><code>@Published selectedCategory: VenueCategory?</code></li>
+    <li><code>@Published selectedBusynessLevel: BusynessLevel?</code></li>
+  </ul>
+  <p><strong>Behavior:</strong> Toggle (select again to deselect)</p>
+  <p><strong>Observers:</strong></p>
+  <ul>
+    <li>MapViewModel → <code>recomputeClusters()</code></li>
+    <li>DiscoverViewModel → <code>applyFilter()</code></li>
+  </ul>
+  <p>Both tabs react simultaneously to any filter change.</p>
+</div>
+
+<h3>Venue ID Generation</h3>
+<div class="callout callout-warning">
+  <strong>Critical: Venue ID Format</strong>
+  <code>venue.id = normalized_name + "_" + lat(5 decimals) + "_" + lng(5 decimals)</code><br/>
+  Example: <code>"the-coffee-shop_43.65107_-79.34729"</code><br/><br/>
+  This ID is used everywhere: fusion cache keys, saved venue lookups, deduplication across MapKit searches. 5 decimal places = ~1.1m precision. <strong>Do not change the format.</strong>
+</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- 6. DO NOT MODIFY -->
+<!-- ================================================================ -->
+<section id="s6">
+<h2>6. Critical: Do Not Modify</h2>
+<p>These areas have subtle, load-bearing logic. Changing them without full understanding risks breaking core functionality.</p>
+
+<div class="grid-2">
+  <div class="card" style="border-color: var(--red);">
+    <h4 style="color: var(--red);">1. Venue ID Generation</h4>
+    <p><code>Models/Venue.swift</code></p>
+    <p>Normalized name + 5-decimal lat/lng. Used as cache key, saved venue key, dedup key. Changing format breaks all lookups.</p>
+  </div>
+  <div class="card" style="border-color: var(--red);">
+    <h4 style="color: var(--red);">2. MapKit Rate Limiting</h4>
+    <p><code>VenueSearchService.swift</code></p>
+    <p>35 req/60s limit with 15 reserved for Apple internal calls. Relaxing this causes silent search failures from Apple's server.</p>
+  </div>
+  <div class="card" style="border-color: var(--red);">
+    <h4 style="color: var(--red);">3. Phase A/B Search Pipeline</h4>
+    <p><code>MapViewModel.searchVenues()</code></p>
+    <p>Phase A pre-populates cache for instant pin colors. Phase B fills gaps with progressive refreshes. Removing any phase causes grey flash or stale data.</p>
+  </div>
+  <div class="card" style="border-color: var(--red);">
+    <h4 style="color: var(--red);">4. Clustering Debounce</h4>
+    <p><code>MapViewModel.recomputeClusters()</code></p>
+    <p>100ms debounce during progressive loading. Without it, map stutters as 12 concurrent search batches complete.</p>
+  </div>
+  <div class="card" style="border-color: var(--red);">
+    <h4 style="color: var(--red);">5. Busyness Carry-Over Priority</h4>
+    <p><code>applyAllBusynessData()</code></p>
+    <p>Order: carry-over > cached > offline. Priority 1 prevents pins from flashing grey between searches. Order matters.</p>
+  </div>
+  <div class="card" style="border-color: var(--red);">
+    <h4 style="color: var(--red);">6. FusionService Cache Invalidation</h4>
+    <p><code>FusionService.swift</code></p>
+    <p>500m movement, TTL, and explicit refresh triggers. LRU eviction at 500 entries. Hours transition refresh keeps open/close accurate.</p>
+  </div>
+  <div class="card" style="border-color: var(--red);">
+    <h4 style="color: var(--red);">7. Auth Venue Restore Token</h4>
+    <p><code>AuthState.swift</code></p>
+    <p>pendingVenue + pendingVenueTab + venueRestoreToken flow. Without it, users lose their place when prompted to sign in mid-action.</p>
+  </div>
+  <div class="card" style="border-color: var(--red);">
+    <h4 style="color: var(--red);">8. Task Cancellation in deinit</h4>
+    <p><code>MapViewModel.deinit</code></p>
+    <p>7 async tasks cancelled: searchTask, refreshTimer, hoursTransitionTask, clusterDebounceTask, expandTask, prefetchTask, followUpTask. Missing any causes retain cycles.</p>
+  </div>
+</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- 7. IMPROVEMENTS -->
+<!-- ================================================================ -->
+<section id="s7">
+<h2>7. Improvement Opportunities</h2>
+
+<div class="grid-2">
+  <div class="card" style="border-color: var(--green);">
+    <h4>Architecture</h4>
+    <ul>
+      <li><strong>DiscoverViewModel duplication:</strong> Re-implements filter logic overlapping with VenueFilterState. Could consolidate into a single reactive pipeline.</li>
+      <li><strong>6 environment objects:</strong> Consider a single <code>AppState</code> container or <code>@Observable</code> macro (iOS 17+).</li>
+      <li><strong>Service singletons:</strong> <code>FusionService.shared</code> makes testing harder. Could use protocol-based injection.</li>
+    </ul>
+  </div>
+  <div class="card" style="border-color: var(--green);">
+    <h4>Performance</h4>
+    <ul>
+      <li><strong>Clustering on main thread:</strong> O(n) for 300 venues is fast, but could move to a background actor for safety.</li>
+      <li><strong>Distance sorting:</strong> Full sort on every update. Could use a spatial index for O(log n) queries.</li>
+      <li><strong>Adaptive batch count:</strong> Currently 12 MapKit searches always. Could stop early if 200+ venues found.</li>
+    </ul>
+  </div>
+  <div class="card" style="border-color: var(--green);">
+    <h4>User Experience</h4>
+    <ul>
+      <li><strong>No pull-to-refresh on Discover:</strong> Users must switch tabs or wait for live refresh.</li>
+      <li><strong>No offline mode:</strong> Could cache last-known state to UserDefaults.</li>
+      <li><strong>No visible search bar on Map:</strong> <code>searchText</code> exists but isn't surfaced in the UI.</li>
+    </ul>
+  </div>
+  <div class="card" style="border-color: var(--green);">
+    <h4>Code Quality</h4>
+    <ul>
+      <li><strong>Magic numbers:</strong> 0.005 threshold, 300ms debounce, 800m camera — should move to <code>AppConstants</code>.</li>
+      <li><strong>Error handling:</strong> Catch blocks mostly log. No user-facing error states ("No internet").</li>
+    </ul>
+  </div>
+</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- 8. CONSTANTS -->
+<!-- ================================================================ -->
+<section id="s8">
+<h2>8. Key Constants Reference</h2>
+
+<table>
+  <tr><th>Constant</th><th>Value</th><th>Location</th><th>Purpose</th></tr>
+  <tr><td><code>maxVisibleVenues</code></td><td>300</td><td>AppConstants</td><td>Max venues in memory / on map</td></tr>
+  <tr><td><code>defaultSearchRadius</code></td><td>800m</td><td>AppConstants</td><td>Initial search radius</td></tr>
+  <tr><td><code>expandIncrement</code></td><td>1,000m</td><td>AppConstants</td><td>Each "See more" expansion</td></tr>
+  <tr><td><code>maxWalkingRadius</code></td><td>5,000m</td><td>AppConstants</td><td>Maximum expand distance</td></tr>
+  <tr><td><code>reportCacheTTL</code></td><td>300s</td><td>AppConstants</td><td>Fusion cache lifetime</td></tr>
+  <tr><td><code>reportCooldown</code></td><td>30 min</td><td>AppConstants</td><td>Per-venue report cooldown</td></tr>
+  <tr><td><code>reportProximityRadius</code></td><td>~200m</td><td>AppConstants</td><td>Must be this close to report</td></tr>
+  <tr><td><code>liveRefreshInterval</code></td><td>120s</td><td>MapViewModel</td><td>Busyness auto-refresh cycle</td></tr>
+  <tr><td><code>mapKitQueryTimeout</code></td><td>8s</td><td>VenueSearchService</td><td>MapKit request timeout</td></tr>
+  <tr><td><code>maxRequestsPerWindow</code></td><td>35</td><td>VenueSearchService</td><td>MapKit rate limit budget</td></tr>
+  <tr><td><code>windowDuration</code></td><td>60s</td><td>VenueSearchService</td><td>Rate limit sliding window</td></tr>
+  <tr><td><code>maxCacheEntries</code></td><td>50</td><td>VenueSearchService</td><td>Query cache size</td></tr>
+  <tr><td><code>maxFusionCache</code></td><td>500</td><td>FusionService</td><td>Busyness estimate cache size</td></tr>
+  <tr><td><code>clusterGridDensity</code></td><td>8</td><td>VenueClusterer</td><td>Grid cells per axis</td></tr>
+  <tr><td><code>clusterMinSpan</code></td><td>0.005°</td><td>VenueClusterer</td><td>Disable clustering below this</td></tr>
+  <tr><td><code>searchThisAreaThreshold</code></td><td>0.005°</td><td>MapViewModel</td><td>Show button after this movement</td></tr>
+  <tr><td><code>progressiveRefreshDelays</code></td><td>3s, 7s, 14s</td><td>MapViewModel</td><td>Background compute follow-ups</td></tr>
+</table>
+</section>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1a1f35',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#30363d',
+      lineColor: '#58a6ff',
+      secondaryColor: '#161b22',
+      tertiaryColor: '#0d1117',
+      fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+      fontSize: '13px',
+      noteBkgColor: '#161b22',
+      noteTextColor: '#e6edf3',
+      noteBorderColor: '#30363d',
+      actorBkg: '#1a1f35',
+      actorBorder: '#58a6ff',
+      actorTextColor: '#e6edf3',
+      signalColor: '#58a6ff',
+      signalTextColor: '#e6edf3',
+      sequenceNumberColor: '#bc8cff'
+    },
+    flowchart: { curve: 'basis', padding: 16 },
+    sequence: { mirrorActors: false }
+  });
+</script>
+
+</body>
+</html>
