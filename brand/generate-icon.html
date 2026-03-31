@@ -52,6 +52,10 @@
         <h3>OG Banner Preview (1200x630)</h3>
         <canvas id="bannerPreview" width="600" height="315" style="width: 600px; height: 315px; border-radius: 8px;"></canvas>
       </div>
+      <div class="banner-preview">
+        <h3>LinkedIn Banner Preview (1200x630)</h3>
+        <canvas id="linkedinPreview" width="600" height="315" style="width: 600px; height: 315px; border-radius: 8px;"></canvas>
+      </div>
     </div>
 
     <div class="controls">
@@ -108,6 +112,7 @@
       <button onclick="exportPNG(180)">Download PNG (180x180 -- iOS)</button>
       <button onclick="exportPNG(300)">Download PNG (300x300 -- LinkedIn)</button>
       <button onclick="exportBanner()">Download Banner (1200x630 -- OG)</button>
+      <button onclick="exportLinkedInBanner()">Download Banner (1200x630 -- LinkedIn)</button>
 
       <div class="section-title">Save State</div>
       <button class="save-btn" onclick="saveState()">Save current settings<span id="savedIndicator" class="saved-indicator">Saved!</span></button>
@@ -372,6 +377,7 @@ function renderAll() {
   toggleOutlineControls();
   ['main', 's60', 's40', 's29'].forEach(id => drawIcon(document.getElementById(id)));
   drawBanner(document.getElementById('bannerPreview'), false);
+  drawLinkedInBanner(document.getElementById('linkedinPreview'), false);
 }
 
 function buildSVG() {
@@ -422,10 +428,101 @@ function exportPNG(targetSize) {
   }
 }
 
+function drawLinkedInBanner(canvas, exportMode) {
+  const W = exportMode ? 1200 : canvas.width;
+  const H = exportMode ? 630 : canvas.height;
+  if (exportMode) { canvas.width = W; canvas.height = H; }
+  const ctx = canvas.getContext('2d');
+  const cfg = getConfig();
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Full gradient background
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, cfg.gradTop);
+  grad.addColorStop(1, cfg.gradBottom);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Logo on the left, text on the right, both vertically centered
+  const padding = W * 0.08;
+  const iconSize = H * 0.55;
+  const scale = iconSize / ICON.viewBox;
+  const textFontSize = Math.round(H * 0.2);
+
+  // Measure "Wayt" text width to center the logo+gap+text group
+  ctx.font = `800 ${textFontSize}px -apple-system, SF Pro Display, Helvetica Neue, sans-serif`;
+  ctx.letterSpacing = '6px';
+  const waytTextWidth = ctx.measureText('Wayt').width;
+  const gap = W * 0.025;
+  const totalWidth = iconSize + gap + waytTextWidth;
+  const startX = (W - totalWidth) / 2;
+  const iconY = (H - iconSize) / 2;
+
+  const allLines = [...ICON.outerLegs, ...ICON.lowerV, ...ICON.upperTriangle];
+
+  // Draw logo outline
+  if (cfg.outlineEnabled && cfg.outlineThickness > 0) {
+    ctx.strokeStyle = cfg.outlineColor;
+    ctx.lineWidth = (cfg.strokeWidth + cfg.outlineThickness * 2) * scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    allLines.forEach(l => {
+      ctx.beginPath();
+      ctx.moveTo(l.x1 * scale + startX, l.y1 * scale + iconY);
+      ctx.lineTo(l.x2 * scale + startX, l.y2 * scale + iconY);
+      ctx.stroke();
+    });
+  }
+
+  // Draw logo
+  ctx.strokeStyle = cfg.logoColor;
+  ctx.lineWidth = cfg.strokeWidth * scale;
+  ctx.lineCap = 'round';
+  allLines.forEach(l => {
+    ctx.beginPath();
+    ctx.moveTo(l.x1 * scale + startX, l.y1 * scale + iconY);
+    ctx.lineTo(l.x2 * scale + startX, l.y2 * scale + iconY);
+    ctx.stroke();
+  });
+
+  // Draw "Wayt" and "getwayt.com" stacked to the right of the logo
+  const subtitleFontSize = Math.round(textFontSize * 0.4);
+  const lineGap = subtitleFontSize * 0.4;
+  const textBlockHeight = textFontSize + lineGap + subtitleFontSize;
+  const textBlockY = (H - textBlockHeight) / 2;
+  const textX = startX + iconSize + gap;
+
+  ctx.fillStyle = '#000000';
+  ctx.font = `800 ${textFontSize}px -apple-system, SF Pro Display, Helvetica Neue, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.letterSpacing = '6px';
+  ctx.fillText('Wayt', textX, textBlockY);
+
+  // Measure "Wayt" width to center "getwayt.com" under it
+  ctx.font = `800 ${textFontSize}px -apple-system, SF Pro Display, Helvetica Neue, sans-serif`;
+  ctx.letterSpacing = '6px';
+  const waytWidth = ctx.measureText('Wayt').width;
+  const waytCenterX = textX + waytWidth / 2;
+
+  ctx.fillStyle = '#000000';
+  ctx.font = `600 ${subtitleFontSize}px -apple-system, SF Pro Display, Helvetica Neue, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.letterSpacing = '3px';
+  ctx.fillText('getwayt.com', waytCenterX + 8, textBlockY + textFontSize + lineGap);
+}
+
 function exportBanner() {
   const canvas = document.createElement('canvas');
   drawBanner(canvas, true);
   canvas.toBlob(blob => download(blob, 'wayt-banner-1200x630.png'), 'image/png');
+}
+
+function exportLinkedInBanner() {
+  const canvas = document.createElement('canvas');
+  drawLinkedInBanner(canvas, true);
+  canvas.toBlob(blob => download(blob, 'wayt-linkedin-1200x630.jpg'), 'image/jpeg', 0.95);
 }
 
 function download(blob, filename) {
