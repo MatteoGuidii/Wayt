@@ -39,6 +39,9 @@ nonisolated enum AppConstants {
     /// How long a user report is considered valid (seconds)
     static let reportTTL: TimeInterval = 2 * 60 * 60 // 2 hours
 
+    /// Minimum time between reports on the same venue by the same user (seconds)
+    static let reportCooldown: TimeInterval = 30 * 60 // 30 minutes
+
     /// Minimum reports needed for "Reported" confidence label
     static let highConfidenceReportCount = 3
 

@@ -14,6 +14,7 @@ export const USER_POOL_ID = process.env.USER_POOL_ID ?? "";
 // -----------------------------------------------
 
 export const REPORT_TTL_SECONDS = 2 * 60 * 60;
+export const REPORT_COOLDOWN_SECONDS = 30 * 60;
 
 // -----------------------------------------------
 // Types
@@ -91,6 +92,14 @@ export function badRequest(message: string): APIGatewayProxyResult {
     statusCode: 400,
     headers: corsHeaders,
     body: JSON.stringify({ error: message }),
+  };
+}
+
+export function tooManyRequests(body: unknown): APIGatewayProxyResult {
+  return {
+    statusCode: 429,
+    headers: corsHeaders,
+    body: JSON.stringify(body),
   };
 }
 

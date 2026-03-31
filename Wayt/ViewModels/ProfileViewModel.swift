@@ -80,10 +80,12 @@ final class ProfileViewModel: ObservableObject {
 
                 // Record report in local history
                 if let userInfo = notification.userInfo,
+                   let venueId = userInfo["venueId"] as? String,
                    let venueName = userInfo["venueName"] as? String,
                    let venueType = userInfo["venueType"] as? String,
                    let busynessLevel = userInfo["busynessLevel"] as? Int {
                     let entry = ReportHistoryEntry(
+                        venueId: venueId,
                         venueName: venueName,
                         venueType: venueType,
                         busynessLevel: busynessLevel,

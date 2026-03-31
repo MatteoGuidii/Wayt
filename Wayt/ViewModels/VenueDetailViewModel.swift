@@ -14,12 +14,15 @@ final class VenueDetailViewModel: ObservableObject {
     @Published var showReportSheet: Bool = false
     @Published var reportSubmitted: Bool = false
     @Published var isWithinReportRange: Bool = false
+    @Published var isOnCooldown: Bool = false
+    @Published var cooldownRemaining: TimeInterval = 0
     @Published var venueDetailsFull: VenueDetailsFull?
 
     // MARK: - Private
 
     let venue: Venue
     private let busynessEngine = BusynessEngine.shared
+    private var cooldownTask: Task<Void, Never>?
 
     // MARK: - Init
 
@@ -133,10 +136,52 @@ final class VenueDetailViewModel: ObservableObject {
         return userLocation.distance(from: venueLocation)
     }
 
+    // MARK: - Cooldown
+
+    /// Check local report history for an active cooldown on this venue.
+    func checkCooldown(reportHistory: [ReportHistoryEntry]) {
+        guard let lastReport = reportHistory.first(where: { $0.venueId == venue.id }) else {
+            clearCooldown()
+            return
+        }
+        let elapsed = Date().timeIntervalSince(lastReport.timestamp)
+        let remaining = AppConstants.reportCooldown - elapsed
+        if remaining > 0 {
+            startCooldown(remaining: remaining)
+        } else {
+            clearCooldown()
+        }
+    }
+
+    private func startCooldown(remaining: TimeInterval) {
+        isOnCooldown = true
+        cooldownRemaining = remaining
+        cooldownTask?.cancel()
+        cooldownTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                cooldownRemaining -= 1
+                if cooldownRemaining <= 0 {
+                    clearCooldown()
+                    return
+                }
+            }
+        }
+    }
+
+    private func clearCooldown() {
+        isOnCooldown = false
+        cooldownRemaining = 0
+        cooldownTask?.cancel()
+        cooldownTask = nil
+    }
+
     // MARK: - Submit Report
 
     func submitReport(level: BusynessLevel, waitMinutes: Int?) async {
         // 1. Optimistic update — reflect the report INSTANTLY in the UI
+        let previousEstimate = estimate
         let newReportCount = estimate.reportCount + 1
         let confidence: BusynessConfidence = newReportCount >= AppConstants.highConfidenceReportCount
             ? .high : .low
@@ -152,26 +197,39 @@ final class VenueDetailViewModel: ObservableObject {
         )
         reportSubmitted = true
 
+        // Start cooldown immediately for responsive UI
+        startCooldown(remaining: AppConstants.reportCooldown)
+
         // 2. Send to API in background — don't block UI
-        Task.detached { [venue] in
+        let venueSnapshot = venue
+        let rollbackEstimate = previousEstimate
+        Task.detached { [weak self] in
             do {
                 try await ReportService.shared.submitReport(
-                    venue: venue,
+                    venue: venueSnapshot,
                     level: level,
                     waitMinutes: waitMinutes
                 )
                 await MainActor.run {
                     NotificationCenter.default.post(
                         name: .reportSubmitted,
-                        object: venue.id,
+                        object: venueSnapshot.id,
                         userInfo: [
-                            "venueName": venue.name,
-                            "venueType": venue.category.rawValue,
+                            "venueId": venueSnapshot.id,
+                            "venueName": venueSnapshot.name,
+                            "venueType": venueSnapshot.category.rawValue,
                             "busynessLevel": level.rawValue,
                         ]
                     )
                 }
-                Log.reports.info("Report submitted successfully for \(venue.id, privacy: .public)")
+                Log.reports.info("Report submitted successfully for \(venueSnapshot.id, privacy: .public)")
+            } catch APIError.rateLimited {
+                // Backend rejected due to cooldown — roll back optimistic update
+                await MainActor.run {
+                    self?.estimate = rollbackEstimate
+                    self?.reportSubmitted = false
+                }
+                Log.reports.notice("Report cooldown active for \(venueSnapshot.id, privacy: .public)")
             } catch {
                 Log.reports.error("Report submission failed: \(error.localizedDescription)")
             }

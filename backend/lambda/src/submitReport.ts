@@ -1,12 +1,14 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, REPORTS_TABLE, venueKey, fusedSK, deleteItem } from "./db";
 import {
   USERS_TABLE,
   REPORT_TTL_SECONDS,
+  REPORT_COOLDOWN_SECONDS,
   SubmitReportBody,
   created,
   badRequest,
+  tooManyRequests,
   serverError,
   getUserId,
 } from "./shared";
@@ -50,6 +52,37 @@ export async function handler(
     }
 
     const now = Date.now();
+
+    // Cooldown check: reject if the same user reported this venue within 30 minutes
+    const cooldownCutoff = now - REPORT_COOLDOWN_SECONDS * 1000;
+    const recentByUser = await ddb.send(
+      new QueryCommand({
+        TableName: REPORTS_TABLE,
+        KeyConditionExpression: "venueId = :vid AND #ts > :cutoff",
+        FilterExpression: "userId = :uid",
+        ExpressionAttributeNames: { "#ts": "timestamp" },
+        ExpressionAttributeValues: {
+          ":vid": venueId,
+          ":cutoff": cooldownCutoff,
+          ":uid": userId,
+        },
+        ScanIndexForward: false,
+      })
+    );
+
+    if (recentByUser.Items && recentByUser.Items.length > 0) {
+      const lastTimestamp = recentByUser.Items[0].timestamp as number;
+      const retryAfter = Math.ceil(
+        REPORT_COOLDOWN_SECONDS - (now - lastTimestamp) / 1000
+      );
+      log.info("Cooldown active", { venueId, userId, retryAfter });
+      return tooManyRequests({
+        error: "COOLDOWN_ACTIVE",
+        message: "You reported this venue recently. Please wait before reporting again.",
+        retryAfter,
+      });
+    }
+
     const reportId = `${venueId}_${now}_${userId.slice(0, 8)}`;
     const ttl = Math.floor(now / 1000) + REPORT_TTL_SECONDS;
 

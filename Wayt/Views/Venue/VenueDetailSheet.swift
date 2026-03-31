@@ -59,6 +59,7 @@ struct VenueDetailSheet: View {
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
     @EnvironmentObject private var tabSelection: TabSelection
     @EnvironmentObject private var mapViewModel: MapViewModel
+    @EnvironmentObject private var profileViewModel: ProfileViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showAuthGate = false
     @State private var lookAroundScene: MKLookAroundScene?
@@ -118,6 +119,7 @@ struct VenueDetailSheet: View {
         }
         .task {
             viewModel.updateProximity(userLocation: locationService.userLocation)
+            viewModel.checkCooldown(reportHistory: profileViewModel.reportHistory)
             async let reportsTask: () = viewModel.loadReports()
             async let lookAroundTask: () = fetchLookAroundScene()
             _ = await (reportsTask, lookAroundTask)
@@ -314,6 +316,17 @@ struct VenueDetailSheet: View {
                     .background(Color(.systemGray4))
                     .foregroundStyle(WaytTheme.secondaryText)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if viewModel.isOnCooldown {
+                Label(
+                    "Report again in \(formattedCooldown(viewModel.cooldownRemaining))",
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .font(WaytTheme.bodyBoldFont)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color(.systemGray4))
+                .foregroundStyle(WaytTheme.secondaryText)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             } else if viewModel.isWithinReportRange {
                 Button {
                     if authState.isSignedIn {
@@ -499,6 +512,13 @@ struct VenueDetailSheet: View {
         } else {
             return "\(Int(meters))m"
         }
+    }
+
+    private func formattedCooldown(_ seconds: TimeInterval) -> String {
+        let totalSeconds = max(0, Int(seconds))
+        let mins = totalSeconds / 60
+        let secs = totalSeconds % 60
+        return mins > 0 ? "\(mins)m \(secs)s" : "\(secs)s"
     }
 
     private func fetchLookAroundScene() async {
