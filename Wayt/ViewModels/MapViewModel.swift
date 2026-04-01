@@ -107,6 +107,7 @@ final class MapViewModel: ObservableObject {
     internal var lastSearchedRegion: MKCoordinateRegion?
     private var searchTask: Task<Void, Never>?
     private var refreshTimer: Task<Void, Never>?
+    private var lastFullRefreshDate: Date = .distantPast
     private var hoursTransitionTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
     private var followUpTask: Task<Void, Never>?
@@ -575,14 +576,17 @@ final class MapViewModel: ObservableObject {
 
     // MARK: - Live Refresh
 
-    /// Start periodic background refresh of busyness data (every 60s).
-    /// Only refreshes report overlay — doesn't re-search MapKit.
     func startLiveRefresh() {
         // Prevent duplicate timers if .task re-fires on tab return
         guard refreshTimer == nil else { return }
         refreshTimer = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(AppConstants.liveRefreshInterval))
+                // Adaptive interval: use the shortest backend hint, clamped to safe bounds
+                let interval = fusionService.minimumRefreshInterval()
+                    .map { max(AppConstants.minAdaptiveRefreshInterval, min(AppConstants.maxAdaptiveRefreshInterval, $0)) }
+                    ?? AppConstants.liveRefreshInterval
+
+                try? await Task.sleep(for: .seconds(interval))
                 guard !Task.isCancelled else { break }
 
                 // Skip refresh if app is backgrounded (saves battery + data)
@@ -594,13 +598,48 @@ final class MapViewModel: ObservableObject {
                     fusionService.invalidateCache()
                 }
 
+                let timeSinceFullRefresh = Date().timeIntervalSince(lastFullRefreshDate)
+                if timeSinceFullRefresh >= AppConstants.liveRefreshInterval {
+                    // Periodic full refresh for all venues (every 120s regardless of adaptive interval)
+                    var updated = venues
+                    await overlayBusynessData(on: &updated, region: region)
+                    venues = updated
+                    recomputeClusters()
+                    lastFullRefreshDate = Date()
+                } else if interval < AppConstants.maxAdaptiveRefreshInterval {
+                    // Short interval = active venues exist. Only refresh those.
+                    await refreshActiveVenues(region: region)
+                }
+                scheduleHoursTransitionRefresh()
+                Log.map.debug("Live refresh complete (interval: \(interval)s)")
+            }
+        }
+    }
+
+    // Avoids re-fetching all 50+ venues when only 1-2 have active reports.
+    private func refreshActiveVenues(region: MKCoordinateRegion) async {
+        let staleVenueIds = Set(fusionService.venueIdsNeedingRefresh())
+        guard !staleVenueIds.isEmpty else { return }
+
+        let staleVenues = venues.filter { staleVenueIds.contains($0.id) }
+        guard !staleVenues.isEmpty else { return }
+
+        let venueInfos = staleVenues.map { VenueInfo(venue: $0) }
+        do {
+            let refreshed = try await fusionService.fetchMissingEstimates(
+                lat: region.center.latitude,
+                lng: region.center.longitude,
+                radius: searchRadius(for: region),
+                venues: venueInfos
+            )
+            if !refreshed.isEmpty {
                 var updated = venues
-                await overlayBusynessData(on: &updated, region: region)
+                applyFusedEstimates(refreshed, to: &updated)
                 venues = updated
                 recomputeClusters()
-                scheduleHoursTransitionRefresh()
-                Log.map.debug("Live refresh complete")
             }
+        } catch {
+            Log.map.notice("Active venue refresh failed: \(error.localizedDescription)")
         }
     }
 

@@ -73,6 +73,13 @@ nonisolated enum AppConstants {
 
     // MARK: - Live Refresh
 
-    /// How often the map auto-refreshes busyness data (seconds)
+    /// Default refresh interval when no adaptive hint is available (seconds)
     static let liveRefreshInterval: TimeInterval = 120 // every 2 minutes
+
+    // MARK: - Adaptive Refresh
+
+    /// Minimum adaptive refresh interval (seconds). Prevents excessive polling / battery drain.
+    static let minAdaptiveRefreshInterval: TimeInterval = 15
+    /// Maximum adaptive refresh interval (seconds). Same as default live refresh.
+    static let maxAdaptiveRefreshInterval: TimeInterval = 120
 }

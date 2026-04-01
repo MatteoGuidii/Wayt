@@ -6,8 +6,10 @@ import { createLogger } from "../logger";
 /** How far back to look for reports (2 hours, matching the DynamoDB TTL). */
 const MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
-/** Cache aggregated report signal for 5 minutes to avoid re-scanning reports on every request. */
+/** Default cache TTL for aggregated report signal (5 minutes). */
 const AGGREGATION_CACHE_TTL_SECONDS = 5 * 60;
+/** Shorter cache TTL for high-activity venues (3+ reports) to support faster client refresh. */
+const HIGH_ACTIVITY_CACHE_TTL_SECONDS = 2 * 60;
 const REPORT_AGG_SK = "SIGNAL#user_reports_agg";
 
 /**
@@ -113,13 +115,13 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
       waitMinutes: avgWait,
     };
 
-    // Cache the aggregated signal for 5 minutes
+    const cacheTtl = reportCount >= 3 ? HIGH_ACTIVITY_CACHE_TTL_SECONDS : AGGREGATION_CACHE_TTL_SECONDS;
     const nowSeconds = Math.floor(now / 1000);
     await putItem({
       PK: venueKey(venueId),
       SK: REPORT_AGG_SK,
       ...signal,
-      ttl: nowSeconds + AGGREGATION_CACHE_TTL_SECONDS,
+      ttl: nowSeconds + cacheTtl,
     }).catch(() => {
       // Non-critical: if cache write fails, next request will re-aggregate
     });

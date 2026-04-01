@@ -141,6 +141,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
           sources: ["foursquare"],
           conflictDetected: false,
           computedAt: new Date(nowMs).toISOString(),
+          refreshAfterSeconds: 120,
           isOpen: openStatus?.isOpen ?? null,
           hoursToday: openStatus?.hoursToday ?? null,
           businessStatus: openStatus?.businessStatus ?? null,

@@ -117,12 +117,16 @@ export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEsti
   // Step 5: Confidence mapping
   const confidence = computeConfidence(weighted, conflictDetected);
 
+  // Step 6: Adaptive refresh hint
+  const refreshAfterSeconds = computeRefreshHint(reportSignal, now);
+
   log.debug("Fusion result", {
     venueId,
     busynessScore: Math.round(busynessScore * 1000) / 1000,
     confidence,
     totalEffectiveWeight: Math.round(totalWeight * 1000) / 1000,
     conflictDetected,
+    refreshAfterSeconds,
   });
 
   return {
@@ -135,6 +139,7 @@ export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEsti
     sources: signals.map((s) => s.sourceId),
     conflictDetected,
     computedAt: new Date(now).toISOString(),
+    refreshAfterSeconds,
   };
 }
 
@@ -187,6 +192,36 @@ export function foursquareConfidenceLevel(numericConfidence: number): Confidence
   return numericConfidence >= 0.6 ? "MEDIUM" : "LOW";
 }
 
+/** Default refresh interval for venues with no active reports. */
+const DEFAULT_REFRESH_SECONDS = 120;
+/** Minimum refresh interval to prevent excessive client polling. */
+const MIN_REFRESH_SECONDS = 15;
+/** Reports newer than this (minutes) trigger a recency boost (halved interval). */
+const RECENCY_THRESHOLD_MINUTES = 15;
+
+/**
+ * Compute a suggested client-side refresh interval based on report activity.
+ * More reports + fresher reports = shorter interval.
+ */
+function computeRefreshHint(reportSignal: VenueSignal | undefined, now: number): number {
+  const reportCount = reportSignal?.reportCount ?? 0;
+  const newestReportAgeMinutes = reportSignal
+    ? (now - reportSignal.timestamp) / 60_000
+    : Infinity;
+
+  let interval: number;
+  if (reportCount >= 3) interval = 30;
+  else if (reportCount >= 2) interval = 60;
+  else if (reportCount >= 1) interval = 90;
+  else return DEFAULT_REFRESH_SECONDS;
+
+  if (newestReportAgeMinutes < RECENCY_THRESHOLD_MINUTES) {
+    interval = Math.floor(interval / 2);
+  }
+
+  return Math.max(MIN_REFRESH_SECONDS, interval);
+}
+
 /** Produce an empty/default estimate when no signals are available. */
 export function emptyEstimate(venueId: string): FusedEstimate {
   if (venueId) {
@@ -203,6 +238,7 @@ export function emptyEstimate(venueId: string): FusedEstimate {
     sources: [],
     conflictDetected: false,
     computedAt: new Date().toISOString(),
+    refreshAfterSeconds: DEFAULT_REFRESH_SECONDS,
     businessStatus: null,
   };
 }

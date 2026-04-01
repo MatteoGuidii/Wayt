@@ -56,6 +56,7 @@ export async function handler(
           sources: cached.sources as string[],
           conflictDetected: cached.conflictDetected as boolean,
           computedAt: cached.computedAt as string,
+          refreshAfterSeconds: (cached.refreshAfterSeconds as number | undefined) ?? 120,
           isOpen: (cached.isOpen as boolean | null) ?? null,
           hoursToday: (cached.hoursToday as string | null) ?? null,
           businessStatus: (cached.businessStatus as FusedEstimate["businessStatus"]) ?? null,

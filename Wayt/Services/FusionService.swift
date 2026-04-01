@@ -21,6 +21,8 @@ final class FusionService {
     private var cachedLat: Double = .nan
     private var cachedLng: Double = .nan
 
+    private var venueRefreshHints: [String: (hint: TimeInterval, lastRefreshed: Date)] = [:]
+
     private func isCacheValid(lat: Double, lng: Double) -> Bool {
         guard Date().timeIntervalSince(cacheTimestamp) < AppConstants.reportCacheTTL else {
             return false
@@ -95,6 +97,7 @@ final class FusionService {
         for estimate in response.venues {
             if let venueId = estimate.venueId {
                 indexed[venueId] = estimate
+                storeRefreshHint(from: estimate)
             }
         }
 
@@ -145,6 +148,7 @@ final class FusionService {
         for estimate in response.venues {
             if let venueId = estimate.venueId {
                 indexed[venueId] = estimate
+                storeRefreshHint(from: estimate)
             }
         }
 
@@ -202,6 +206,26 @@ final class FusionService {
         return result
     }
 
+    // MARK: - Adaptive Refresh Hints
+
+    private func storeRefreshHint(from estimate: FusedEstimateResponse) {
+        guard let venueId = estimate.venueId,
+              let hint = estimate.refreshAfterSeconds else { return }
+        venueRefreshHints[venueId] = (hint: TimeInterval(hint), lastRefreshed: Date())
+    }
+
+    func minimumRefreshInterval() -> TimeInterval? {
+        guard !venueRefreshHints.isEmpty else { return nil }
+        return venueRefreshHints.values.map(\.hint).min()
+    }
+
+    func venueIdsNeedingRefresh() -> [String] {
+        let now = Date()
+        return venueRefreshHints.compactMap { venueId, entry in
+            now.timeIntervalSince(entry.lastRefreshed) >= entry.hint ? venueId : nil
+        }
+    }
+
     // MARK: - Cache Control
 
     func invalidateCache() {
@@ -209,6 +233,7 @@ final class FusionService {
         nearbyCache = [:]
         cacheAccessOrder = []
         cacheTimestamp = .distantPast
+        venueRefreshHints = [:]
     }
 
     /// Invalidate the cached estimate for a single venue and force a re-fetch.
@@ -218,6 +243,7 @@ final class FusionService {
     func invalidateCacheForVenue(_ venueId: String) {
         nearbyCache.removeValue(forKey: venueId)
         cacheAccessOrder.removeAll { $0 == venueId }
+        venueRefreshHints[venueId] = nil
         cacheTimestamp = .distantPast
         Log.fusion.debug("Invalidated cache for venue: \(venueId, privacy: .public)")
     }

@@ -43,6 +43,8 @@ export interface FusedEstimate {
   conflictDetected: boolean;
   /** ISO timestamp of when this estimate was computed. */
   computedAt: string;
+  /** Suggested client-side refresh interval in seconds. Lower = more active venue. */
+  refreshAfterSeconds: number;
   /** Whether the venue is currently open (from Google Places hours). null = unknown. */
   isOpen?: boolean | null;
   /** Today's operating hours for display (e.g. "11:00 AM – 10:00 PM"). null = unknown. */
