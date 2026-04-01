@@ -42,4 +42,4 @@ paths:
 - One primary type per file
 - Extensions for protocol conformances in the same file
 - Group: properties, init, public methods, private methods
-- Keep files under 300 lines — extract when larger
+- Keep files under 600 lines — extract when larger (core ViewModels may exceed this when justified)

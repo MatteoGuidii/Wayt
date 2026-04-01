@@ -50,3 +50,9 @@ Before writing new code:
 2. Is there a Swift/system framework for it?
 3. Can an existing service/utility be extended?
 4. Only then: write new code
+
+## Incremental Development
+- Write minimal implementation to satisfy each requirement — don't build everything at once
+- Functions should remain under 80 lines; files under 600 lines (large ViewModels like MapViewModel may exceed this when justified)
+- When adding a new feature, wire up the smallest working slice first, verify it compiles, then layer on
+- Extract utilities from large modules proactively — don't let files grow past limits

@@ -10,11 +10,28 @@ paths:
 - Understand the current pattern before changing it
 - For non-trivial features, use `/plan` first
 
+## Plan Before Execute
+- Complex changes must be broken into deliberate phases — never jump straight into a large implementation
+- For non-trivial features, create a phased plan:
+  - **Phase 1 — Minimum viable:** smallest slice that provides value and compiles
+  - **Phase 2 — Core experience:** complete the happy path
+  - **Phase 3 — Edge cases:** error handling, edge cases, polish
+  - **Phase 4 — Optimization:** performance, monitoring, cleanup
+- Each phase must be independently compilable and testable — avoid plans that require all phases to complete before anything works
+- Red flags in a plan: phases that can't be delivered independently, steps that aren't verifiable, changes spanning too many files at once
+
 ## During Implementation
+- **Think incrementally** — each step should be verifiable before moving to the next
 - Make the smallest change that works
 - Test incrementally — don't write 500 lines then hope it compiles
 - Keep commits focused — one logical change per commit
 - If an approach isn't working after 2-3 attempts, stop and reconsider
+
+## Verification Checkpoints
+- After completing each function or component, verify it builds (`xcodebuild` or Xcode)
+- Before moving to the next task, confirm the current one works
+- Run verification after every major change — don't batch verification to the end
+- If a step breaks the build, fix it before proceeding — never stack changes on a broken foundation
 
 ## API Cost Awareness
 - Foursquare: raw data cached 30 days, computed scores 10 min — don't bust caches unnecessarily
