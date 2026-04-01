@@ -581,8 +581,7 @@ final class MapViewModel: ObservableObject {
         guard refreshTimer == nil else { return }
         refreshTimer = Task {
             while !Task.isCancelled {
-                // Adaptive interval: use the shortest backend hint, clamped to safe bounds
-                let interval = fusionService.minimumRefreshInterval()
+                let interval = fusionService.secondsUntilNextRefresh()
                     .map { max(AppConstants.minAdaptiveRefreshInterval, min(AppConstants.maxAdaptiveRefreshInterval, $0)) }
                     ?? AppConstants.liveRefreshInterval
 

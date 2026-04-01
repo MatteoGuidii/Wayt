@@ -193,7 +193,7 @@ export function foursquareConfidenceLevel(numericConfidence: number): Confidence
 }
 
 /** Default refresh interval for venues with no active reports. */
-const DEFAULT_REFRESH_SECONDS = 120;
+export const DEFAULT_REFRESH_SECONDS = 120;
 /** Minimum refresh interval to prevent excessive client polling. */
 const MIN_REFRESH_SECONDS = 15;
 /** Reports newer than this (minutes) trigger a recency boost (halved interval). */

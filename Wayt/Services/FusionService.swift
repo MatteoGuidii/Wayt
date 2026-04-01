@@ -214,9 +214,12 @@ final class FusionService {
         venueRefreshHints[venueId] = (hint: TimeInterval(hint), lastRefreshed: Date())
     }
 
-    func minimumRefreshInterval() -> TimeInterval? {
+    func secondsUntilNextRefresh() -> TimeInterval? {
         guard !venueRefreshHints.isEmpty else { return nil }
-        return venueRefreshHints.values.map(\.hint).min()
+        let now = Date()
+        return venueRefreshHints.values
+            .map { max(0, $0.lastRefreshed.addingTimeInterval($0.hint).timeIntervalSince(now)) }
+            .min()
     }
 
     func venueIdsNeedingRefresh() -> [String] {

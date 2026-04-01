@@ -8,7 +8,7 @@ import {
 } from "./signals/foursquare";
 import { getGoogleHoursData, isOpenNow, GoogleHoursResult } from "./signals/google";
 import { CachedVenueDetails, classifyVenueCategory } from "./signals/types";
-import { foursquareConfidenceLevel } from "./signals/fusion";
+import { foursquareConfidenceLevel, DEFAULT_REFRESH_SECONDS } from "./signals/fusion";
 
 /**
  * Async background Lambda invoked by getNearbyVenues for ALL missing venues.
@@ -141,7 +141,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
           sources: ["foursquare"],
           conflictDetected: false,
           computedAt: new Date(nowMs).toISOString(),
-          refreshAfterSeconds: 120,
+          refreshAfterSeconds: DEFAULT_REFRESH_SECONDS,
           isOpen: openStatus?.isOpen ?? null,
           hoursToday: openStatus?.hoursToday ?? null,
           businessStatus: openStatus?.businessStatus ?? null,

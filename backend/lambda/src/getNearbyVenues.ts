@@ -4,7 +4,7 @@ import { queryNearbyFused, batchGetItems } from "./db";
 import { haversineDistance, success, badRequest, serverError } from "./shared";
 import { FusedEstimate, classifyVenueCategory } from "./signals/types";
 import { ComputeInput } from "./computeVenueBusyness";
-import { emptyEstimate, foursquareConfidenceLevel } from "./signals/fusion";
+import { emptyEstimate, foursquareConfidenceLevel, DEFAULT_REFRESH_SECONDS } from "./signals/fusion";
 import { computeTimeAwareBusyness } from "./signals/foursquare";
 import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod } from "./signals/google";
 import { createLogger } from "./logger";
@@ -85,7 +85,7 @@ export async function handler(
         sources: item.sources as string[],
         conflictDetected: item.conflictDetected as boolean,
         computedAt: item.computedAt as string,
-        refreshAfterSeconds: (item.refreshAfterSeconds as number | undefined) ?? 120,
+        refreshAfterSeconds: (item.refreshAfterSeconds as number | undefined) ?? DEFAULT_REFRESH_SECONDS,
         isOpen: (item.isOpen as boolean | null) ?? null,
         hoursToday: (item.hoursToday as string | null) ?? null,
         businessStatus: (item.businessStatus as FusedEstimate["businessStatus"]) ?? null,
@@ -131,6 +131,16 @@ export async function handler(
       // into the single-venue detail view (getVenueBusyness endpoint).
       // This avoids up to 10 Enterprise-tier Place Details calls ($25/1K)
       // on every /v1/venues/nearby request.
+    }
+
+    // Step 1c: Detect stale cached signals (refreshAfterSeconds elapsed).
+    // Still returned to client; dispatched to background for recomputation below.
+    const staleVenueIds = new Set<string>();
+    for (const [venueId, estimate] of nearbyFused) {
+      const ageSeconds = (nowMs - new Date(estimate.computedAt).getTime()) / 1000;
+      if (ageSeconds > estimate.refreshAfterSeconds) {
+        staleVenueIds.add(venueId);
+      }
     }
 
     // Step 2: Fast inline path for warm venues (have cached Foursquare raw data)
@@ -183,7 +193,7 @@ export async function handler(
             sources: ["foursquare"],
             conflictDetected: false,
             computedAt: new Date(nowMs).toISOString(),
-            refreshAfterSeconds: 120,
+            refreshAfterSeconds: DEFAULT_REFRESH_SECONDS,
             isOpen: openStatus?.isOpen ?? null,
             hoursToday: openStatus?.hoursToday ?? null,
             businessStatus: googleData ? (googleData.businessStatus as FusedEstimate["businessStatus"]) ?? null : null,
@@ -206,34 +216,6 @@ export async function handler(
       // Cold venues: no FSQDATA cached at all
       const coldVenues = missing.filter((v) => !fsqDataMap.has(v.venueId));
       coldCount = coldVenues.length;
-
-      // Dispatch ALL missing venues to background for full computation + DynamoDB
-      // cache writes. Even warm venues computed inline above need background
-      // processing to persist their fused estimates (inline path does no writes).
-      // Duplicate Google API calls are avoided by getGoogleHoursData()'s built-in
-      // GDATA cache — if the background Lambda already wrote GDATA, subsequent
-      // calls from progressive refreshes will be cache hits (DynamoDB read only).
-      if (BACKGROUND_FUNCTION && missing.length > 0) {
-        try {
-          await lambdaClient.send(
-            new InvokeCommand({
-              FunctionName: BACKGROUND_FUNCTION,
-              InvocationType: "Event",
-              Payload: Buffer.from(
-                JSON.stringify({
-                  venues: missing,
-                  timezone,
-                  centerLat: lat,
-                  centerLng: lng,
-                  radius,
-                })
-              ),
-            })
-          );
-        } catch (err) {
-          log.error("Failed to dispatch missing venues", { count: missing.length }, err);
-        }
-      }
 
       // For cold venues, use area-average score instead of generic 0.5
       // This gives meaningful colors based on surrounding venues with real data
@@ -261,6 +243,33 @@ export async function handler(
       }
     }
 
+    // Dispatch missing + stale venues to background. Missing venues need initial
+    // computation + DynamoDB writes; stale venues need fresh report data.
+    const staleFromRequest = clientVenues.filter((v) => staleVenueIds.has(v.venueId));
+    const toDispatch = [...missing, ...staleFromRequest];
+
+    if (BACKGROUND_FUNCTION && toDispatch.length > 0) {
+      try {
+        await lambdaClient.send(
+          new InvokeCommand({
+            FunctionName: BACKGROUND_FUNCTION,
+            InvocationType: "Event",
+            Payload: Buffer.from(
+              JSON.stringify({
+                venues: toDispatch,
+                timezone,
+                centerLat: lat,
+                centerLng: lng,
+                radius,
+              })
+            ),
+          })
+        );
+      } catch (err) {
+        log.error("Failed to dispatch venues for recomputation", { count: toDispatch.length }, err);
+      }
+    }
+
     // Step 3: Return results immediately
     const venues = Array.from(nearbyFused.values());
 
@@ -268,7 +277,8 @@ export async function handler(
       venueCount: venues.length,
       cached: venues.length - missing.length,
       inlineComputed: inlineCount,
-      dispatched: missing.length,
+      dispatched: toDispatch.length,
+      staleRefreshed: staleFromRequest.length,
       cold: coldCount,
     });
     return success({ venues });
