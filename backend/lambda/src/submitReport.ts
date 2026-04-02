@@ -7,6 +7,9 @@ import {
   REPORT_COOLDOWN_SECONDS,
   REPORT_MAX_DISTANCE_M,
   DAILY_REPORT_CAP,
+  DEFAULT_TRUST_SCORE,
+  NEW_ACCOUNT_TRUST_SCORE,
+  NEW_ACCOUNT_THRESHOLD_MS,
   SubmitReportBody,
   created,
   badRequest,
@@ -166,7 +169,11 @@ export async function handler(
       })
     );
 
-    // Increment user's report count + daily counter (atomic)
+    // Increment user's report count + daily counter + initialize trust score
+    const joinedAt = userProfile?.joinedAt as string | undefined;
+    const isNewAccount = !joinedAt || (now - new Date(joinedAt).getTime()) < NEW_ACCOUNT_THRESHOLD_MS;
+    const initialTrust = isNewAccount ? NEW_ACCOUNT_TRUST_SCORE : DEFAULT_TRUST_SCORE;
+
     await ddb.send(
       new UpdateCommand({
         TableName: USERS_TABLE,
@@ -175,6 +182,7 @@ export async function handler(
           "SET totalReports = if_not_exists(totalReports, :zero) + :one, " +
           "username = if_not_exists(username, :name), " +
           "joinedAt = if_not_exists(joinedAt, :now), " +
+          "trustScore = if_not_exists(trustScore, :initTrust), " +
           "dailyReportCount = :newDailyCount, " +
           "dailyReportDate = :today",
         ExpressionAttributeValues: {
@@ -182,6 +190,7 @@ export async function handler(
           ":one": 1,
           ":name": userId.slice(0, 8),
           ":now": new Date().toISOString(),
+          ":initTrust": initialTrust,
           ":newDailyCount": dailyCount + 1,
           ":today": today,
         },

@@ -21,6 +21,18 @@ export const REPORT_MAX_DISTANCE_M = 300;
 export const DAILY_REPORT_CAP = 30;
 
 // -----------------------------------------------
+// Trust Score
+// -----------------------------------------------
+
+export const DEFAULT_TRUST_SCORE = 0.5;
+export const NEW_ACCOUNT_TRUST_SCORE = 0.3;
+export const NEW_ACCOUNT_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+export const TRUST_CORROBORATION_REWARD = 0.03;
+export const TRUST_OUTLIER_PENALTY = 0.06;
+export const TRUST_FLOOR = 0.1;
+export const TRUST_CAP = 1.0;
+
+// -----------------------------------------------
 // Types
 // -----------------------------------------------
 
