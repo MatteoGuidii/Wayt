@@ -173,7 +173,7 @@ function computeConfidence(
 
   // Single source: depends on quality
   const single = weighted[0];
-  if (single.signal.sourceId === "user_reports" && (single.signal.reportCount ?? 0) >= 3) {
+  if (single.signal.sourceId === "user_reports" && (single.signal.reportCount ?? 0) >= 2) {
     return "MEDIUM";
   }
   if (single.signal.sourceId === "foursquare" && single.signal.confidence >= 0.6) {

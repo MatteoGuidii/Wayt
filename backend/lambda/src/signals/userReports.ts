@@ -131,7 +131,7 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
     const reportCount = items.length;
 
     // Confidence: higher with more reports
-    const confidence = reportCount >= 3 ? 0.9 : reportCount >= 2 ? 0.7 : 0.5;
+    const confidence = reportCount >= 3 ? 0.9 : reportCount >= 2 ? 0.7 : 0.4;
 
     const signal: VenueSignal = {
       sourceId: "user_reports",
