@@ -34,20 +34,24 @@ final class AuthState: ObservableObject {
             let session = try await Amplify.Auth.fetchAuthSession()
             if session.isSignedIn {
                 let user = try await Amplify.Auth.getCurrentUser()
-                username = user.username
-                isSignedIn = true
+                setSession(signedIn: true, username: user.username)
                 Log.auth.info("Session valid, user signed in")
             } else {
-                isSignedIn = false
-                username = nil
+                setSession(signedIn: false, username: nil)
                 Log.auth.info("No active session, guest mode")
             }
         } catch {
             // No valid session — stay in guest mode
-            isSignedIn = false
-            username = nil
+            setSession(signedIn: false, username: nil)
             Log.auth.notice("Session check failed, defaulting to guest mode: \(error.localizedDescription)")
         }
+    }
+
+    /// Updates session state only when values actually change, preventing
+    /// spurious objectWillChange notifications that re-render the auth UI.
+    private func setSession(signedIn: Bool, username: String?) {
+        if self.isSignedIn != signedIn { self.isSignedIn = signedIn }
+        if self.username != username { self.username = username }
     }
 
     /// Called after successful Amplify sign-in/sign-up.

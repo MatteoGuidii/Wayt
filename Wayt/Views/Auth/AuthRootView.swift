@@ -15,6 +15,8 @@ struct AuthRootView: View {
     @State private var screen: Screen = .onboarding
     /// Once true, MainTabView stays in the tree forever — auth overlays on top.
     @State private var hasEnteredBrowsing = false
+    /// Once true, authenticator stays in the tree so Amplify form state is never lost.
+    @State private var hasShownAuthenticator = false
 
     var body: some View {
         ZStack {
@@ -24,7 +26,9 @@ struct AuthRootView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
 
-            if screen == .onboarding {
+            // Onboarding — always in tree once created, hidden via opacity to avoid
+            // destroying state if user swipes back quickly.
+            if !hasCompletedOnboarding {
                 OnboardingView(
                     onGetStarted: {
                         hasCompletedOnboarding = true
@@ -34,17 +38,25 @@ struct AuthRootView: View {
                         }
                     },
                     onLogIn: {
+                        hasShownAuthenticator = true
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                             screen = .authenticator
                         }
                     }
                 )
-                .transition(.opacity.combined(with: .move(edge: .leading)))
+                .zIndex(1)
+                .opacity(screen == .onboarding ? 1 : 0)
+                .allowsHitTesting(screen == .onboarding)
+                .animation(.easeOut(duration: 0.3), value: screen)
             }
 
-            if screen == .authenticator {
+            if hasShownAuthenticator {
                 authenticatorView
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    .zIndex(2)
+                    .opacity(screen == .authenticator ? 1 : 0)
+                    .allowsHitTesting(screen == .authenticator)
+                    .accessibilityHidden(screen != .authenticator)
+                    .animation(.easeOut(duration: 0.3), value: screen)
             }
         }
         .onAppear {
@@ -56,6 +68,7 @@ struct AuthRootView: View {
 
             // Let any child trigger sign-in from guest mode
             authState.onRequestSignIn = { [self] in
+                hasShownAuthenticator = true
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                     screen = .authenticator
                 }
@@ -144,7 +157,7 @@ private struct AuthHeaderView: View {
         .frame(maxHeight: keyboardVisible ? 0 : nil)
         .clipped()
         .opacity(keyboardVisible ? 0 : 1)
-        .animation(.easeOut(duration: 0.2), value: keyboardVisible)
+        .animation(.easeOut(duration: 0.15), value: keyboardVisible)
         .onReceive(
             NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
         ) { _ in keyboardVisible = true }
