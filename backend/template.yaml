@@ -289,7 +289,6 @@ Resources:
       CodeUri: lambda/
       Handler: dist/getNearbyVenues.handler
       Timeout: 15
-      MemorySize: 512
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
@@ -330,7 +329,6 @@ Resources:
       CodeUri: lambda/
       Handler: dist/computeColdVenues.handler
       Timeout: 120
-      MemorySize: 512
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
@@ -349,7 +347,6 @@ Resources:
       CodeUri: lambda/
       Handler: dist/getVenueBusyness.handler
       Timeout: 15
-      MemorySize: 512
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
