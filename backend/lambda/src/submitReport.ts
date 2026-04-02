@@ -1,17 +1,21 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { ddb, REPORTS_TABLE, venueKey, fusedSK, deleteItem } from "./db";
+import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { ddb, REPORTS_TABLE, venueKey, fusedSK, getItem, deleteItem } from "./db";
 import {
   USERS_TABLE,
   REPORT_TTL_SECONDS,
   REPORT_COOLDOWN_SECONDS,
+  REPORT_MAX_DISTANCE_M,
+  DAILY_REPORT_CAP,
   SubmitReportBody,
   created,
   badRequest,
   tooManyRequests,
   serverError,
   getUserId,
+  haversineDistance,
 } from "./shared";
+import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod } from "./signals/google";
 import { encode } from "./geohash";
 import { createLogger } from "./logger";
 
@@ -83,6 +87,60 @@ export async function handler(
       });
     }
 
+    // Validation gates (parallel fetch to minimize latency)
+    const [fusedEntry, gdataEntry, userProfileResult] = await Promise.all([
+      getItem(venueKey(venueId), fusedSK()),
+      getItem(venueKey(venueId), "GDATA#CURRENT"),
+      ddb.send(new GetCommand({ TableName: USERS_TABLE, Key: { userId } })),
+    ]);
+    const userProfile = userProfileResult.Item;
+
+    // GPS proximity check
+    if (fusedEntry) {
+      const venueLat = fusedEntry.lat as number;
+      const venueLng = fusedEntry.lng as number;
+      if (venueLat != null && venueLng != null) {
+        const distance = haversineDistance(lat, lng, venueLat, venueLng);
+        if (distance > REPORT_MAX_DISTANCE_M) {
+          log.info("Report rejected: too far from venue", { venueId, distance: Math.round(distance) });
+          return badRequest("You appear too far from this venue to report");
+        }
+      }
+    }
+
+    // Daily report cap
+    const today = new Date(now).toISOString().slice(0, 10);
+    const dailyDate = (userProfile?.dailyReportDate as string | undefined) ?? "";
+    const dailyCount = dailyDate === today ? (userProfile?.dailyReportCount as number ?? 0) : 0;
+    if (dailyCount >= DAILY_REPORT_CAP) {
+      log.info("Report rejected: daily cap reached", { userId, dailyCount });
+      return tooManyRequests({
+        error: "DAILY_LIMIT_REACHED",
+        message: "You've reached the daily report limit. Try again tomorrow.",
+      });
+    }
+
+    // Closed-venue guard
+    if (gdataEntry) {
+      const businessStatus = gdataEntry.businessStatus as string | null;
+      if (businessStatus === "CLOSED_PERMANENTLY" || businessStatus === "CLOSED_TEMPORARILY") {
+        log.info("Report rejected: venue closed", { venueId, businessStatus });
+        return badRequest("This venue appears to be closed");
+      }
+      const cachedHours: CachedGoogleHours = {
+        businessStatus: (businessStatus as CachedGoogleHours["businessStatus"]) ?? null,
+        regularPeriods: (gdataEntry.regularPeriods as GoogleOpenPeriod[]) ?? [],
+        cachedAt: gdataEntry.cachedAt as string,
+      };
+      if (body.timezone && cachedHours.regularPeriods.length > 0) {
+        const openStatus = isOpenNow(cachedHours, now, body.timezone);
+        if (!openStatus.isOpen) {
+          log.info("Report rejected: venue currently closed", { venueId });
+          return badRequest("This venue appears to be closed right now");
+        }
+      }
+    }
+
     const reportId = `${venueId}_${now}_${userId.slice(0, 8)}`;
     const ttl = Math.floor(now / 1000) + REPORT_TTL_SECONDS;
 
@@ -108,18 +166,24 @@ export async function handler(
       })
     );
 
-    // Increment user's report count (atomic)
+    // Increment user's report count + daily counter (atomic)
     await ddb.send(
       new UpdateCommand({
         TableName: USERS_TABLE,
         Key: { userId },
         UpdateExpression:
-          "SET totalReports = if_not_exists(totalReports, :zero) + :one, username = if_not_exists(username, :name), joinedAt = if_not_exists(joinedAt, :now)",
+          "SET totalReports = if_not_exists(totalReports, :zero) + :one, " +
+          "username = if_not_exists(username, :name), " +
+          "joinedAt = if_not_exists(joinedAt, :now), " +
+          "dailyReportCount = :newDailyCount, " +
+          "dailyReportDate = :today",
         ExpressionAttributeValues: {
           ":zero": 0,
           ":one": 1,
           ":name": userId.slice(0, 8),
           ":now": new Date().toISOString(),
+          ":newDailyCount": dailyCount + 1,
+          ":today": today,
         },
       })
     );
