@@ -1,6 +1,7 @@
 import { BatchGetCommand, GetCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, REPORTS_TABLE, venueKey, getItem, putItem } from "../db";
-import { VenueSignal, SOURCE_CONFIG, normalizeLevel } from "./types";
+import { VenueSignal, SOURCE_CONFIG, normalizeLevel, classifyVenueCategory } from "./types";
+import { CachedFsqData, computeTimeAwareBusyness } from "./foursquare";
 import {
   USERS_TABLE,
   DEFAULT_TRUST_SCORE,
@@ -21,6 +22,12 @@ const AGGREGATION_CACHE_TTL_SECONDS = 5 * 60;
 /** Shorter cache TTL for high-activity venues (3+ reports) to support faster client refresh. */
 const HIGH_ACTIVITY_CACHE_TTL_SECONDS = 2 * 60;
 const REPORT_AGG_SK = "SIGNAL#user_reports_agg";
+
+/** Normalized score difference (0-1 scale) above which a report is considered implausible. ~3 levels on 1-5 scale. */
+const PLAUSIBILITY_THRESHOLD = 0.6;
+const PLAUSIBILITY_PENALTY = 0.5;
+/** Min Foursquare confidence to apply plausibility check — don't penalize against weak predictions. */
+const PLAUSIBILITY_MIN_CONFIDENCE = 0.4;
 
 /**
  * Aggregate user reports from the existing VenueReports table into a single
@@ -77,6 +84,9 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
 
     const trustScores = await fetchTrustScores(items, now);
 
+    const venueLng = items[0]?.lng as number | undefined;
+    const predictedScore = await getFoursquarePrediction(venueId, now, venueLng);
+
     // Compute weighted average with exponential decay
     let totalWeight = 0;
     let weightedBusyness = 0;
@@ -92,7 +102,14 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
       const ageMinutes = (now - ts) / 60_000;
 
       const trust = trustScores.get(userId) ?? DEFAULT_TRUST_SCORE;
-      const weight = Math.exp(-ageMinutes / 60) * trust;
+      let weight = Math.exp(-ageMinutes / 60) * trust;
+
+      if (predictedScore != null) {
+        const normalizedLevel = normalizeLevel(level);
+        if (Math.abs(normalizedLevel - predictedScore) > PLAUSIBILITY_THRESHOLD) {
+          weight *= PLAUSIBILITY_PENALTY;
+        }
+      }
 
       weightedBusyness += level * weight;
       totalWeight += weight;
@@ -153,6 +170,34 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
 }
 
 // -----------------------------------------------
+// Plausibility Helper
+// -----------------------------------------------
+
+async function getFoursquarePrediction(venueId: string, now: number, venueLng?: number): Promise<number | null> {
+  try {
+    const [fsqRaw, detailsRaw] = await Promise.all([
+      getItem(venueKey(venueId), "FSQDATA#CURRENT"),
+      getItem(venueKey(venueId), "GDETAILS#CURRENT"),
+    ]);
+    if (!fsqRaw) return null;
+
+    const data: CachedFsqData = {
+      popularity: (fsqRaw.popularity as number | null) ?? null,
+      rating: (fsqRaw.rating as number | null) ?? null,
+      hoursPopular: (fsqRaw.hoursPopular as CachedFsqData["hoursPopular"]) ?? [],
+    };
+    // Estimate timezone from longitude (±1hr, no DST — better than hardcoded UTC)
+    const offsetHours = venueLng != null ? Math.round(-venueLng / 15) : 0;
+    const tz = offsetHours === 0 ? "UTC" : `Etc/GMT${offsetHours > 0 ? "+" : ""}${offsetHours}`;
+    const category = classifyVenueCategory(detailsRaw?.primaryType as string | null);
+    const { score, confidence } = computeTimeAwareBusyness(data, now, tz, undefined, category);
+    return confidence >= PLAUSIBILITY_MIN_CONFIDENCE ? score : null;
+  } catch {
+    return null;
+  }
+}
+
+// -----------------------------------------------
 // Trust Score Helpers
 // -----------------------------------------------
 
@@ -204,6 +249,8 @@ const TRUST_UPDATE_SK_PREFIX = "TRUST_UPDATE#";
 /** TTL for idempotency markers — matches report TTL (2 hours). */
 const TRUST_MARKER_TTL_SECONDS = 2 * 60 * 60;
 const CORROBORATION_WINDOW_MS = 60 * 60 * 1000;
+const RECENT_LEVELS_SIZE = 10;
+const VARIANCE_PENALTY = 0.01;
 /** Max busyness level difference for corroboration (on 1-5 scale). */
 const CORROBORATION_LEVEL_RANGE = 0.5;
 /** Min busyness level difference for outlier detection (on 1-5 scale). */
@@ -271,22 +318,47 @@ async function updateTrustScores(
       })
     ).catch(() => {});
 
-    // Clamp to [TRUST_FLOOR, TRUST_CAP] — read-then-write is fine here since
-    // over/undershoot by one delta (0.03/0.06) is harmless and self-correcting
     const profile = await ddb.send(
       new GetCommand({ TableName: USERS_TABLE, Key: { userId } })
     ).then((r) => r.Item);
-    const score = profile?.trustScore as number | undefined;
+
+    let score = profile?.trustScore as number | undefined;
     if (score != null && (score < TRUST_FLOOR || score > TRUST_CAP)) {
-      await ddb.send(
-        new UpdateCommand({
-          TableName: USERS_TABLE,
-          Key: { userId },
-          UpdateExpression: "SET trustScore = :clamped",
-          ExpressionAttributeValues: { ":clamped": Math.max(TRUST_FLOOR, Math.min(TRUST_CAP, score)) },
-        })
-      ).catch(() => {});
+      score = Math.max(TRUST_FLOOR, Math.min(TRUST_CAP, score));
     }
+
+    const reportLevel = (recentItems.find((i) => (i.userId as string) === userId)?.busynessLevel as number) ?? 0;
+    const prevLevels = (profile?.recentLevels as number[] | undefined) ?? [];
+    const updatedLevels = [...prevLevels, reportLevel].slice(-RECENT_LEVELS_SIZE);
+
+    // Zero-variance penalty: if 10+ reports all the same level → likely bot
+    let varianceDelta = 0;
+    if (updatedLevels.length >= RECENT_LEVELS_SIZE) {
+      const mean = updatedLevels.reduce((a, b) => a + b, 0) / updatedLevels.length;
+      const variance = updatedLevels.reduce((a, b) => a + (b - mean) ** 2, 0) / updatedLevels.length;
+      if (variance < 0.01) {
+        varianceDelta = -VARIANCE_PENALTY;
+      }
+    }
+
+    const finalScore = score != null
+      ? Math.max(TRUST_FLOOR, score + varianceDelta)
+      : undefined;
+
+    const updateParts = ["recentLevels = :levels"];
+    const exprValues: Record<string, unknown> = { ":levels": updatedLevels };
+    if (finalScore != null && finalScore !== (profile?.trustScore as number | undefined)) {
+      updateParts.push("trustScore = :score");
+      exprValues[":score"] = finalScore;
+    }
+    await ddb.send(
+      new UpdateCommand({
+        TableName: USERS_TABLE,
+        Key: { userId },
+        UpdateExpression: "SET " + updateParts.join(", "),
+        ExpressionAttributeValues: exprValues,
+      })
+    ).catch(() => {});
   }
 
   log.debug("Trust scores updated", { venueId, count: deduped.length });

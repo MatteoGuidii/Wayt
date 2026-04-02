@@ -10,6 +10,8 @@ import {
   DEFAULT_TRUST_SCORE,
   NEW_ACCOUNT_TRUST_SCORE,
   NEW_ACCOUNT_THRESHOLD_MS,
+  VELOCITY_MAX_REPORTS,
+  VELOCITY_WINDOW_MS,
   SubmitReportBody,
   created,
   badRequest,
@@ -123,6 +125,17 @@ export async function handler(
       });
     }
 
+    // Velocity check — prevent rapid-fire reports across different venues
+    const recentTimestamps = (userProfile?.recentReportTimestamps as number[] | undefined) ?? [];
+    const recentWithinWindow = recentTimestamps.filter((ts) => (now - ts) < VELOCITY_WINDOW_MS);
+    if (recentWithinWindow.length >= VELOCITY_MAX_REPORTS) {
+      log.info("Report rejected: velocity limit", { userId, reportsInWindow: recentWithinWindow.length });
+      return tooManyRequests({
+        error: "VELOCITY_LIMIT",
+        message: "You're reporting too quickly. Please slow down.",
+      });
+    }
+
     // Closed-venue guard
     if (gdataEntry) {
       const businessStatus = gdataEntry.businessStatus as string | null;
@@ -174,6 +187,8 @@ export async function handler(
     const isNewAccount = !joinedAt || (now - new Date(joinedAt).getTime()) < NEW_ACCOUNT_THRESHOLD_MS;
     const initialTrust = isNewAccount ? NEW_ACCOUNT_TRUST_SCORE : DEFAULT_TRUST_SCORE;
 
+    const updatedTimestamps = [...recentWithinWindow, now].slice(-VELOCITY_MAX_REPORTS);
+
     await ddb.send(
       new UpdateCommand({
         TableName: USERS_TABLE,
@@ -184,7 +199,8 @@ export async function handler(
           "joinedAt = if_not_exists(joinedAt, :now), " +
           "trustScore = if_not_exists(trustScore, :initTrust), " +
           "dailyReportCount = :newDailyCount, " +
-          "dailyReportDate = :today",
+          "dailyReportDate = :today, " +
+          "recentReportTimestamps = :timestamps",
         ExpressionAttributeValues: {
           ":zero": 0,
           ":one": 1,
@@ -193,6 +209,7 @@ export async function handler(
           ":initTrust": initialTrust,
           ":newDailyCount": dailyCount + 1,
           ":today": today,
+          ":timestamps": updatedTimestamps,
         },
       })
     );

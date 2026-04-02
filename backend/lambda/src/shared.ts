@@ -33,6 +33,14 @@ export const TRUST_FLOOR = 0.1;
 export const TRUST_CAP = 1.0;
 
 // -----------------------------------------------
+// Velocity Check
+// -----------------------------------------------
+
+/** Max reports across all venues within the velocity window before rejection. */
+export const VELOCITY_MAX_REPORTS = 5;
+export const VELOCITY_WINDOW_MS = 10 * 60 * 1000;
+
+// -----------------------------------------------
 // Types
 // -----------------------------------------------
 
