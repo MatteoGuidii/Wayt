@@ -30,7 +30,8 @@
       "Bash(for table:*)",
       "Bash(do echo:*)",
       "Bash(done)",
-      "Bash(find /Users/matteo/Desktop/Wayt -type f \\\\\\(-name *Color* -o -name *Theme* -o -name *Brand* \\\\\\))"
+      "Bash(find /Users/matteo/Desktop/Wayt -type f \\\\\\(-name *Color* -o -name *Theme* -o -name *Brand* \\\\\\))",
+      "Read(//Users/matteo/Desktop/wayt-site/src/**)"
     ]
   }
 }
