@@ -1,5 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, REPORTS_TABLE, venueKey, fusedSK, getItem, deleteItem } from "./db";
 import {
   USERS_TABLE,
@@ -19,10 +19,13 @@ import {
   serverError,
   getUserId,
   haversineDistance,
+  getISOWeekKey,
 } from "./shared";
 import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod } from "./signals/google";
 import { encode } from "./geohash";
 import { createLogger } from "./logger";
+
+const LEADERBOARD_TABLE = process.env.LEADERBOARD_TABLE ?? "";
 
 export async function handler(
   event: APIGatewayProxyEvent,
@@ -189,6 +192,12 @@ export async function handler(
 
     const updatedTimestamps = [...recentWithinWindow, now].slice(-VELOCITY_MAX_REPORTS);
 
+    const existingReportDates = (userProfile?.reportDates as string[] | undefined) ?? [];
+    const cutoffDate = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const updatedReportDates = [...new Set([...existingReportDates, today])]
+      .filter((d) => d >= cutoffDate)
+      .sort();
+
     await ddb.send(
       new UpdateCommand({
         TableName: USERS_TABLE,
@@ -200,7 +209,10 @@ export async function handler(
           "trustScore = if_not_exists(trustScore, :initTrust), " +
           "dailyReportCount = :newDailyCount, " +
           "dailyReportDate = :today, " +
-          "recentReportTimestamps = :timestamps",
+          "recentReportTimestamps = :timestamps, " +
+          "reportDates = :reportDates, " +
+          "lastReportDate = :lastReportDate, " +
+          "confirmationsReceived = if_not_exists(confirmationsReceived, :zero)",
         ExpressionAttributeValues: {
           ":zero": 0,
           ":one": 1,
@@ -210,6 +222,8 @@ export async function handler(
           ":newDailyCount": dailyCount + 1,
           ":today": today,
           ":timestamps": updatedTimestamps,
+          ":reportDates": updatedReportDates,
+          ":lastReportDate": today,
         },
       })
     );
@@ -227,10 +241,144 @@ export async function handler(
       log.warn("Cache invalidation failed (non-critical)");
     }
 
+    // Engagement side-effects (non-critical, fire after cache invalidation)
+    const sideEffects: Promise<void>[] = [
+      updateConfirmations(venueId, userId, busynessLevel, now, log),
+    ];
+    if (LEADERBOARD_TABLE) {
+      sideEffects.push(updateLeaderboard(userId, lat, lng, now, log));
+    }
+    const settled = await Promise.allSettled(sideEffects);
+    for (const r of settled) {
+      if (r.status === "rejected") log.warn("Side-effect failed", { error: String(r.reason) });
+    }
+
     done({ reportId, venueId });
     return created({ reportId, message: "Report submitted" });
   } catch (err) {
     log.error("Report submission failed", undefined, err);
     return serverError("Failed to submit report");
   }
+}
+
+// -----------------------------------------------
+// Report Confirmation Helper
+// -----------------------------------------------
+
+/**
+ * When a user submits a report, check if other users recently reported the same
+ * venue with a similar busyness level (±1). If so, increment their
+ * confirmationsReceived counter — this closes the social validation loop.
+ */
+async function updateConfirmations(
+  venueId: string,
+  reporterId: string,
+  busynessLevel: number,
+  now: number,
+  log: ReturnType<typeof createLogger>
+): Promise<void> {
+  const cutoff = now - REPORT_TTL_SECONDS * 1000;
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: REPORTS_TABLE,
+      KeyConditionExpression: "venueId = :vid AND #ts > :cutoff",
+      FilterExpression: "userId <> :uid",
+      ExpressionAttributeNames: { "#ts": "timestamp" },
+      ExpressionAttributeValues: {
+        ":vid": venueId,
+        ":cutoff": cutoff,
+        ":uid": reporterId,
+      },
+    })
+  );
+
+  const confirmedUserIds = new Set<string>();
+  for (const report of result.Items ?? []) {
+    const reportLevel = report.busynessLevel as number;
+    if (Math.abs(reportLevel - busynessLevel) <= 1) {
+      confirmedUserIds.add(report.userId as string);
+    }
+  }
+
+  if (confirmedUserIds.size === 0) return;
+
+  log.info("Confirming reports", { venueId, confirmedUsers: confirmedUserIds.size });
+
+  await Promise.all(
+    [...confirmedUserIds].map((uid) =>
+      ddb.send(
+        new UpdateCommand({
+          TableName: USERS_TABLE,
+          Key: { userId: uid },
+          UpdateExpression:
+            "SET confirmationsReceived = if_not_exists(confirmationsReceived, :zero) + :one",
+          ExpressionAttributeValues: { ":zero": 0, ":one": 1 },
+        })
+      )
+    )
+  );
+}
+
+// -----------------------------------------------
+// Weekly Leaderboard Helper
+// -----------------------------------------------
+
+/**
+ * Upsert the user's weekly leaderboard entry.
+ * Since score is the RANGE key, we delete the old entry and write a new one
+ * with the incremented score so top-N queries stay correct.
+ *
+ * Note: read-delete-write is not atomic — concurrent reports by the same user
+ * can lose a count. Acceptable for a weekly leaderboard with 8-day TTL.
+ */
+async function updateLeaderboard(
+  userId: string,
+  lat: number,
+  lng: number,
+  now: number,
+  log: ReturnType<typeof createLogger>
+): Promise<void> {
+  const weekKey = getISOWeekKey(new Date(now));
+  const geohash4 = encode(lat, lng, 4);
+  const partitionKey = `${weekKey}#${geohash4}`;
+  const ttl = Math.floor(now / 1000) + 8 * 24 * 60 * 60; // 8 days
+
+  const existing = await ddb.send(
+    new QueryCommand({
+      TableName: LEADERBOARD_TABLE,
+      KeyConditionExpression: "weekGeohash = :wg",
+      FilterExpression: "userId = :uid",
+      ExpressionAttributeValues: { ":wg": partitionKey, ":uid": userId },
+    })
+  );
+
+  const oldEntry = existing.Items?.[0];
+  const oldScore = (oldEntry?.score as number) ?? 0;
+  const oldReportCount = (oldEntry?.reportCount as number) ?? 0;
+  const newReportCount = oldReportCount + 1;
+  const newScore = newReportCount * 10_000_000_000_000 + now;
+
+  if (oldEntry) {
+    await ddb.send(
+      new DeleteCommand({
+        TableName: LEADERBOARD_TABLE,
+        Key: { weekGeohash: partitionKey, score: oldScore },
+      })
+    );
+  }
+
+  await ddb.send(
+    new PutCommand({
+      TableName: LEADERBOARD_TABLE,
+      Item: {
+        weekGeohash: partitionKey,
+        score: newScore,
+        userId,
+        reportCount: newReportCount,
+        ttl,
+      },
+    })
+  );
+
+  log.info("Leaderboard updated", { weekKey, geohash4, userId, reportCount: newReportCount });
 }

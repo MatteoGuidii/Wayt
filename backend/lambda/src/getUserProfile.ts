@@ -49,6 +49,9 @@ export async function handler(
         );
       }
 
+      const reportDates = (result.Item.reportDates as string[] | undefined) ?? [];
+      const streakFreezes = computeStreakFreezes(reportDates);
+
       return success({
         userId: result.Item.userId,
         username: result.Item.username,
@@ -56,6 +59,9 @@ export async function handler(
         totalReports: result.Item.totalReports ?? 0,
         joinedAt: result.Item.joinedAt,
         profileImageUrl,
+        reportDates,
+        confirmationsReceived: result.Item.confirmationsReceived ?? 0,
+        streakFreezes,
       });
     }
 
@@ -81,9 +87,51 @@ export async function handler(
       ...newProfile,
       displayName: null,
       profileImageUrl: null,
+      reportDates: [],
+      confirmationsReceived: 0,
+      streakFreezes: 0,
     });
   } catch (err) {
     log.error("Failed to fetch profile", undefined, err);
     return serverError("Failed to fetch profile");
   }
+}
+
+// -----------------------------------------------
+// Streak Freeze Computation
+// -----------------------------------------------
+
+/**
+ * Compute available streak freezes from report history.
+ * Earn 1 freeze per 3 consecutive active weeks. Max 2 banked.
+ * A "week" is a rolling 7-day window from today backwards.
+ */
+function computeStreakFreezes(reportDates: string[]): number {
+  if (reportDates.length === 0) return 0;
+
+  const dateSet = new Set(reportDates);
+  const now = new Date();
+
+  let consecutiveActiveWeeks = 0;
+  let freezesEarned = 0;
+
+  for (let windowIndex = 0; windowIndex < 12; windowIndex++) {
+    const windowDates: string[] = [];
+    for (let dayOffset = windowIndex * 7; dayOffset < (windowIndex + 1) * 7; dayOffset++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - dayOffset);
+      windowDates.push(d.toISOString().slice(0, 10));
+    }
+
+    if (windowDates.some((d) => dateSet.has(d))) {
+      consecutiveActiveWeeks++;
+      if (consecutiveActiveWeeks % 3 === 0) {
+        freezesEarned++;
+      }
+    } else {
+      break;
+    }
+  }
+
+  return Math.min(freezesEarned, 2);
 }

@@ -66,7 +66,7 @@ export type ConfidenceLevel = "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | "ESTIMAT
 /** Per-source configuration: base weight and cache TTL. */
 export const SOURCE_CONFIG: Record<SignalSource, { weight: number; ttlSeconds: number }> = {
   user_reports: { weight: 0.75, ttlSeconds: 7_200 },   // 2 hours
-  foursquare:   { weight: 0.25, ttlSeconds: 600 },     // 10 min (score recomputed from 30-day cached data)
+  foursquare:   { weight: 0.25, ttlSeconds: 300 },     // 5 min (score recomputed from 30-day cached data)
 };
 
 // -----------------------------------------------

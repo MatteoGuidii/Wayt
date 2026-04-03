@@ -6,6 +6,7 @@ struct ImpactCard: View {
     let distinctVenues: Int
     let topVenueName: String?
     let topVenueCategory: VenueCategory?
+    let confirmationsReceived: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -31,6 +32,14 @@ struct ImpactCard: View {
                         icon: "map.fill",
                         color: WaytTheme.mapsBlue,
                         text: "Across **\(distinctVenues)** venue\(distinctVenues == 1 ? "" : "s")"
+                    )
+                }
+
+                if confirmationsReceived > 0 {
+                    impactRow(
+                        icon: "checkmark.seal.fill",
+                        color: .green,
+                        text: "**\(confirmationsReceived)** report\(confirmationsReceived == 1 ? "" : "s") confirmed by others"
                     )
                 }
 

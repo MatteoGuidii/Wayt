@@ -9,6 +9,8 @@ final class VenueDetailViewModel: ObservableObject {
     // MARK: - Published
 
     @Published var estimate: BusynessEstimate
+    @Published var lastEstimateTime: Date = Date()
+    @Published var busynessJustChanged: Bool = false
     @Published var recentReports: [BusynessReport] = []
     @Published var isLoadingReports: Bool = false
     @Published var showReportSheet: Bool = false
@@ -69,6 +71,7 @@ final class VenueDetailViewModel: ObservableObject {
         }
         // else: keep the initial estimate from map overlay
 
+        lastEstimateTime = Date()
         isLoadingReports = false
     }
 
@@ -109,6 +112,28 @@ final class VenueDetailViewModel: ObservableObject {
         } catch {
             Log.reports.notice("Reports unavailable for detail: \(error.localizedDescription)")
             return []
+        }
+    }
+
+    // MARK: - Live Refresh
+
+    func updateFromLiveRefresh(venue updatedVenue: Venue) {
+        let levelChanged = updatedVenue.busyness != estimate.level
+
+        estimate = BusynessEstimate(
+            level: updatedVenue.busyness ?? estimate.level,
+            confidence: updatedVenue.busynessConfidence,
+            reportCount: updatedVenue.reportCount,
+            waitMinutes: updatedVenue.estimatedWaitMinutes,
+            isOpen: updatedVenue.isOpen ?? estimate.isOpen,
+            hoursToday: updatedVenue.hoursToday ?? estimate.hoursToday,
+            businessStatus: updatedVenue.businessStatus ?? estimate.businessStatus,
+            venueDetails: estimate.venueDetails
+        )
+        lastEstimateTime = Date()
+
+        if levelChanged {
+            busynessJustChanged = true
         }
     }
 

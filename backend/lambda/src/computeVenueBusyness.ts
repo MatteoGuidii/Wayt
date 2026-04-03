@@ -10,12 +10,14 @@ import { fuseSignals, emptyEstimate } from "./signals/fusion";
 import { fetchFoursquareSignal } from "./signals/foursquare";
 import { aggregateUserReports } from "./signals/userReports";
 import { getGoogleHoursData, isOpenNow } from "./signals/google";
+import { getLocalTime } from "./signals/matching";
 import { createLogger } from "./logger";
 
 /** TTL for the cached fused estimate (2 hours).
  * The Gaussian temporal model changes slowly (~hour-wide peaks),
- * so 2-hour recomputation frequency is sufficient. Longer TTL means
- * app reopens within 2 hours hit the fast geohash cache path. */
+ * so 2-hour recomputation frequency is sufficient (individual source
+ * signals recompute every 5 min). Longer TTL means app reopens within
+ * 2 hours hit the fast geohash cache path. */
 const FUSED_TTL_SECONDS = 2 * 60 * 60;
 
 export interface ComputeInput {
@@ -51,7 +53,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
       getGoogleHoursData(venueId, venueName, lat, lng, address),
     ]);
 
-    const cachedSignals = parseCachedSignals(cachedItems, now);
+    const cachedSignals = parseCachedSignals(cachedItems, now, timezone);
     const googleHours = googleResult?.hours ?? null;
     const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
     const googlePrimaryType = googleResult?.venueDetails?.primaryType ?? null;
@@ -179,14 +181,20 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 /** Parse cached signal items, filtering out expired ones. */
 function parseCachedSignals(
   items: Record<string, unknown>[],
-  now: number
+  now: number,
+  timezone?: string
 ): VenueSignal[] {
   const nowSeconds = Math.floor(now / 1000);
+  const currentDay = timezone ? getLocalTime(now, timezone).localDay : undefined;
   const signals: VenueSignal[] = [];
 
   for (const item of items) {
     const ttl = item.ttl as number | undefined;
     if (ttl && ttl < nowSeconds) continue; // expired
+
+    if (item.sourceId === "foursquare" && item.computedDay != null && currentDay != null) {
+      if (item.computedDay !== currentDay) continue;
+    }
 
     const signal: VenueSignal = {
       sourceId: item.sourceId as SignalSource,

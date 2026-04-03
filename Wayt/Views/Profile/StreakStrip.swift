@@ -6,10 +6,12 @@ struct StreakStrip: View {
     /// Last 4 weeks, each element is an array of "yyyy-MM-dd" date strings (Mon–Sun).
     let last4Weeks: [[String]]
     let reportDates: [String]
+    var remainingFreezes: Int = 0
 
     @State private var showCalendar = false
 
     static let flameOrange = Color(red: 1.0, green: 0.60, blue: 0.0)
+    static let freezeBlue = Color(red: 0.40, green: 0.75, blue: 1.0)
 
     var body: some View {
         Button { showCalendar = true } label: {
@@ -22,10 +24,26 @@ struct StreakStrip: View {
                 // Streak count
                 VStack(alignment: .leading, spacing: 2) {
                     if currentStreak > 0 {
-                        Text("\(currentStreak)")
-                            .font(.system(size: 20, weight: .black, design: .rounded))
-                        + Text(" week streak")
-                            .font(WaytTheme.subheadLightFont)
+                        HStack(spacing: 4) {
+                            Text("\(currentStreak)")
+                                .font(.system(size: 20, weight: .black, design: .rounded))
+                            + Text(" week streak")
+                                .font(WaytTheme.subheadLightFont)
+
+                            if remainingFreezes > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "snowflake")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("\(remainingFreezes)")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                                }
+                                .foregroundStyle(Self.freezeBlue)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Self.freezeBlue.opacity(0.12))
+                                .clipShape(Capsule())
+                            }
+                        }
                     } else {
                         Text("No streak yet")
                             .font(WaytTheme.subheadLightFont)
@@ -81,7 +99,8 @@ struct StreakStrip: View {
         .sheet(isPresented: $showCalendar) {
             StreakCalendarSheet(
                 currentStreak: currentStreak,
-                reportDates: Set(reportDates)
+                reportDates: Set(reportDates),
+                remainingFreezes: remainingFreezes
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)

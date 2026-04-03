@@ -66,6 +66,7 @@ struct VenueDetailSheet: View {
     @State private var isLoadingLookAround = true
     @State private var showFullLookAround = false
     @State private var showReviewsSheet = false
+    @State private var busynessFlashOpacity: Double = 0
     @AppStorage("wayt_distanceUnit") private var distanceUnit: String = "km"
 
     init(venue: Venue) {
@@ -126,6 +127,23 @@ struct VenueDetailSheet: View {
         }
         .onChange(of: locationService.userLocation) { _, newLocation in
             viewModel.updateProximity(userLocation: newLocation)
+        }
+        .onChange(of: mapViewModel.venues) { _, updatedVenues in
+            guard let updated = updatedVenues.first(where: { $0.id == venue.id }) else { return }
+            viewModel.updateFromLiveRefresh(venue: updated)
+        }
+        .onChange(of: viewModel.busynessJustChanged) { _, justChanged in
+            guard justChanged else { return }
+            withAnimation(.easeIn(duration: 0.15)) {
+                busynessFlashOpacity = 1
+            }
+            withAnimation(.easeOut(duration: 0.4).delay(0.15)) {
+                busynessFlashOpacity = 0
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                viewModel.busynessJustChanged = false
+            }
         }
         .sheet(isPresented: $viewModel.showReportSheet) {
             ReportSheet(venue: venue) { level, wait in
@@ -249,6 +267,11 @@ struct VenueDetailSheet: View {
         }
         .waytCard()
         .busynessGlow(viewModel.estimate.isOpen == false ? nil : viewModel.estimate.level.color)
+        .overlay {
+            RoundedRectangle(cornerRadius: WaytTheme.cornerRadius, style: .continuous)
+                .fill(viewModel.estimate.level.color.opacity(0.18 * busynessFlashOpacity))
+                .allowsHitTesting(false)
+        }
     }
 
     private var busynessBackgroundFill: some ShapeStyle {
@@ -302,6 +325,12 @@ struct VenueDetailSheet: View {
                 }
 
                 Spacer()
+            }
+
+            TimelineView(.periodic(from: .now, by: 30)) { _ in
+                Text("Updated \(viewModel.lastEstimateTime.refreshRelativeTime)")
+                    .font(WaytTheme.microFont)
+                    .foregroundStyle(WaytTheme.secondaryText.opacity(0.7))
             }
         }
     }
@@ -544,4 +573,16 @@ struct VenueDetailSheet: View {
         isLoadingLookAround = false
     }
 
+}
+
+// MARK: - Relative Time Formatting
+
+private extension Date {
+    var refreshRelativeTime: String {
+        let seconds = Int(-timeIntervalSinceNow)
+        guard seconds >= 60 else { return "just now" }
+        let minutes = seconds / 60
+        guard minutes < 60 else { return "\(minutes / 60)h ago" }
+        return "\(minutes)m ago"
+    }
 }

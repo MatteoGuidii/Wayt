@@ -12,6 +12,7 @@ struct ProfileScreen: View {
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
     @EnvironmentObject private var tabSelection: TabSelection
     @EnvironmentObject private var mapViewModel: MapViewModel
+    @EnvironmentObject private var locationService: LocationService
     @State private var showEditSheet = false
     @State private var showPhotoPicker = false
     @State private var showImagePreview = false
@@ -35,7 +36,12 @@ struct ProfileScreen: View {
                 if viewModel.showFirstTimeNamePrompt {
                     showFirstTimeNameSheet = true
                 }
+                await loadLeaderboardIfReady()
             }
+        }
+        .onChange(of: locationService.userLocation) { _, newLocation in
+            guard authState.isSignedIn, newLocation != nil else { return }
+            Task { await loadLeaderboardIfReady() }
         }
         .sheet(isPresented: $showEditSheet) {
             ProfileEditSheet(isFirstTime: false)
@@ -204,7 +210,8 @@ struct ProfileScreen: View {
                     StreakStrip(
                         currentStreak: viewModel.currentStreak,
                         last4Weeks: viewModel.last4Weeks,
-                        reportDates: viewModel.reportDates
+                        reportDates: viewModel.reportDates,
+                        remainingFreezes: viewModel.remainingFreezes
                     )
 
                     // Rank progress
@@ -216,9 +223,17 @@ struct ProfileScreen: View {
                             totalReports: viewModel.totalReports,
                             distinctVenues: viewModel.distinctVenueCount,
                             topVenueName: viewModel.topVenueName,
-                            topVenueCategory: viewModel.topVenueCategory
+                            topVenueCategory: viewModel.topVenueCategory,
+                            confirmationsReceived: viewModel.confirmationsReceived
                         )
                     }
+
+                    LeaderboardCard(
+                        entries: viewModel.leaderboardEntries,
+                        currentUserEntry: viewModel.leaderboardCurrentUser,
+                        weekLabel: viewModel.leaderboardWeekLabel,
+                        isLoading: viewModel.isLoadingLeaderboard
+                    )
 
                     // Recent activity
                     RecentActivityCard(entries: viewModel.reportHistory)
@@ -759,6 +774,16 @@ struct ProfileScreen: View {
         _ = await viewModel.uploadProfileImage(jpegData)
     }
 
+    // MARK: - Leaderboard
+
+    private func loadLeaderboardIfReady() async {
+        guard let location = locationService.userLocation else { return }
+        await viewModel.loadLeaderboard(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude
+        )
+    }
+
     // MARK: - Helpers
 
     private func initials(for name: String) -> String {
@@ -905,6 +930,7 @@ enum UserRank: Int, CaseIterable {
         .environmentObject(SavedVenuesViewModel())
         .environmentObject(TabSelection())
         .environmentObject(MapViewModel())
+        .environmentObject(LocationService())
 }
 
 #Preview("Profile - Signed In") {
@@ -916,4 +942,5 @@ enum UserRank: Int, CaseIterable {
         .environmentObject(SavedVenuesViewModel())
         .environmentObject(TabSelection())
         .environmentObject(MapViewModel())
+        .environmentObject(LocationService())
 }

@@ -4,6 +4,7 @@ struct StreakCalendarSheet: View {
 
     let currentStreak: Int
     let reportDates: Set<String>
+    var remainingFreezes: Int = 0
 
     @Environment(\.dismiss) private var dismiss
 
@@ -89,6 +90,24 @@ struct StreakCalendarSheet: View {
                 Text("Submit your first report to start")
                     .font(WaytTheme.subheadLightFont)
                     .foregroundStyle(WaytTheme.secondaryText)
+            }
+
+            if remainingFreezes > 0 || currentStreak >= 3 {
+                HStack(spacing: 6) {
+                    Image(systemName: "snowflake")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(StreakStrip.freezeBlue)
+
+                    Text(remainingFreezes > 0
+                         ? "\(remainingFreezes) streak freeze\(remainingFreezes == 1 ? "" : "s") available"
+                         : "Earn a freeze at 3 consecutive weeks")
+                        .font(WaytTheme.captionFont)
+                        .foregroundStyle(WaytTheme.secondaryText)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(StreakStrip.freezeBlue.opacity(0.08))
+                .clipShape(Capsule())
             }
         }
         .padding(.top, 8)

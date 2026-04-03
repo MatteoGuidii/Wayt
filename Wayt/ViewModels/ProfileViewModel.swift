@@ -27,6 +27,18 @@ final class ProfileViewModel: ObservableObject {
     /// Dates on which the user submitted at least one report (ISO "yyyy-MM-dd" strings).
     @Published var reportDates: [String] = []
 
+    @Published var confirmationsReceived: Int = 0
+
+    /// Available streak freezes (earned: 1 per 3 consecutive active weeks, max 2).
+    @Published var streakFreezes: Int = 0
+
+    // Leaderboard
+    @Published var leaderboardEntries: [LeaderboardEntry] = []
+    @Published var leaderboardCurrentUser: CurrentUserEntry?
+    @Published var leaderboardWeekLabel: String = "This week"
+    @Published var isLoadingLeaderboard = false
+    private var hasLoadedLeaderboard = false
+
     /// Set briefly when the user crosses a rank boundary, triggers celebration overlay.
     @Published var rankUpEvent: UserRank?
 
@@ -47,6 +59,8 @@ final class ProfileViewModel: ObservableObject {
         static let reportHistory = "wayt_profile_reportHistory"
         static let reportDates = "wayt_profile_reportDates"
         static let lastCelebratedRank = "wayt_profile_lastCelebratedRank"
+        static let confirmationsReceived = "wayt_profile_confirmationsReceived"
+        static let streakFreezes = "wayt_profile_streakFreezes"
     }
 
     private static let dateFormatter: DateFormatter = {
@@ -155,6 +169,9 @@ final class ProfileViewModel: ObservableObject {
         if let dates = defaults.stringArray(forKey: CacheKey.reportDates) {
             reportDates = dates
         }
+
+        confirmationsReceived = defaults.integer(forKey: CacheKey.confirmationsReceived)
+        streakFreezes = defaults.integer(forKey: CacheKey.streakFreezes)
     }
 
     private func saveToCache() {
@@ -177,24 +194,37 @@ final class ProfileViewModel: ObservableObject {
 
     // MARK: - Computed: Streak (Rolling 7-Day Windows)
 
-    /// Current streak in weeks. Uses rolling 7-day windows from today:
-    /// - Window 0: today → 6 days ago
-    /// - Window 1: 7 → 13 days ago, etc.
-    /// Streak = number of consecutive windows (starting from 0) with at least one report.
-    /// 1 report in the last 7 days = streak of 1. Go 7+ days without reporting = streak breaks.
-    var currentStreak: Int {
+    private struct StreakResult {
+        let weeks: Int
+        let freezesUsed: Int
+    }
+
+    private var streakResult: StreakResult {
         let dateSet = Set(reportDates)
         var streak = 0
+        var freezesUsed = 0
+        var freezesRemaining = streakFreezes
 
         for windowIndex in 0..<12 {
             let windowDates = datesInWindow(windowIndex)
             if windowDates.contains(where: { dateSet.contains($0) }) {
                 streak += 1
+            } else if freezesRemaining > 0 && streak > 0 {
+                freezesRemaining -= 1
+                freezesUsed += 1
             } else {
                 break
             }
         }
-        return streak
+        return StreakResult(weeks: streak, freezesUsed: freezesUsed)
+    }
+
+    var currentStreak: Int {
+        streakResult.weeks
+    }
+
+    var remainingFreezes: Int {
+        max(0, streakFreezes - streakResult.freezesUsed)
     }
 
     /// The last 4 rolling 7-day windows (oldest first).
@@ -266,6 +296,8 @@ final class ProfileViewModel: ObservableObject {
         defaults.removeObject(forKey: CacheKey.reportHistory)
         defaults.removeObject(forKey: CacheKey.reportDates)
         defaults.removeObject(forKey: CacheKey.lastCelebratedRank)
+        defaults.removeObject(forKey: CacheKey.confirmationsReceived)
+        defaults.removeObject(forKey: CacheKey.streakFreezes)
         Self.deleteCachedImage()
         cachedImageData = nil
         hasLoadedFromCache = false
@@ -329,6 +361,9 @@ final class ProfileViewModel: ObservableObject {
             memberSince = profile.joinedAt
             displayName = profile.displayName
             profileImageUrl = profile.profileImageUrl
+
+            applyEngagementStats(from: profile)
+
             hasLoadedFromAPI = true
             saveToCache()
             Log.profile.info("Profile loaded: \(profile.totalReports) reports")
@@ -408,6 +443,8 @@ final class ProfileViewModel: ObservableObject {
     /// Clears all profile data and local cache. Call on sign-out so stale
     /// data from the previous user is never shown to the next one.
     func reset() {
+        syncTask?.cancel()
+        syncTask = nil
         totalReports = 0
         memberSince = ""
         displayName = nil
@@ -417,8 +454,52 @@ final class ProfileViewModel: ObservableObject {
         hasLoadedFromAPI = false
         reportHistory = []
         reportDates = []
+        confirmationsReceived = 0
+        streakFreezes = 0
         rankUpEvent = nil
+        leaderboardEntries = []
+        leaderboardCurrentUser = nil
+        leaderboardWeekLabel = "This week"
+        hasLoadedLeaderboard = false
         clearCache()
+    }
+
+    // MARK: - Leaderboard
+
+    func loadLeaderboard(latitude: Double, longitude: Double) async {
+        guard !hasLoadedLeaderboard else { return }
+        isLoadingLeaderboard = true
+        defer { isLoadingLeaderboard = false }
+
+        do {
+            let response = try await LeaderboardService.shared.fetchLeaderboard(
+                latitude: latitude,
+                longitude: longitude
+            )
+            leaderboardEntries = response.leaderboard
+            leaderboardCurrentUser = response.currentUserEntry
+            leaderboardWeekLabel = Self.formatWeekKey(response.weekKey)
+            hasLoadedLeaderboard = true
+        } catch {
+            Log.profile.error("Leaderboard load failed: \(error.localizedDescription)")
+        }
+    }
+
+    private static func formatWeekKey(_ weekKey: String) -> String {
+        var iso = Calendar(identifier: .iso8601)
+        iso.timeZone = .gmt
+        let now = Date()
+        let currentWeek = iso.component(.weekOfYear, from: now)
+        let currentYear = iso.component(.yearForWeekOfYear, from: now)
+
+        let parts = weekKey.split(separator: "-W")
+        if parts.count == 2,
+           let year = Int(parts[0]),
+           let week = Int(parts[1]),
+           year == currentYear, week == currentWeek {
+            return "This week"
+        }
+        return weekKey
     }
 
     // MARK: - Sync After Report
@@ -430,9 +511,23 @@ final class ProfileViewModel: ObservableObject {
             let profile: UserProfile = try await APIClient.shared.get(path: "/user/profile")
             totalReports = profile.totalReports
             cacheValue(totalReports, forKey: CacheKey.totalReports)
+
+            applyEngagementStats(from: profile)
         } catch {
             // Optimistic increment already applied — keep it
         }
+    }
+
+    private func applyEngagementStats(from profile: UserProfile) {
+        if let serverDates = profile.reportDates, !serverDates.isEmpty {
+            let merged = Set(serverDates).union(reportDates)
+            reportDates = merged.sorted()
+            cacheValue(reportDates, forKey: CacheKey.reportDates)
+        }
+        confirmationsReceived = profile.confirmationsReceived ?? 0
+        streakFreezes = profile.streakFreezes ?? 0
+        cacheValue(confirmationsReceived, forKey: CacheKey.confirmationsReceived)
+        cacheValue(streakFreezes, forKey: CacheKey.streakFreezes)
     }
 }
 
@@ -444,6 +539,9 @@ struct UserProfile: Codable, Sendable {
     let joinedAt: String
     let displayName: String?
     let profileImageUrl: String?
+    let reportDates: [String]?
+    let confirmationsReceived: Int?
+    let streakFreezes: Int?
 }
 
 private struct UpdateProfileBody: Codable, Sendable {

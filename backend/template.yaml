@@ -67,6 +67,9 @@ Resources:
     Properties:
       CodeUri: lambda/
       Handler: dist/submitReport.handler
+      Environment:
+        Variables:
+          LEADERBOARD_TABLE: !Ref WeeklyLeaderboardTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref VenueReportsTable
@@ -74,6 +77,8 @@ Resources:
             TableName: !Ref UserProfilesTable
         - DynamoDBCrudPolicy:
             TableName: !Ref WaytSignalsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WeeklyLeaderboardTable
       Events:
         PostReport:
           Type: Api
@@ -550,6 +555,53 @@ Resources:
           KeyType: RANGE
 
   # -----------------------------------------------
+  # Weekly Leaderboard
+  # -----------------------------------------------
+  GetLeaderboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getLeaderboard.handler
+      Environment:
+        Variables:
+          LEADERBOARD_TABLE: !Ref WeeklyLeaderboardTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref WeeklyLeaderboardTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UserProfilesTable
+      Events:
+        GetLeaderboard:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WaytApi
+            Path: /leaderboard/nearby
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  WeeklyLeaderboardTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "WeeklyLeaderboard-${Stage}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: weekGeohash
+          AttributeType: S
+        - AttributeName: score
+          AttributeType: N
+      KeySchema:
+        - AttributeName: weekGeohash
+          KeyType: HASH
+        - AttributeName: score
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # -----------------------------------------------
   # Signal Fusion Engine — DynamoDB Table
   # -----------------------------------------------
   WaytSignalsTable:
@@ -628,6 +680,8 @@ Outputs:
     Value: !Ref SavedVenuesTable
   WaytSignalsTableName:
     Value: !Ref WaytSignalsTable
+  WeeklyLeaderboardTableName:
+    Value: !Ref WeeklyLeaderboardTable
   Stage:
     Value: !Ref Stage
   UserPoolId:

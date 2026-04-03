@@ -105,13 +105,15 @@ export async function fetchFoursquareSignal(
       ttlSeconds: config.ttlSeconds,
     };
 
-    // Cache the derived signal for 10 min so computeVenueBusyness doesn't
+    // Cache the derived signal for 5 min so computeVenueBusyness doesn't
     // re-derive on every request. Score refreshes when this TTL expires,
     // picking up the new time-of-day from the 30-day raw data cache.
+    const { localDay } = getLocalTime(now, timezone);
     await putItem({
       PK: venueKey(venueId),
       SK: signalSK("foursquare", now),
       ...signal,
+      computedDay: localDay,
       ttl: Math.floor(now / 1000) + config.ttlSeconds,
     });
 
