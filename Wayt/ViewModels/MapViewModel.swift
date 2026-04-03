@@ -11,6 +11,8 @@ final class MapViewModel: ObservableObject {
 
     @Published var venues: [Venue] = []
     @Published var selectedVenue: Venue?
+    /// True when any venue detail sheet is open (Map or Discover).
+    @Published var venueSheetOpen = false
     @Published var searchText: String = ""
     @Published var isSearching: Bool = false
     @Published var showSearchThisArea: Bool = false

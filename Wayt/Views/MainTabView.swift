@@ -9,28 +9,57 @@ struct MainTabView: View {
     @StateObject private var mapViewModel = MapViewModel()
     @StateObject private var profileViewModel = ProfileViewModel()
     @StateObject private var savedVenuesVM = SavedVenuesViewModel()
+    @State private var showRankCelebration = false
 
     var body: some View {
-        TabView(selection: $tabSelection.selectedTab) {
-            MapScreen()
-                .tabItem {
-                    Label("Map", systemImage: "map.fill")
-                }
-                .tag(Tab.map)
+        ZStack {
+            TabView(selection: $tabSelection.selectedTab) {
+                MapScreen()
+                    .tabItem {
+                        Label("Map", systemImage: "map.fill")
+                    }
+                    .tag(Tab.map)
 
-            DiscoverScreen()
-                .tabItem {
-                    Label("Discover", systemImage: "magnifyingglass")
-                }
-                .tag(Tab.discover)
+                DiscoverScreen()
+                    .tabItem {
+                        Label("Discover", systemImage: "magnifyingglass")
+                    }
+                    .tag(Tab.discover)
 
-            ProfileScreen()
-                .tabItem {
-                    Label("Profile", systemImage: "person.fill")
+                ProfileScreen()
+                    .tabItem {
+                        Label("Profile", systemImage: "person.fill")
+                    }
+                    .tag(Tab.profile)
+            }
+            .tint(WaytTheme.mapsBlue)
+
+            if showRankCelebration, let rank = profileViewModel.rankUpEvent {
+                RankUpCelebration(rank: rank) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showRankCelebration = false
+                        profileViewModel.markRankUpCelebrated()
+                    }
                 }
-                .tag(Tab.profile)
+                .transition(.opacity)
+                .zIndex(100)
+            }
         }
-        .tint(WaytTheme.mapsBlue)
+        .onChange(of: profileViewModel.rankUpEvent) { _, newValue in
+            guard newValue != nil else { return }
+            if !mapViewModel.venueSheetOpen {
+                withAnimation(.easeIn(duration: 0.2)) {
+                    showRankCelebration = true
+                }
+            }
+        }
+        .onChange(of: mapViewModel.venueSheetOpen) { _, isOpen in
+            if !isOpen, profileViewModel.rankUpEvent != nil, !showRankCelebration {
+                withAnimation(.easeIn(duration: 0.2)) {
+                    showRankCelebration = true
+                }
+            }
+        }
         .environmentObject(tabSelection)
         .environmentObject(filterState)
         .environmentObject(mapViewModel)

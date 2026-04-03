@@ -101,6 +101,9 @@ struct MapScreen: View {
                 loadingIndicator
             }
         }
+        .onChange(of: viewModel.selectedVenue) { _, newValue in
+            viewModel.venueSheetOpen = newValue != nil
+        }
         .sheet(item: $viewModel.selectedVenue, onDismiss: {
             viewModel.refreshAfterReport()
         }) { venue in

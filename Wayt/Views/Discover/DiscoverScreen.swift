@@ -55,6 +55,9 @@ struct DiscoverScreen: View {
         .onChange(of: mapViewModel.venues) { _, newVenues in
             viewModel.updateVenues(newVenues, userLocation: locationService.userLocation)
         }
+        .onChange(of: selectedVenue) { _, newValue in
+            mapViewModel.venueSheetOpen = newValue != nil
+        }
         .sheet(item: $selectedVenue, onDismiss: {
             mapViewModel.refreshAfterReport()
         }) { venue in

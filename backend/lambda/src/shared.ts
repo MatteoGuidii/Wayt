@@ -37,7 +37,7 @@ export const TRUST_CAP = 1.0;
 // -----------------------------------------------
 
 /** Max reports across all venues within the velocity window before rejection. */
-export const VELOCITY_MAX_REPORTS = 5;
+export const VELOCITY_MAX_REPORTS = 8;
 export const VELOCITY_WINDOW_MS = 10 * 60 * 1000;
 
 // -----------------------------------------------

@@ -38,7 +38,7 @@ actor APIClient {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("GET \(path, privacy: .public) -> \(status) (\(ms)ms)")
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -62,7 +62,7 @@ actor APIClient {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("POST \(path, privacy: .public) -> \(status) (\(ms)ms)")
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -81,11 +81,11 @@ actor APIClient {
         var request = try await buildRequest(method: "POST", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (_, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("POST \(path, privacy: .public) -> \(status) (\(ms)ms)")
-        try validateResponse(response)
+        try validateResponse(response, data: data)
     }
 
     // MARK: - PUT
@@ -234,7 +234,7 @@ actor APIClient {
         return s
     }
 
-    private func validateResponse(_ response: URLResponse) throws {
+    private func validateResponse(_ response: URLResponse, data: Data = Data()) throws {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.unknown
         }
@@ -247,8 +247,9 @@ actor APIClient {
             Log.api.error("Unauthorized (401)")
             throw APIError.unauthorized
         case 429:
-            Log.api.notice("Rate limited (429)")
-            throw APIError.rateLimited
+            let reason = RateLimitReason.from(data: data)
+            Log.api.notice("Rate limited (429): \(reason.rawValue, privacy: .public)")
+            throw APIError.rateLimited(reason: reason)
         default:
             Log.api.error("Server error (\(http.statusCode))")
             throw APIError.serverError(http.statusCode)
@@ -287,7 +288,7 @@ actor APIClient {
 enum APIError: LocalizedError {
     case invalidURL
     case unauthorized
-    case rateLimited
+    case rateLimited(reason: RateLimitReason)
     case serverError(Int)
     case unknown
 
@@ -295,9 +296,40 @@ enum APIError: LocalizedError {
         switch self {
         case .invalidURL:            return "Invalid API URL."
         case .unauthorized:          return "Please sign in again."
-        case .rateLimited:           return "Too many requests. Try again shortly."
+        case .rateLimited(let reason): return reason.userMessage
         case .serverError(let code): return "Server error (\(code))."
         case .unknown:               return "An unexpected error occurred."
         }
+    }
+}
+
+// MARK: - Rate Limit Reason
+
+enum RateLimitReason: String {
+    case cooldown = "COOLDOWN_ACTIVE"
+    case velocity = "VELOCITY_LIMIT"
+    case dailyCap = "DAILY_LIMIT_REACHED"
+    case unknown = "UNKNOWN"
+
+    var userMessage: String {
+        switch self {
+        case .cooldown:
+            return "You reported this venue recently."
+        case .velocity:
+            return "You're reporting too fast — take a breather. Max 8 reports per 10 minutes."
+        case .dailyCap:
+            return "Daily report limit reached — come back tomorrow. Max 30 reports per day."
+        case .unknown:
+            return "Too many requests. Try again shortly."
+        }
+    }
+
+    nonisolated static func from(data: Data) -> RateLimitReason {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let error = json["error"] as? String,
+              let reason = RateLimitReason(rawValue: error) else {
+            return .unknown
+        }
+        return reason
     }
 }

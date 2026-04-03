@@ -188,8 +188,6 @@ struct ProfileScreen: View {
 
     // MARK: - Signed-In Content
 
-    @State private var showRankCelebration = false
-
     private var signedInContent: some View {
         let displayName = viewModel.displayName ?? authState.displayName ?? "User"
         let rank = UserRank.from(reports: viewModel.totalReports)
@@ -254,24 +252,6 @@ struct ProfileScreen: View {
             }
             .scrollIndicators(.hidden)
 
-            // Rank-up celebration overlay
-            if showRankCelebration, let rank = viewModel.rankUpEvent {
-                RankUpCelebration(rank: rank) {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        showRankCelebration = false
-                        viewModel.rankUpEvent = nil
-                    }
-                }
-                .transition(.opacity)
-                .zIndex(100)
-            }
-        }
-        .onChange(of: viewModel.rankUpEvent) { _, newValue in
-            if newValue != nil {
-                withAnimation(.easeIn(duration: 0.2)) {
-                    showRankCelebration = true
-                }
-            }
         }
         .navigationBarTitleDisplayMode(.inline)
     }

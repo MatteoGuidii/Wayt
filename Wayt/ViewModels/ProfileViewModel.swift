@@ -85,11 +85,9 @@ final class ProfileViewModel: ObservableObject {
                 let newRank = UserRank.from(reports: self.totalReports)
                 self.cacheValue(self.totalReports, forKey: CacheKey.totalReports)
 
-                // Check for rank-up
                 let lastCelebrated = UserDefaults.standard.integer(forKey: CacheKey.lastCelebratedRank)
                 if newRank != previousRank, newRank.rawValue > lastCelebrated {
                     self.rankUpEvent = newRank
-                    UserDefaults.standard.set(newRank.rawValue, forKey: CacheKey.lastCelebratedRank)
                 }
 
                 // Record report in local history
@@ -172,6 +170,16 @@ final class ProfileViewModel: ObservableObject {
 
         confirmationsReceived = defaults.integer(forKey: CacheKey.confirmationsReceived)
         streakFreezes = defaults.integer(forKey: CacheKey.streakFreezes)
+
+        // Check for a rank-up that was never shown (e.g. app closed before celebration).
+        // Only if the key exists — avoids false celebration for existing users on first update.
+        if defaults.object(forKey: CacheKey.lastCelebratedRank) != nil {
+            let currentRank = UserRank.from(reports: totalReports)
+            let lastCelebrated = defaults.integer(forKey: CacheKey.lastCelebratedRank)
+            if currentRank.rawValue > lastCelebrated, totalReports > 0 {
+                rankUpEvent = currentRank
+            }
+        }
     }
 
     private func saveToCache() {
@@ -357,12 +365,19 @@ final class ProfileViewModel: ObservableObject {
 
         do {
             let profile: UserProfile = try await APIClient.shared.get(path: "/user/profile")
-            totalReports = profile.totalReports
+            totalReports = max(totalReports, profile.totalReports)
             memberSince = profile.joinedAt
             displayName = profile.displayName
             profileImageUrl = profile.profileImageUrl
 
             applyEngagementStats(from: profile)
+
+            // Correct lastCelebratedRank if server reports are lower (e.g. after a reset)
+            let serverRank = UserRank.from(reports: profile.totalReports)
+            let lastCelebrated = UserDefaults.standard.integer(forKey: CacheKey.lastCelebratedRank)
+            if serverRank.rawValue < lastCelebrated {
+                UserDefaults.standard.set(serverRank.rawValue, forKey: CacheKey.lastCelebratedRank)
+            }
 
             hasLoadedFromAPI = true
             saveToCache()
@@ -440,6 +455,14 @@ final class ProfileViewModel: ObservableObject {
 
     // MARK: - Reset
 
+    /// Persists the rank-up as celebrated so it won't re-trigger on next launch.
+    func markRankUpCelebrated() {
+        if let rank = rankUpEvent {
+            UserDefaults.standard.set(rank.rawValue, forKey: CacheKey.lastCelebratedRank)
+        }
+        rankUpEvent = nil
+    }
+
     /// Clears all profile data and local cache. Call on sign-out so stale
     /// data from the previous user is never shown to the next one.
     func reset() {
@@ -509,7 +532,7 @@ final class ProfileViewModel: ObservableObject {
     private func syncProfile() async {
         do {
             let profile: UserProfile = try await APIClient.shared.get(path: "/user/profile")
-            totalReports = profile.totalReports
+            totalReports = max(totalReports, profile.totalReports)
             cacheValue(totalReports, forKey: CacheKey.totalReports)
 
             applyEngagementStats(from: profile)

@@ -12,7 +12,6 @@ struct RankUpCelebration: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // Dim background
                 Color.black.opacity(0.6)
                     .ignoresSafeArea()
                     .onTapGesture {
@@ -21,7 +20,6 @@ struct RankUpCelebration: View {
                         onDismiss()
                     }
 
-                // Confetti particles
                 ForEach(particles) { particle in
                     Circle()
                         .fill(particle.color)
@@ -30,7 +28,6 @@ struct RankUpCelebration: View {
                         .opacity(particle.opacity)
                 }
 
-                // Center content
                 if showContent {
                     VStack(spacing: 16) {
                         Image(systemName: rank.icon)
@@ -63,7 +60,7 @@ struct RankUpCelebration: View {
 
                 spawnConfetti(in: geo.size)
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
                     guard !dismissed else { return }
                     dismissed = true
                     onDismiss()
@@ -88,7 +85,7 @@ struct RankUpCelebration: View {
             )
         }
 
-        withAnimation(.easeIn(duration: 2.0)) {
+        withAnimation(.easeIn(duration: 4.0)) {
             for i in particles.indices {
                 particles[i].y = CGFloat.random(in: -halfH...halfH)
                 particles[i].x += CGFloat.random(in: -100...100)

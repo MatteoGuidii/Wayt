@@ -341,6 +341,17 @@ struct VenueDetailSheet: View {
 
     private var embeddedReportButton: some View {
         VStack(spacing: 6) {
+            if let message = viewModel.rateLimitMessage {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(WaytTheme.captionFont)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.orange.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+
             if viewModel.estimate.isOpen == false {
                 Label("Venue is closed", systemImage: "door.left.hand.closed")
                     .font(WaytTheme.bodyBoldFont)

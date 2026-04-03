@@ -18,6 +18,7 @@ final class VenueDetailViewModel: ObservableObject {
     @Published var isWithinReportRange: Bool = false
     @Published var isOnCooldown: Bool = false
     @Published var cooldownRemaining: TimeInterval = 0
+    @Published var rateLimitMessage: String?
     @Published var venueDetailsFull: VenueDetailsFull?
 
     // MARK: - Private
@@ -205,6 +206,7 @@ final class VenueDetailViewModel: ObservableObject {
     // MARK: - Submit Report
 
     func submitReport(level: BusynessLevel, waitMinutes: Int?) async {
+        rateLimitMessage = nil
         // 1. Optimistic update — reflect the report INSTANTLY in the UI
         let previousEstimate = estimate
         let newReportCount = estimate.reportCount + 1
@@ -248,15 +250,17 @@ final class VenueDetailViewModel: ObservableObject {
                     )
                 }
                 Log.reports.info("Report submitted successfully for \(venueSnapshot.id, privacy: .public)")
-            } catch APIError.rateLimited {
-                // Backend rejected due to cooldown — roll back optimistic update
+            } catch APIError.rateLimited(let reason) {
                 if let vm = self {
                     await MainActor.run {
                         vm.estimate = rollbackEstimate
                         vm.reportSubmitted = false
+                        if reason == .velocity || reason == .dailyCap {
+                            vm.rateLimitMessage = reason.userMessage
+                        }
                     }
                 }
-                Log.reports.notice("Report cooldown active for \(venueSnapshot.id, privacy: .public)")
+                Log.reports.notice("Report rejected (\(reason.rawValue)) for \(venueSnapshot.id, privacy: .public)")
             } catch {
                 Log.reports.error("Report submission failed: \(error.localizedDescription)")
             }
