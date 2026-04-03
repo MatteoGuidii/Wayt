@@ -129,7 +129,11 @@ struct VenueDetailSheet: View {
             viewModel.updateProximity(userLocation: newLocation)
         }
         .onChange(of: mapViewModel.venues) { _, updatedVenues in
-            guard let updated = updatedVenues.first(where: { $0.id == venue.id }) else { return }
+            guard let updated = updatedVenues.first(where: { $0.id == venue.id }),
+                  updated.busyness != viewModel.estimate.level
+                    || updated.busynessConfidence != viewModel.estimate.confidence
+                    || updated.isOpen != viewModel.estimate.isOpen
+            else { return }
             viewModel.updateFromLiveRefresh(venue: updated)
         }
         .onChange(of: viewModel.busynessJustChanged) { _, justChanged in
