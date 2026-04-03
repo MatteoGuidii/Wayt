@@ -1,6 +1,5 @@
 import SwiftUI
 import Amplify
-import Authenticator
 
 struct AuthRootView: View {
 
@@ -15,7 +14,7 @@ struct AuthRootView: View {
     @State private var screen: Screen = .onboarding
     /// Once true, MainTabView stays in the tree forever — auth overlays on top.
     @State private var hasEnteredBrowsing = false
-    /// Once true, authenticator stays in the tree so Amplify form state is never lost.
+    /// Once true, auth form stays in the tree so form state is never lost.
     @State private var hasShownAuthenticator = false
 
     var body: some View {
@@ -57,6 +56,11 @@ struct AuthRootView: View {
                     .allowsHitTesting(screen == .authenticator)
                     .accessibilityHidden(screen != .authenticator)
                     .animation(.easeOut(duration: 0.3), value: screen)
+            }
+        }
+        .onChange(of: screen) { _, newScreen in
+            if newScreen != .authenticator {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
         }
         .onAppear {
@@ -118,8 +122,8 @@ struct AuthRootView: View {
                 // Header collapses on keyboard via GeometryReader keyboard height
                 AuthHeaderView()
 
-                // Isolated Authenticator — never re-renders from parent state changes
-                AuthenticatorContainer(onSignedIn: { username in
+                // Isolated container — never re-renders from parent state changes
+                AuthFlowContainer(isVisible: screen == .authenticator, onSignedIn: { username in
                     authState.didSignIn(username: username)
                     hasCompletedOnboarding = true
                     hasEnteredBrowsing = true
@@ -167,61 +171,43 @@ private struct AuthHeaderView: View {
     }
 }
 
-// MARK: - Authenticator Container (isolated)
+// MARK: - Auth Flow Container (isolated)
 
-/// Wraps Amplify's Authenticator in its own View struct so it is never
+/// Wraps the custom auth forms in its own View struct so it is never
 /// invalidated by unrelated state changes in the parent (keyboard, screen, etc.).
-private struct AuthenticatorContainer: View {
+private struct AuthFlowContainer: View {
+    var isVisible: Bool
     var onSignedIn: (String) -> Void
 
+    @StateObject private var viewModel = AuthFlowViewModel()
+
     var body: some View {
-        Authenticator { state in
-            Color.clear
-                .onAppear {
-                    onSignedIn(state.user.username)
+        ScrollView {
+            VStack(spacing: 0) {
+                switch viewModel.step {
+                case .signIn:
+                    SignInFormView(viewModel: viewModel)
+                case .signUp:
+                    SignUpFormView(viewModel: viewModel)
+                case .confirmSignUp:
+                    ConfirmSignUpFormView(viewModel: viewModel)
+                case .forgotPassword:
+                    ForgotPasswordFormView(viewModel: viewModel)
+                case .confirmResetPassword:
+                    ConfirmResetPasswordFormView(viewModel: viewModel)
                 }
+                Spacer(minLength: 40)
+            }
+            .animation(.easeInOut(duration: 0.2), value: viewModel.step)
         }
-        .authenticatorTheme(Self.theme)
+        .scrollDismissesKeyboard(.interactively)
+        .onAppear {
+            viewModel.onSignedIn = onSignedIn
+        }
+        .onChange(of: isVisible) { _, visible in
+            if visible { viewModel.reset() }
+        }
     }
-
-    private static let theme: AuthenticatorTheme = {
-        var t = AuthenticatorTheme()
-
-        // Backgrounds
-        t.colors.background.primary   = .clear
-        t.colors.background.secondary = .clear
-        t.colors.background.tertiary  = .clear
-        t.components.authenticator.backgroundColor = .clear
-
-        // Fields
-        t.components.field.backgroundColor = WaytTheme.fieldBackground
-        t.components.field.cornerRadius = 12
-
-        // Accent color
-        t.colors.background.interactive = WaytTheme.mapsBlue
-        t.colors.foreground.interactive = WaytTheme.mapsBlue
-
-        // Buttons
-        t.components.button.primary.cornerRadius = 16
-        t.components.button.primary.padding = 16
-        t.components.button.primary.font = WaytTheme.calloutBoldFont
-        t.components.button.link.font = WaytTheme.subtitleFont
-
-        // Fonts — use Wayt's rounded design system
-        t.fonts.largeTitle = WaytTheme.largeTitleFont
-        t.fonts.title      = WaytTheme.heroFont
-        t.fonts.title2     = WaytTheme.headlineFont
-        t.fonts.title3     = WaytTheme.title3Font
-        t.fonts.headline   = WaytTheme.bodyBoldFont
-        t.fonts.subheadline = WaytTheme.subtitleFont
-        t.fonts.body       = WaytTheme.bodyFont
-        t.fonts.callout    = WaytTheme.subheadLightFont
-        t.fonts.caption    = WaytTheme.captionFont
-        t.fonts.caption2   = WaytTheme.captionLightFont
-        t.fonts.footnote   = WaytTheme.footnoteFont
-
-        return t
-    }()
 }
 
 // MARK: - Preview
