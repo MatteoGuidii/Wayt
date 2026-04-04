@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MainTabView: View {
 
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var authState: AuthState
     @StateObject private var tabSelection = TabSelection()
     @StateObject private var filterState = VenueFilterState()
@@ -74,6 +75,16 @@ struct MainTabView: View {
                 async let profileLoad: () = profileViewModel.loadProfile()
                 async let venuesLoad: () = savedVenuesVM.loadSavedVenues()
                 _ = await (profileLoad, venuesLoad)
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .active:
+                mapViewModel.startLiveRefresh()
+            case .background:
+                mapViewModel.stopLiveRefresh()
+            default:
+                break
             }
         }
     }

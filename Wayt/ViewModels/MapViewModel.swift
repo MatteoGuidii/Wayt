@@ -132,6 +132,7 @@ final class MapViewModel: ObservableObject {
         expandTask?.cancel()
         prefetchTask?.cancel()
         followUpTask?.cancel()
+        reportRefreshTask?.cancel()
     }
 
     // MARK: - Search Venues
@@ -657,14 +658,12 @@ final class MapViewModel: ObservableObject {
 
                 let timeSinceFullRefresh = Date().timeIntervalSince(lastFullRefreshDate)
                 if timeSinceFullRefresh >= AppConstants.liveRefreshInterval {
-                    // Periodic full refresh for all venues (every 120s regardless of adaptive interval)
                     var updated = venues
                     await overlayBusynessData(on: &updated, region: region)
                     venues = updated
                     recomputeClusters()
                     lastFullRefreshDate = Date()
                 } else if interval < AppConstants.maxAdaptiveRefreshInterval {
-                    // Short interval = active venues exist. Only refresh those.
                     await refreshActiveVenues(region: region)
                 }
                 scheduleHoursTransitionRefresh()

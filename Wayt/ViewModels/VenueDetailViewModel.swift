@@ -27,6 +27,10 @@ final class VenueDetailViewModel: ObservableObject {
     private let busynessEngine = BusynessEngine.shared
     private var cooldownTask: Task<Void, Never>?
 
+    deinit {
+        cooldownTask?.cancel()
+    }
+
     // MARK: - Init
 
     init(venue: Venue) {

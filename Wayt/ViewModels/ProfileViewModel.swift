@@ -69,6 +69,10 @@ final class ProfileViewModel: ObservableObject {
         return f
     }()
 
+    deinit {
+        syncTask?.cancel()
+    }
+
     // MARK: - Init
 
     init() {

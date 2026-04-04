@@ -197,9 +197,31 @@ actor APIClient {
             return cached
         }
 
-        let session = try await Amplify.Auth.fetchAuthSession()
+        // Timeout prevents a hung Cognito call from blocking all API requests
+        let session: AuthSession
+        do {
+            session = try await withThrowingTaskGroup(of: AuthSession.self) { group in
+                group.addTask {
+                    try await Amplify.Auth.fetchAuthSession()
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(8))
+                    throw APIError.authTimeout
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
+        } catch {
+            Log.auth.error("Auth session fetch failed: \(error.localizedDescription)")
+            throw APIError.unauthorized
+        }
+
         guard let cognitoPlugin = session as? AuthCognitoTokensProvider,
               let tokens = try? cognitoPlugin.getCognitoTokens().get() else {
+            // Refresh token likely expired — session exists but tokens can't be obtained
+            Log.auth.error("Token retrieval failed — refresh token may be expired")
+            invalidateToken()
             throw APIError.unauthorized
         }
 
@@ -212,10 +234,9 @@ actor APIClient {
            let data = Data(base64Encoded: Self.padBase64(String(segments[1]))),
            let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let exp = payload["exp"] as? TimeInterval {
-            // Refresh 60 seconds before actual expiry
             tokenExpiry = Date(timeIntervalSince1970: exp).addingTimeInterval(-60)
         } else {
-            // Fallback: cache for 50 minutes (Cognito tokens are typically valid for 1 hour)
+            Log.auth.warning("Failed to parse JWT expiry, using 50-min fallback")
             tokenExpiry = Date().addingTimeInterval(50 * 60)
         }
 
@@ -293,6 +314,7 @@ actor APIClient {
 enum APIError: LocalizedError {
     case invalidURL
     case unauthorized
+    case authTimeout
     case rateLimited(reason: RateLimitReason)
     case serverError(Int)
     case unknown
@@ -301,6 +323,7 @@ enum APIError: LocalizedError {
         switch self {
         case .invalidURL:            return "Invalid API URL."
         case .unauthorized:          return "Please sign in again."
+        case .authTimeout:           return "Authentication timed out."
         case .rateLimited(let reason): return reason.userMessage
         case .serverError(let code): return "Server error (\(code))."
         case .unknown:               return "An unexpected error occurred."
