@@ -222,6 +222,12 @@ actor APIClient {
         return token
     }
 
+    /// Clear cached auth token so the next request fetches a fresh one.
+    func invalidateToken() {
+        cachedToken = nil
+        tokenExpiry = .distantPast
+    }
+
     /// Pad a Base64URL string to standard Base64 length.
     private static func padBase64(_ string: String) -> String {
         var s = string
@@ -242,8 +248,7 @@ actor APIClient {
         case 200...299: return
         case 401:
             // Invalidate cached token on 401 so next request fetches a fresh one
-            cachedToken = nil
-            tokenExpiry = .distantPast
+            invalidateToken()
             Log.api.error("Unauthorized (401)")
             throw APIError.unauthorized
         case 429:

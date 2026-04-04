@@ -634,9 +634,12 @@ struct ProfileScreen: View {
                        case .failed = globalResult {
                         Log.auth.error("Sign-out failed")
                     } else {
-                        viewModel.reset()
-                        savedVenuesVM.reset()
-                        authState.didSignOut()
+                        await SessionCleanup.perform(
+                            profileViewModel: viewModel,
+                            savedVenuesVM: savedVenuesVM,
+                            mapViewModel: mapViewModel,
+                            authState: authState
+                        )
                     }
                 }
             } label: {

@@ -116,8 +116,15 @@ export async function handler(
       }
     }
 
-    // Daily report cap
-    const today = new Date(now).toISOString().slice(0, 10);
+    // Daily report cap — use client timezone so the date matches the user's local day
+    const clientTz = body.timezone || "UTC";
+    let today: string;
+    try {
+      today = new Date(now).toLocaleDateString("en-CA", { timeZone: clientTz });
+    } catch {
+      // Invalid timezone identifier — fall back to UTC
+      today = new Date(now).toISOString().slice(0, 10);
+    }
     const dailyDate = (userProfile?.dailyReportDate as string | undefined) ?? "";
     const dailyCount = dailyDate === today ? (userProfile?.dailyReportCount as number ?? 0) : 0;
     if (dailyCount >= DAILY_REPORT_CAP) {

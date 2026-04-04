@@ -153,9 +153,9 @@ struct StreakCalendarSheet: View {
 
                 ForEach(days, id: \.timeIntervalSince1970) { date in
                     let dateString = Self.dateFormatter.string(from: date)
-                    let hasReport = reportDates.contains(dateString)
-                    let isToday = calendar.isDateInToday(date)
                     let isFuture = date > Date()
+                    let hasReport = !isFuture && reportDates.contains(dateString)
+                    let isToday = calendar.isDateInToday(date)
                     let dayNumber = calendar.component(.day, from: date)
 
                     ZStack {

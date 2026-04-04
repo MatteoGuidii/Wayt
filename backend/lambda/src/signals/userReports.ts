@@ -1,6 +1,6 @@
 import { BatchGetCommand, GetCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, REPORTS_TABLE, venueKey, getItem, putItem } from "../db";
-import { VenueSignal, SOURCE_CONFIG, normalizeLevel, classifyVenueCategory } from "./types";
+import { VenueSignal, SOURCE_CONFIG, normalizeLevel, classifyVenueCategory, mapClientCategory } from "./types";
 import { CachedFsqData, computeTimeAwareBusyness } from "./foursquare";
 import {
   USERS_TABLE,
@@ -28,6 +28,16 @@ const PLAUSIBILITY_THRESHOLD = 0.6;
 const PLAUSIBILITY_PENALTY = 0.5;
 /** Min Foursquare confidence to apply plausibility check — don't penalize against weak predictions. */
 const PLAUSIBILITY_MIN_CONFIDENCE = 0.4;
+
+/** True half-life for wait-time decay by venue category (minutes). */
+const WAIT_HALF_LIFE: Record<string, number> = {
+  coffee: 20,
+  restaurant: 35,
+  bar: 25,
+  nightclub: 30,
+  default: 30,
+};
+const DEFAULT_WAIT_HALF_LIFE = 30;
 
 /**
  * Aggregate user reports from the existing VenueReports table into a single
@@ -94,6 +104,7 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
     let weightedWait = 0;
     let waitCount = 0;
     let latestTimestamp = 0;
+    let latestWaitTimestamp = 0;
 
     for (const item of items) {
       const level = item.busynessLevel as number;
@@ -119,13 +130,35 @@ export async function aggregateUserReports(venueId: string): Promise<VenueSignal
         weightedWait += (item.waitMinutes as number) * weight;
         totalWaitWeight += weight;
         waitCount++;
+        latestWaitTimestamp = Math.max(latestWaitTimestamp, ts);
       }
     }
 
     if (totalWeight === 0) return null;
 
     const avgBusyness = weightedBusyness / totalWeight; // 1.0-5.0 scale
-    const avgWait = totalWaitWeight > 0 ? Math.round(weightedWait / totalWaitWeight) : undefined;
+    let avgWait: number | undefined = totalWaitWeight > 0 ? Math.round(weightedWait / totalWaitWeight) : undefined;
+
+    // Decay wait time; floor at 2 min to suppress stale "1 min" noise.
+    if (avgWait != null && latestWaitTimestamp > 0) {
+      const waitAge = (now - latestWaitTimestamp) / 60_000;
+
+      // Majority-vote venueType across all reports (guards against a single misclassified report)
+      const typeCounts = new Map<string, number>();
+      for (const item of items) {
+        const vt = (item.venueType as string) ?? "";
+        typeCounts.set(vt, (typeCounts.get(vt) ?? 0) + 1);
+      }
+      let venueType = "";
+      let maxCount = 0;
+      for (const [vt, count] of typeCounts) {
+        if (count > maxCount) { venueType = vt; maxCount = count; }
+      }
+
+      const halfLife = WAIT_HALF_LIFE[mapClientCategory(venueType)] ?? DEFAULT_WAIT_HALF_LIFE;
+      const decayed = Math.round(avgWait * Math.exp(-waitAge * Math.LN2 / halfLife));
+      avgWait = decayed >= 2 ? decayed : undefined;
+    }
 
     const config = SOURCE_CONFIG.user_reports;
     const reportCount = items.length;

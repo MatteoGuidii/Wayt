@@ -160,6 +160,17 @@ export function classifyVenueCategory(primaryType: string | null | undefined): V
   return "default";
 }
 
+/** Map iOS client category names (stored in DynamoDB reports) to backend VenueCategory. */
+export function mapClientCategory(clientCategory: string): VenueCategory {
+  switch (clientCategory) {
+    case "food":       return "restaurant";
+    case "drinks":     return "bar";
+    case "nightlife":  return "nightclub";
+    case "coffee":     return "coffee";
+    default:           return "default";
+  }
+}
+
 // -----------------------------------------------
 // Helpers
 // -----------------------------------------------

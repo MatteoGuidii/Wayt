@@ -96,7 +96,9 @@ final class MapViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
                 let venueId = notification.object as? String
-                self?.refreshAfterReport(venueId: venueId)
+                let reportedLevel = (notification.userInfo?["busynessLevel"] as? Int)
+                    .flatMap { BusynessLevel(rawValue: $0) }
+                self?.refreshAfterReport(venueId: venueId, reportedLevel: reportedLevel)
             }
     }
 
@@ -113,6 +115,7 @@ final class MapViewModel: ObservableObject {
     private var hoursTransitionTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
     private var followUpTask: Task<Void, Never>?
+    private var reportRefreshTask: Task<Void, Never>?
 
     /// Approximate search radius in meters, accounting for longitude compression at higher latitudes.
     private func searchRadius(for region: MKCoordinateRegion) -> Double {
@@ -508,9 +511,21 @@ final class MapViewModel: ObservableObject {
         searchVenues(in: region)
     }
 
-    /// Refresh busyness data after a report was submitted.
-    /// Selectively invalidates the reported venue's cache and re-applies busyness data.
-    func refreshAfterReport(venueId: String? = nil) {
+    /// Refresh busyness data after a report: optimistic local update, then background
+    /// retries at +2s/+5s to catch the backend's recomputed fused estimate.
+    func refreshAfterReport(venueId: String? = nil, reportedLevel: BusynessLevel? = nil) {
+        reportRefreshTask?.cancel()
+
+        // Optimistic: immediately reflect the reported level on the map marker
+        if let venueId, let level = reportedLevel,
+           let idx = venues.firstIndex(where: { $0.id == venueId }) {
+            var v = venues[idx]
+            v.busyness = level
+            v.busynessConfidence = .low
+            venues[idx] = v
+            recomputeClusters()
+        }
+
         ReportService.shared.invalidateCache()
         if let venueId {
             fusionService.invalidateCacheForVenue(venueId)
@@ -518,12 +533,53 @@ final class MapViewModel: ObservableObject {
             fusionService.invalidateCache()
         }
         guard let region = lastSearchedRegion else { return }
-        Task {
+        reportRefreshTask = Task {
             var updated = venues
             await overlayBusynessData(on: &updated, region: region)
             venues = updated
             recomputeClusters()
+
+            // Backend background Lambda needs ~0.5-2s to recompute the fused
+            // estimate with the new report. Retry to pick it up.
+            var previous = 0
+            for cumulative in [2, 5] {
+                try? await Task.sleep(for: .seconds(cumulative - previous))
+                previous = cumulative
+                guard !Task.isCancelled else { return }
+                if let venueId {
+                    fusionService.invalidateCacheForVenue(venueId)
+                } else {
+                    fusionService.invalidateCache()
+                }
+                var refreshed = venues
+                await overlayBusynessData(on: &refreshed, region: region)
+                venues = refreshed
+                recomputeClusters()
+            }
         }
+    }
+
+    /// Clear all caches and map state on sign-out so the next user
+    /// starts with a clean slate.
+    func resetForSignOut() {
+        searchTask?.cancel()
+        expandTask?.cancel()
+        refreshTimer?.cancel()
+        followUpTask?.cancel()
+        prefetchTask?.cancel()
+        hoursTransitionTask?.cancel()
+        clusterDebounceTask?.cancel()
+        reportRefreshTask?.cancel()
+
+        searchService.invalidateCache()
+        searchService.resetRateLimit()
+        filterState?.clearAll()
+        venues = []
+        mapItems = []
+        selectedVenue = nil
+        searchText = ""
+        showSearchThisArea = false
+        lastSearchedRegion = nil
     }
 
     // MARK: - Progressive Follow-Up Refreshes
