@@ -212,6 +212,10 @@ actor APIClient {
                 group.cancelAll()
                 return result
             }
+        } catch is CancellationError {
+            throw APIError.authTimeout
+        } catch let error as APIError {
+            throw error
         } catch {
             Log.auth.error("Auth session fetch failed: \(error.localizedDescription)")
             throw APIError.unauthorized
@@ -273,9 +277,9 @@ actor APIClient {
             Log.api.error("Unauthorized (401)")
             throw APIError.unauthorized
         case 429:
-            let reason = RateLimitReason.from(data: data)
+            let (reason, retryAfter) = RateLimitReason.from(data: data)
             Log.api.notice("Rate limited (429): \(reason.rawValue, privacy: .public)")
-            throw APIError.rateLimited(reason: reason)
+            throw APIError.rateLimited(reason: reason, retryAfter: retryAfter)
         default:
             Log.api.error("Server error (\(http.statusCode))")
             throw APIError.serverError(http.statusCode)
@@ -315,7 +319,7 @@ enum APIError: LocalizedError {
     case invalidURL
     case unauthorized
     case authTimeout
-    case rateLimited(reason: RateLimitReason)
+    case rateLimited(reason: RateLimitReason, retryAfter: TimeInterval?)
     case serverError(Int)
     case unknown
 
@@ -324,7 +328,7 @@ enum APIError: LocalizedError {
         case .invalidURL:            return "Invalid API URL."
         case .unauthorized:          return "Please sign in again."
         case .authTimeout:           return "Authentication timed out."
-        case .rateLimited(let reason): return reason.userMessage
+        case .rateLimited(let reason, _): return reason.userMessage
         case .serverError(let code): return "Server error (\(code))."
         case .unknown:               return "An unexpected error occurred."
         }
@@ -352,12 +356,13 @@ enum RateLimitReason: String {
         }
     }
 
-    nonisolated static func from(data: Data) -> RateLimitReason {
+    nonisolated static func from(data: Data) -> (reason: RateLimitReason, retryAfter: TimeInterval?) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let error = json["error"] as? String,
               let reason = RateLimitReason(rawValue: error) else {
-            return .unknown
+            return (.unknown, nil)
         }
-        return reason
+        let retryAfter = (json["retryAfter"] as? NSNumber).map { TimeInterval($0.doubleValue) }
+        return (reason, retryAfter)
     }
 }

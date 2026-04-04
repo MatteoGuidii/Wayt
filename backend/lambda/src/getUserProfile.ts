@@ -120,7 +120,10 @@ function computeStreakFreezes(reportDates: string[]): number {
     for (let dayOffset = windowIndex * 7; dayOffset < (windowIndex + 1) * 7; dayOffset++) {
       const d = new Date(now);
       d.setDate(d.getDate() - dayOffset);
-      windowDates.push(d.toISOString().slice(0, 10));
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      windowDates.push(`${yyyy}-${mm}-${dd}`);
     }
 
     if (windowDates.some((d) => dateSet.has(d))) {

@@ -54,7 +54,7 @@ nonisolated enum AppConstants {
     static let locationDistanceFilter: CLLocationDistance = 10
 
     /// Maximum distance from a venue to allow submitting a report (meters)
-    static let reportProximityRadius: CLLocationDistance = 2000
+    static let reportProximityRadius: CLLocationDistance = 300
 
     // MARK: - Walking
 

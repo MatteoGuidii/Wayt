@@ -123,7 +123,7 @@ final class VenueDetailViewModel: ObservableObject {
     // MARK: - Live Refresh
 
     func updateFromLiveRefresh(venue updatedVenue: Venue) {
-        let levelChanged = updatedVenue.busyness != estimate.level
+        let levelChanged = (updatedVenue.busyness ?? estimate.level) != estimate.level
 
         estimate = BusynessEstimate(
             level: updatedVenue.busyness ?? estimate.level,
@@ -254,12 +254,14 @@ final class VenueDetailViewModel: ObservableObject {
                     )
                 }
                 Log.reports.info("Report submitted successfully for \(venueSnapshot.id, privacy: .public)")
-            } catch APIError.rateLimited(let reason) {
+            } catch APIError.rateLimited(let reason, let retryAfter) {
                 if let vm = self {
                     await MainActor.run {
                         vm.estimate = rollbackEstimate
                         vm.reportSubmitted = false
-                        if reason == .velocity || reason == .dailyCap {
+                        if reason == .cooldown, let retryAfter {
+                            vm.startCooldown(remaining: retryAfter)
+                        } else if reason == .velocity || reason == .dailyCap {
                             vm.rateLimitMessage = reason.userMessage
                         }
                     }

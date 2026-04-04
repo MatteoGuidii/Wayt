@@ -130,9 +130,9 @@ struct VenueDetailSheet: View {
         }
         .onChange(of: mapViewModel.venues) { _, updatedVenues in
             guard let updated = updatedVenues.first(where: { $0.id == venue.id }),
-                  updated.busyness != viewModel.estimate.level
+                  (updated.busyness ?? viewModel.estimate.level) != viewModel.estimate.level
                     || updated.busynessConfidence != viewModel.estimate.confidence
-                    || updated.isOpen != viewModel.estimate.isOpen
+                    || (updated.isOpen ?? viewModel.estimate.isOpen) != viewModel.estimate.isOpen
             else { return }
             viewModel.updateFromLiveRefresh(venue: updated)
         }
