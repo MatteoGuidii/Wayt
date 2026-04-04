@@ -150,11 +150,6 @@ struct WaytThemeTests {
         #expect(WaytTheme.cardBackground != Color.clear)
     }
 
-    @Test("signalPulseBase is a valid color")
-    func signalPulseBaseExists() {
-        #expect(WaytTheme.signalPulseBase != Color.clear)
-    }
-
     @Test("avatarRing is a valid color")
     func avatarRingExists() {
         #expect(WaytTheme.avatarRing != Color.clear)

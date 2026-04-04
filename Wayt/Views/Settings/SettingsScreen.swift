@@ -8,6 +8,7 @@ struct SettingsScreen: View {
     @EnvironmentObject private var authState: AuthState
     @EnvironmentObject private var profileViewModel: ProfileViewModel
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
+    @EnvironmentObject private var mapViewModel: MapViewModel
 
     @AppStorage("wayt_theme") private var theme: String = "system"
     @AppStorage("wayt_distanceUnit") private var distanceUnit: String = "km"
@@ -188,11 +189,12 @@ struct SettingsScreen: View {
                case .failed = globalResult {
                 Log.auth.error("Sign-out after account deletion failed")
             }
-            await MainActor.run {
-                profileViewModel.reset()
-                savedVenuesVM.reset()
-                authState.didSignOut()
-            }
+            await SessionCleanup.perform(
+                profileViewModel: profileViewModel,
+                savedVenuesVM: savedVenuesVM,
+                mapViewModel: mapViewModel,
+                authState: authState
+            )
         } catch {
             Log.auth.error("Account deletion failed: \(error.localizedDescription)")
             showDeleteError = true

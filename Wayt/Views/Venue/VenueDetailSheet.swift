@@ -59,12 +59,14 @@ struct VenueDetailSheet: View {
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
     @EnvironmentObject private var tabSelection: TabSelection
     @EnvironmentObject private var mapViewModel: MapViewModel
+    @EnvironmentObject private var profileViewModel: ProfileViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showAuthGate = false
     @State private var lookAroundScene: MKLookAroundScene?
     @State private var isLoadingLookAround = true
     @State private var showFullLookAround = false
     @State private var showReviewsSheet = false
+    @State private var busynessFlashOpacity: Double = 0
     @AppStorage("wayt_distanceUnit") private var distanceUnit: String = "km"
 
     init(venue: Venue) {
@@ -118,12 +120,34 @@ struct VenueDetailSheet: View {
         }
         .task {
             viewModel.updateProximity(userLocation: locationService.userLocation)
+            viewModel.checkCooldown(reportHistory: profileViewModel.reportHistory)
             async let reportsTask: () = viewModel.loadReports()
             async let lookAroundTask: () = fetchLookAroundScene()
             _ = await (reportsTask, lookAroundTask)
         }
         .onChange(of: locationService.userLocation) { _, newLocation in
             viewModel.updateProximity(userLocation: newLocation)
+        }
+        .onChange(of: mapViewModel.venues) { _, updatedVenues in
+            guard let updated = updatedVenues.first(where: { $0.id == venue.id }),
+                  (updated.busyness ?? viewModel.estimate.level) != viewModel.estimate.level
+                    || updated.busynessConfidence != viewModel.estimate.confidence
+                    || (updated.isOpen ?? viewModel.estimate.isOpen) != viewModel.estimate.isOpen
+            else { return }
+            viewModel.updateFromLiveRefresh(venue: updated)
+        }
+        .onChange(of: viewModel.busynessJustChanged) { _, justChanged in
+            guard justChanged else { return }
+            withAnimation(.easeIn(duration: 0.15)) {
+                busynessFlashOpacity = 1
+            }
+            withAnimation(.easeOut(duration: 0.4).delay(0.15)) {
+                busynessFlashOpacity = 0
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                viewModel.busynessJustChanged = false
+            }
         }
         .sheet(isPresented: $viewModel.showReportSheet) {
             ReportSheet(venue: venue) { level, wait in
@@ -133,6 +157,8 @@ struct VenueDetailSheet: View {
         }
         .sheet(isPresented: $showAuthGate) {
             AuthGateSheet {
+                authState.pendingVenue = venue
+                authState.pendingVenueTab = tabSelection.selectedTab
                 authState.requestSignIn()
             }
             .presentationDetents([.medium, .large])
@@ -245,6 +271,11 @@ struct VenueDetailSheet: View {
         }
         .waytCard()
         .busynessGlow(viewModel.estimate.isOpen == false ? nil : viewModel.estimate.level.color)
+        .overlay {
+            RoundedRectangle(cornerRadius: WaytTheme.cornerRadius, style: .continuous)
+                .fill(viewModel.estimate.level.color.opacity(0.18 * busynessFlashOpacity))
+                .allowsHitTesting(false)
+        }
     }
 
     private var busynessBackgroundFill: some ShapeStyle {
@@ -299,11 +330,28 @@ struct VenueDetailSheet: View {
 
                 Spacer()
             }
+
+            TimelineView(.periodic(from: .now, by: 30)) { _ in
+                Text("Updated \(viewModel.lastEstimateTime.refreshRelativeTime)")
+                    .font(WaytTheme.microFont)
+                    .foregroundStyle(WaytTheme.secondaryText.opacity(0.7))
+            }
         }
     }
 
     private var embeddedReportButton: some View {
         VStack(spacing: 6) {
+            if let message = viewModel.rateLimitMessage {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(WaytTheme.captionFont)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.orange.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+
             if viewModel.estimate.isOpen == false {
                 Label("Venue is closed", systemImage: "door.left.hand.closed")
                     .font(WaytTheme.bodyBoldFont)
@@ -312,6 +360,17 @@ struct VenueDetailSheet: View {
                     .background(Color(.systemGray4))
                     .foregroundStyle(WaytTheme.secondaryText)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if viewModel.isOnCooldown {
+                Label(
+                    "Report again in \(formattedCooldown(viewModel.cooldownRemaining))",
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .font(WaytTheme.bodyBoldFont)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color(.systemGray4))
+                .foregroundStyle(WaytTheme.secondaryText)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             } else if viewModel.isWithinReportRange {
                 Button {
                     if authState.isSignedIn {
@@ -413,15 +472,10 @@ struct VenueDetailSheet: View {
                     if !mapViewModel.venues.contains(where: { $0.id == venue.id }) {
                         mapViewModel.venues.append(venue)
                     }
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                        mapViewModel.cameraPosition = .camera(MapCamera(
-                            centerCoordinate: venue.coordinate,
-                            distance: 800,
-                            heading: 0,
-                            pitch: 0
-                        ))
-                    }
                     tabSelection.selectedTab = .map
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        mapViewModel.selectVenue(venue)
+                    }
                 }
             }
 
@@ -504,6 +558,13 @@ struct VenueDetailSheet: View {
         }
     }
 
+    private func formattedCooldown(_ seconds: TimeInterval) -> String {
+        let totalSeconds = max(0, Int(seconds))
+        let mins = totalSeconds / 60
+        let secs = totalSeconds % 60
+        return mins > 0 ? "\(mins)m \(secs)s" : "\(secs)s"
+    }
+
     private func fetchLookAroundScene() async {
         let cache = LookAroundCache.shared
         let coordinate = venue.coordinate
@@ -527,4 +588,16 @@ struct VenueDetailSheet: View {
         isLoadingLookAround = false
     }
 
+}
+
+// MARK: - Relative Time Formatting
+
+private extension Date {
+    var refreshRelativeTime: String {
+        let seconds = Int(-timeIntervalSinceNow)
+        guard seconds >= 60 else { return "just now" }
+        let minutes = seconds / 60
+        guard minutes < 60 else { return "\(minutes / 60)h ago" }
+        return "\(minutes)m ago"
+    }
 }

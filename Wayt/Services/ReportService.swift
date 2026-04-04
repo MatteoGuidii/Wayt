@@ -32,7 +32,8 @@ final class ReportService {
             venueName: venue.name,
             venueType: venue.category.rawValue,
             lat: venue.coordinate.latitude,
-            lng: venue.coordinate.longitude
+            lng: venue.coordinate.longitude,
+            timezone: TimeZone.current.identifier
         )
         Log.reports.info("Submitting report for venue \(venue.id, privacy: .public): level=\(level.rawValue)")
         try await APIClient.shared.post(path: "/reports", body: body)

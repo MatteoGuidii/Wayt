@@ -9,17 +9,27 @@ final class VenueDetailViewModel: ObservableObject {
     // MARK: - Published
 
     @Published var estimate: BusynessEstimate
+    @Published var lastEstimateTime: Date = Date()
+    @Published var busynessJustChanged: Bool = false
     @Published var recentReports: [BusynessReport] = []
     @Published var isLoadingReports: Bool = false
     @Published var showReportSheet: Bool = false
     @Published var reportSubmitted: Bool = false
     @Published var isWithinReportRange: Bool = false
+    @Published var isOnCooldown: Bool = false
+    @Published var cooldownRemaining: TimeInterval = 0
+    @Published var rateLimitMessage: String?
     @Published var venueDetailsFull: VenueDetailsFull?
 
     // MARK: - Private
 
     let venue: Venue
     private let busynessEngine = BusynessEngine.shared
+    private var cooldownTask: Task<Void, Never>?
+
+    deinit {
+        cooldownTask?.cancel()
+    }
 
     // MARK: - Init
 
@@ -66,6 +76,7 @@ final class VenueDetailViewModel: ObservableObject {
         }
         // else: keep the initial estimate from map overlay
 
+        lastEstimateTime = Date()
         isLoadingReports = false
     }
 
@@ -109,6 +120,28 @@ final class VenueDetailViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Live Refresh
+
+    func updateFromLiveRefresh(venue updatedVenue: Venue) {
+        let levelChanged = (updatedVenue.busyness ?? estimate.level) != estimate.level
+
+        estimate = BusynessEstimate(
+            level: updatedVenue.busyness ?? estimate.level,
+            confidence: updatedVenue.busynessConfidence,
+            reportCount: updatedVenue.reportCount,
+            waitMinutes: updatedVenue.estimatedWaitMinutes,
+            isOpen: updatedVenue.isOpen ?? estimate.isOpen,
+            hoursToday: updatedVenue.hoursToday ?? estimate.hoursToday,
+            businessStatus: updatedVenue.businessStatus ?? estimate.businessStatus,
+            venueDetails: estimate.venueDetails
+        )
+        lastEstimateTime = Date()
+
+        if levelChanged {
+            busynessJustChanged = true
+        }
+    }
+
     // MARK: - Proximity Check
 
     func updateProximity(userLocation: CLLocation?) {
@@ -133,10 +166,53 @@ final class VenueDetailViewModel: ObservableObject {
         return userLocation.distance(from: venueLocation)
     }
 
+    // MARK: - Cooldown
+
+    /// Check local report history for an active cooldown on this venue.
+    func checkCooldown(reportHistory: [ReportHistoryEntry]) {
+        guard let lastReport = reportHistory.first(where: { $0.venueId == venue.id }) else {
+            clearCooldown()
+            return
+        }
+        let elapsed = Date().timeIntervalSince(lastReport.timestamp)
+        let remaining = AppConstants.reportCooldown - elapsed
+        if remaining > 0 {
+            startCooldown(remaining: remaining)
+        } else {
+            clearCooldown()
+        }
+    }
+
+    private func startCooldown(remaining: TimeInterval) {
+        isOnCooldown = true
+        cooldownRemaining = remaining
+        cooldownTask?.cancel()
+        cooldownTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                cooldownRemaining -= 1
+                if cooldownRemaining <= 0 {
+                    clearCooldown()
+                    return
+                }
+            }
+        }
+    }
+
+    private func clearCooldown() {
+        isOnCooldown = false
+        cooldownRemaining = 0
+        cooldownTask?.cancel()
+        cooldownTask = nil
+    }
+
     // MARK: - Submit Report
 
     func submitReport(level: BusynessLevel, waitMinutes: Int?) async {
+        rateLimitMessage = nil
         // 1. Optimistic update — reflect the report INSTANTLY in the UI
+        let previousEstimate = estimate
         let newReportCount = estimate.reportCount + 1
         let confidence: BusynessConfidence = newReportCount >= AppConstants.highConfidenceReportCount
             ? .high : .low
@@ -152,18 +228,45 @@ final class VenueDetailViewModel: ObservableObject {
         )
         reportSubmitted = true
 
+        // Start cooldown immediately for responsive UI
+        startCooldown(remaining: AppConstants.reportCooldown)
+
         // 2. Send to API in background — don't block UI
-        Task.detached { [venue] in
+        let venueSnapshot = venue
+        let rollbackEstimate = previousEstimate
+        Task.detached { [weak self] in
             do {
                 try await ReportService.shared.submitReport(
-                    venue: venue,
+                    venue: venueSnapshot,
                     level: level,
                     waitMinutes: waitMinutes
                 )
                 await MainActor.run {
-                    NotificationCenter.default.post(name: .reportSubmitted, object: venue.id)
+                    NotificationCenter.default.post(
+                        name: .reportSubmitted,
+                        object: venueSnapshot.id,
+                        userInfo: [
+                            "venueId": venueSnapshot.id,
+                            "venueName": venueSnapshot.name,
+                            "venueType": venueSnapshot.category.rawValue,
+                            "busynessLevel": level.rawValue,
+                        ]
+                    )
                 }
-                Log.reports.info("Report submitted successfully for \(venue.id, privacy: .public)")
+                Log.reports.info("Report submitted successfully for \(venueSnapshot.id, privacy: .public)")
+            } catch APIError.rateLimited(let reason, let retryAfter) {
+                if let vm = self {
+                    await MainActor.run {
+                        vm.estimate = rollbackEstimate
+                        vm.reportSubmitted = false
+                        if reason == .cooldown, let retryAfter {
+                            vm.startCooldown(remaining: retryAfter)
+                        } else if reason == .velocity || reason == .dailyCap {
+                            vm.rateLimitMessage = reason.userMessage
+                        }
+                    }
+                }
+                Log.reports.notice("Report rejected (\(reason.rawValue)) for \(venueSnapshot.id, privacy: .public)")
             } catch {
                 Log.reports.error("Report submission failed: \(error.localizedDescription)")
             }

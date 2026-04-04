@@ -6,9 +6,14 @@
  * to provide reliable open/closed status, and adds venue metadata (types,
  * rating, reviews, priceLevel, editorialSummary) for richer venue detail.
  *
- * Caching strategy: 30-day TTL on venue mapping, hours data, and venue details.
- * At $25/1K Place Details requests (Enterprise+Atmosphere tier), this keeps
- * costs to ~$0.025/venue/month.
+ * Two-tier pricing strategy:
+ * - **Basic tier** ($5/1K): hours, business status, types — used by
+ *   getGoogleHoursData() for map/list views (high volume).
+ * - **Enterprise tier** ($25/1K): rating, reviews, price — fetched lazily
+ *   via ensureVenueDetails() only when a user opens a venue detail view.
+ *
+ * Caching: 30-day TTL on venue mapping, hours data, and venue details.
+ * Failed match attempts cached for 7 days to avoid wasteful retries.
  */
 
 import {
@@ -33,10 +38,10 @@ const GOOGLE_BASE = "https://places.googleapis.com/v1";
 const MAPPING_TTL_DAYS = 30;
 const DATA_TTL_DAYS = 30;
 /** TTL for caching a failed Google match attempt (hours).
- * 2h avoids hammering Google on every live-refresh cycle (~60 retries)
- * while being short enough that users get hours within the same session
- * if Google's data or our coordinates improve. */
-const FAILED_MATCH_TTL_HOURS = 2;
+ * 7 days avoids hammering Google with repeated Text Search calls for
+ * venues that don't exist in Google's database. Google's POI data
+ * updates infrequently, so retrying sooner wastes API budget. */
+const FAILED_MATCH_TTL_HOURS = 168;
 
 // -----------------------------------------------
 // Types
@@ -59,9 +64,9 @@ export interface CachedGoogleHours {
   cachedAt: string;
 }
 
-/** Result of isOpenNow() check. */
+/** Result of isOpenNow() check. isOpen is null when hours data is unavailable. */
 export interface OpenStatus {
-  isOpen: boolean;
+  isOpen: boolean | null;
   hoursToday: string | null;  // e.g. "11:00 AM – 10:00 PM"
 }
 
@@ -185,8 +190,10 @@ export async function getGoogleHoursData(
       return null;
     }
 
-    // Fetch hours + details from Google Places API (single call, expanded field mask)
-    const details = await fetchGooglePlaceDetails(googlePlaceId);
+    // Fetch hours + types from Google Places API — Basic tier ($5/1K).
+    // Enterprise fields (rating, reviews, price) are fetched lazily via
+    // ensureVenueDetails() only when a user taps into a venue detail view.
+    const details = await fetchGooglePlaceBasic(googlePlaceId);
     if (!details) return null;
 
     const cachedAt = new Date().toISOString();
@@ -204,28 +211,21 @@ export async function getGoogleHoursData(
       cachedAt,
     };
 
-    // Extract venue details (categories, rating, reviews, price)
+    // Extract Basic-tier venue details (types only — no rating/reviews/price)
     const venueDetails: CachedVenueDetails = {
       types: details.types ?? [],
       primaryType: details.primaryType ?? null,
       primaryTypeDisplayName: details.primaryTypeDisplayName?.text ?? null,
-      rating: details.rating ?? null,
-      userRatingCount: details.userRatingCount ?? null,
-      priceLevel: details.priceLevel ?? null,
-      priceRange: formatPriceRange(details.priceRange),
-      reviews: (details.reviews ?? []).map((r) => ({
-        authorName: r.authorAttribution?.displayName ?? "Anonymous",
-        rating: r.rating ?? 0,
-        text: r.text?.text ?? "",
-        relativePublishTime: r.relativePublishTimeDescription ?? "",
-        publishTime: r.publishTime ?? "",
-      })),
-      editorialSummary: details.editorialSummary?.text ?? null,
+      rating: null,
+      userRatingCount: null,
+      priceLevel: null,
+      priceRange: null,
+      reviews: [],
+      editorialSummary: null,
       cachedAt,
     };
 
-    // Cache hours (critical) and venue details (best-effort) with 30-day TTL.
-    // GDETAILS is fire-and-forget so a details write failure cannot break hours.
+    // Cache hours (critical) and Basic-tier details (best-effort) with 30-day TTL.
     const nowSeconds = Math.floor(Date.now() / 1000);
     const ttl = nowSeconds + DATA_TTL_DAYS * 86_400;
     await putItem({
@@ -234,7 +234,7 @@ export async function getGoogleHoursData(
       ...data,
       ttl,
     });
-    // Best-effort write for venue details — failure is non-critical
+    // Best-effort write for Basic-tier venue details (types/primaryType)
     putItem({
       PK: venueKey(venueId),
       SK: GDETAILS_SK,
@@ -263,9 +263,13 @@ export async function getGoogleHoursData(
 export async function ensureVenueDetails(venueId: string): Promise<CachedVenueDetails | null> {
   const log = createLogger("google:backfill");
 
-  // Check if already cached (with all expected fields)
+  // Check if already cached with Enterprise-tier fields populated.
+  // Basic-tier entries (from getGoogleHoursData) don't have the
+  // enterpriseFetched marker — those need upgrading.
   const existing = await getGoogleVenueDetails(venueId);
-  if (existing) return existing;
+  if (existing?.enterpriseFetched) {
+    return existing;
+  }
 
   // Read cached Google mapping to get the Place ID
   const mapping = await getItem(venueKey(venueId), mappingSK("google"));
@@ -273,15 +277,17 @@ export async function ensureVenueDetails(venueId: string): Promise<CachedVenueDe
   const googlePlaceId = mapping.googlePlaceId as string;
   if (!googlePlaceId || googlePlaceId === NO_MATCH_SENTINEL) return null;
 
-  // Fetch details from Google Places API
-  const details = await fetchGooglePlaceDetails(googlePlaceId);
-  if (!details) return null;
+  // Fetch Enterprise-tier fields (rating, reviews, price) — $25/1K.
+  // Only triggered when a user taps into a venue detail view.
+  const details = await fetchGooglePlaceEnterprise(googlePlaceId);
+  if (!details) return existing;
 
   const cachedAt = new Date().toISOString();
+  // Merge: keep Basic-tier fields from existing cache, add Enterprise fields
   const venueDetails: CachedVenueDetails = {
-    types: details.types ?? [],
-    primaryType: details.primaryType ?? null,
-    primaryTypeDisplayName: details.primaryTypeDisplayName?.text ?? null,
+    types: existing?.types ?? [],
+    primaryType: existing?.primaryType ?? null,
+    primaryTypeDisplayName: existing?.primaryTypeDisplayName ?? null,
     rating: details.rating ?? null,
     userRatingCount: details.userRatingCount ?? null,
     priceLevel: details.priceLevel ?? null,
@@ -294,10 +300,11 @@ export async function ensureVenueDetails(venueId: string): Promise<CachedVenueDe
       publishTime: r.publishTime ?? "",
     })),
     editorialSummary: details.editorialSummary?.text ?? null,
+    enterpriseFetched: true,
     cachedAt,
   };
 
-  // Cache for 30 days
+  // Cache for 30 days (overwrites Basic-tier entry with full details)
   const ttl = Math.floor(Date.now() / 1000) + DATA_TTL_DAYS * 86_400;
   await putItem({
     PK: venueKey(venueId),
@@ -306,7 +313,7 @@ export async function ensureVenueDetails(venueId: string): Promise<CachedVenueDe
     ttl,
   });
 
-  log.debug("Backfilled venue details", { venueId });
+  log.debug("Backfilled venue details (Enterprise)", { venueId });
   return venueDetails;
 }
 
@@ -332,6 +339,7 @@ export async function getGoogleVenueDetails(venueId: string): Promise<CachedVenu
     priceRange: (cached.priceRange as string) ?? null,
     reviews: (cached.reviews as CachedVenueDetails["reviews"]) ?? [],
     editorialSummary: (cached.editorialSummary as string) ?? null,
+    enterpriseFetched: (cached.enterpriseFetched as boolean) ?? false,
     cachedAt: cached.cachedAt as string,
   };
 }
@@ -356,9 +364,12 @@ export function isOpenNow(
     return { isOpen: false, hoursToday: "Temporarily closed" };
   }
 
-  // No periods data — can't determine
+  // No periods data — if marked OPERATIONAL assume open, otherwise unknown
   if (data.regularPeriods.length === 0) {
-    return { isOpen: false, hoursToday: null };
+    if (data.businessStatus === "OPERATIONAL") {
+      return { isOpen: true, hoursToday: null };
+    }
+    return { isOpen: null, hoursToday: null };
   }
 
   // Check if a 24-hour venue
@@ -627,31 +638,63 @@ async function googleFetchWithRetry(
 }
 
 /**
- * Fetch place details from Google Places API (New).
- * Requests hours, business status, types, rating, reviews, price, and
- * editorial summary (Enterprise+Atmosphere tier).
+ * Fetch place details — Basic tier only ($5/1K requests).
+ * Returns hours, business status, and type classification.
+ * Used by getGoogleHoursData() for map/list views where rating/reviews
+ * are not needed and the 5× cost difference matters.
  */
-async function fetchGooglePlaceDetails(placeId: string): Promise<GooglePlaceDetails | null> {
-  const log = createLogger("google:details");
+async function fetchGooglePlaceBasic(placeId: string): Promise<GooglePlaceDetails | null> {
+  const log = createLogger("google:details-basic");
 
   const response = await googleFetchWithRetry(
     `${GOOGLE_BASE}/places/${placeId}`,
     {
       headers: {
         "X-Goog-Api-Key": GOOGLE_API_KEY,
-        "X-Goog-FieldMask": "businessStatus,regularOpeningHours,types,primaryType,primaryTypeDisplayName,rating,userRatingCount,priceLevel,priceRange,reviews,editorialSummary",
+        "X-Goog-FieldMask": "businessStatus,regularOpeningHours,types,primaryType,primaryTypeDisplayName",
       },
     },
-    `details:${placeId}`
+    `details-basic:${placeId}`
   );
 
   if (!response) return null;
 
   const data = (await response.json()) as GooglePlaceDetails;
-  log.debug("Google Place Details fetched", {
+  log.debug("Google Place Details (Basic) fetched", {
     placeId,
     businessStatus: data.businessStatus ?? "unknown",
     periodCount: data.regularOpeningHours?.periods?.length ?? 0,
+  });
+  return data;
+}
+
+/**
+ * Fetch place details — Enterprise+Atmosphere tier ($25/1K requests).
+ * Returns rating, reviews, price, and editorial summary.
+ * Only called from ensureVenueDetails() when a user taps into a
+ * single-venue detail view, so the cost is bounded by user interactions.
+ */
+async function fetchGooglePlaceEnterprise(placeId: string): Promise<GooglePlaceDetails | null> {
+  const log = createLogger("google:details-enterprise");
+
+  const response = await googleFetchWithRetry(
+    `${GOOGLE_BASE}/places/${placeId}`,
+    {
+      headers: {
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": "rating,userRatingCount,priceLevel,priceRange,reviews,editorialSummary",
+      },
+    },
+    `details-enterprise:${placeId}`
+  );
+
+  if (!response) return null;
+
+  const data = (await response.json()) as GooglePlaceDetails;
+  log.debug("Google Place Details (Enterprise) fetched", {
+    placeId,
+    rating: data.rating ?? null,
+    reviewCount: data.reviews?.length ?? 0,
   });
   return data;
 }

@@ -101,6 +101,9 @@ struct MapScreen: View {
                 loadingIndicator
             }
         }
+        .onChange(of: viewModel.selectedVenue) { _, newValue in
+            viewModel.venueSheetOpen = newValue != nil
+        }
         .sheet(item: $viewModel.selectedVenue, onDismiss: {
             viewModel.refreshAfterReport()
         }) { venue in
@@ -150,6 +153,14 @@ struct MapScreen: View {
         .onChange(of: authState.dismissSheets) { _, shouldDismiss in
             if shouldDismiss {
                 viewModel.selectedVenue = nil
+            }
+        }
+        .onChange(of: authState.venueRestoreToken) { _, _ in
+            if let venue = authState.pendingVenue,
+               authState.pendingVenueTab == .map || authState.pendingVenueTab == nil {
+                authState.pendingVenue = nil
+                authState.pendingVenueTab = nil
+                viewModel.selectedVenue = venue
             }
         }
     }

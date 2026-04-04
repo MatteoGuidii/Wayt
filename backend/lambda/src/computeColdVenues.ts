@@ -7,8 +7,8 @@ import {
   computeTimeAwareBusyness,
 } from "./signals/foursquare";
 import { getGoogleHoursData, isOpenNow, GoogleHoursResult } from "./signals/google";
-import { CachedVenueDetails } from "./signals/types";
-import { foursquareConfidenceLevel } from "./signals/fusion";
+import { CachedVenueDetails, classifyVenueCategory } from "./signals/types";
+import { foursquareConfidenceLevel, DEFAULT_REFRESH_SECONDS } from "./signals/fusion";
 
 /**
  * Async background Lambda invoked by getNearbyVenues for ALL missing venues.
@@ -84,7 +84,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
 
       // Fetch Google hours + details for matched venues (5 concurrent max)
       const matchedEntries = Array.from(matched.entries());
-      const googleHoursMap = new Map<string, { isOpen: boolean; hoursToday: string | null; businessStatus: string | null }>();
+      const googleHoursMap = new Map<string, { isOpen: boolean | null; hoursToday: string | null; businessStatus: string | null }>();
       const googleDetailsMap = new Map<string, CachedVenueDetails>();
       const GOOGLE_CONCURRENCY = 5;
 
@@ -111,13 +111,14 @@ export async function handler(event: BackgroundEvent): Promise<void> {
 
       for (const [venueId, match] of matched) {
         const openStatus = googleHoursMap.get(venueId) ?? null;
-        const { score, confidence } = computeTimeAwareBusyness(match.data, nowMs, timezone, openStatus?.isOpen);
+        const details = googleDetailsMap.get(venueId);
+        const category = classifyVenueCategory(details?.primaryType ?? null);
+        const { score, confidence } = computeTimeAwareBusyness(match.data, nowMs, timezone, openStatus?.isOpen, category);
         const venue = coldVenueMap.get(venueId);
         const lat = venue?.lat ?? 0;
         const lng = venue?.lng ?? 0;
         const geohash = encode(lat, lng);
 
-        const details = googleDetailsMap.get(venueId);
         const venueDetails = details ? {
           primaryType: details.primaryType,
           primaryTypeDisplayName: details.primaryTypeDisplayName,
@@ -140,6 +141,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
           sources: ["foursquare"],
           conflictDetected: false,
           computedAt: new Date(nowMs).toISOString(),
+          refreshAfterSeconds: DEFAULT_REFRESH_SECONDS,
           isOpen: openStatus?.isOpen ?? null,
           hoursToday: openStatus?.hoursToday ?? null,
           businessStatus: openStatus?.businessStatus ?? null,

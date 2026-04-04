@@ -38,7 +38,7 @@ actor APIClient {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("GET \(path, privacy: .public) -> \(status) (\(ms)ms)")
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -62,7 +62,7 @@ actor APIClient {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("POST \(path, privacy: .public) -> \(status) (\(ms)ms)")
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -81,11 +81,11 @@ actor APIClient {
         var request = try await buildRequest(method: "POST", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (_, response) = try await session.data(for: request)
+        let (data, response) = try await executeWithRetry(request: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("POST \(path, privacy: .public) -> \(status) (\(ms)ms)")
-        try validateResponse(response)
+        try validateResponse(response, data: data)
     }
 
     // MARK: - PUT
@@ -99,11 +99,11 @@ actor APIClient {
         var request = try await buildRequest(method: "PUT", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await executeWithRetry(request: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("PUT \(path, privacy: .public) -> \(status) (\(ms)ms)")
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -121,7 +121,7 @@ actor APIClient {
         var request = try await buildRequest(method: "PUT", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await executeWithRetry(request: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("PUT \(path, privacy: .public) -> \(status) (\(ms)ms)")
@@ -197,9 +197,35 @@ actor APIClient {
             return cached
         }
 
-        let session = try await Amplify.Auth.fetchAuthSession()
+        // Timeout prevents a hung Cognito call from blocking all API requests
+        let session: AuthSession
+        do {
+            session = try await withThrowingTaskGroup(of: AuthSession.self) { group in
+                group.addTask {
+                    try await Amplify.Auth.fetchAuthSession()
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(8))
+                    throw APIError.authTimeout
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
+        } catch is CancellationError {
+            throw APIError.authTimeout
+        } catch let error as APIError {
+            throw error
+        } catch {
+            Log.auth.error("Auth session fetch failed: \(error.localizedDescription)")
+            throw APIError.unauthorized
+        }
+
         guard let cognitoPlugin = session as? AuthCognitoTokensProvider,
               let tokens = try? cognitoPlugin.getCognitoTokens().get() else {
+            // Refresh token likely expired — session exists but tokens can't be obtained
+            Log.auth.error("Token retrieval failed — refresh token may be expired")
+            invalidateToken()
             throw APIError.unauthorized
         }
 
@@ -212,14 +238,19 @@ actor APIClient {
            let data = Data(base64Encoded: Self.padBase64(String(segments[1]))),
            let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let exp = payload["exp"] as? TimeInterval {
-            // Refresh 60 seconds before actual expiry
             tokenExpiry = Date(timeIntervalSince1970: exp).addingTimeInterval(-60)
         } else {
-            // Fallback: cache for 50 minutes (Cognito tokens are typically valid for 1 hour)
+            Log.auth.warning("Failed to parse JWT expiry, using 50-min fallback")
             tokenExpiry = Date().addingTimeInterval(50 * 60)
         }
 
         return token
+    }
+
+    /// Clear cached auth token so the next request fetches a fresh one.
+    func invalidateToken() {
+        cachedToken = nil
+        tokenExpiry = .distantPast
     }
 
     /// Pad a Base64URL string to standard Base64 length.
@@ -234,7 +265,7 @@ actor APIClient {
         return s
     }
 
-    private func validateResponse(_ response: URLResponse) throws {
+    private func validateResponse(_ response: URLResponse, data: Data = Data()) throws {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.unknown
         }
@@ -242,13 +273,13 @@ actor APIClient {
         case 200...299: return
         case 401:
             // Invalidate cached token on 401 so next request fetches a fresh one
-            cachedToken = nil
-            tokenExpiry = .distantPast
+            invalidateToken()
             Log.api.error("Unauthorized (401)")
             throw APIError.unauthorized
         case 429:
-            Log.api.notice("Rate limited (429)")
-            throw APIError.rateLimited
+            let (reason, retryAfter) = RateLimitReason.from(data: data)
+            Log.api.notice("Rate limited (429): \(reason.rawValue, privacy: .public)")
+            throw APIError.rateLimited(reason: reason, retryAfter: retryAfter)
         default:
             Log.api.error("Server error (\(http.statusCode))")
             throw APIError.serverError(http.statusCode)
@@ -287,7 +318,8 @@ actor APIClient {
 enum APIError: LocalizedError {
     case invalidURL
     case unauthorized
-    case rateLimited
+    case authTimeout
+    case rateLimited(reason: RateLimitReason, retryAfter: TimeInterval?)
     case serverError(Int)
     case unknown
 
@@ -295,9 +327,42 @@ enum APIError: LocalizedError {
         switch self {
         case .invalidURL:            return "Invalid API URL."
         case .unauthorized:          return "Please sign in again."
-        case .rateLimited:           return "Too many requests. Try again shortly."
+        case .authTimeout:           return "Authentication timed out."
+        case .rateLimited(let reason, _): return reason.userMessage
         case .serverError(let code): return "Server error (\(code))."
         case .unknown:               return "An unexpected error occurred."
         }
+    }
+}
+
+// MARK: - Rate Limit Reason
+
+enum RateLimitReason: String {
+    case cooldown = "COOLDOWN_ACTIVE"
+    case velocity = "VELOCITY_LIMIT"
+    case dailyCap = "DAILY_LIMIT_REACHED"
+    case unknown = "UNKNOWN"
+
+    var userMessage: String {
+        switch self {
+        case .cooldown:
+            return "You reported this venue recently."
+        case .velocity:
+            return "You're reporting too fast — take a breather. Max 8 reports per 10 minutes."
+        case .dailyCap:
+            return "Daily report limit reached — come back tomorrow. Max 30 reports per day."
+        case .unknown:
+            return "Too many requests. Try again shortly."
+        }
+    }
+
+    nonisolated static func from(data: Data) -> (reason: RateLimitReason, retryAfter: TimeInterval?) {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let error = json["error"] as? String,
+              let reason = RateLimitReason(rawValue: error) else {
+            return (.unknown, nil)
+        }
+        let retryAfter = (json["retryAfter"] as? NSNumber).map { TimeInterval($0.doubleValue) }
+        return (reason, retryAfter)
     }
 }

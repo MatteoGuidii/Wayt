@@ -67,6 +67,9 @@ Resources:
     Properties:
       CodeUri: lambda/
       Handler: dist/submitReport.handler
+      Environment:
+        Variables:
+          LEADERBOARD_TABLE: !Ref WeeklyLeaderboardTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref VenueReportsTable
@@ -74,6 +77,8 @@ Resources:
             TableName: !Ref UserProfilesTable
         - DynamoDBCrudPolicy:
             TableName: !Ref WaytSignalsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WeeklyLeaderboardTable
       Events:
         PostReport:
           Type: Api
@@ -255,6 +260,7 @@ Resources:
       Environment:
         Variables:
           USER_POOL_ID: !Ref WaytUserPool
+          LEADERBOARD_TABLE: !Ref WeeklyLeaderboardTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref VenueReportsTable
@@ -262,6 +268,8 @@ Resources:
             TableName: !Ref UserProfilesTable
         - DynamoDBCrudPolicy:
             TableName: !Ref SavedVenuesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WeeklyLeaderboardTable
         - Statement:
             - Effect: Allow
               Action: s3:DeleteObject
@@ -289,7 +297,6 @@ Resources:
       CodeUri: lambda/
       Handler: dist/getNearbyVenues.handler
       Timeout: 15
-      MemorySize: 512
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
@@ -330,7 +337,6 @@ Resources:
       CodeUri: lambda/
       Handler: dist/computeColdVenues.handler
       Timeout: 120
-      MemorySize: 512
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
@@ -349,7 +355,6 @@ Resources:
       CodeUri: lambda/
       Handler: dist/getVenueBusyness.handler
       Timeout: 15
-      MemorySize: 512
       Environment:
         Variables:
           FOURSQUARE_API_KEY: !Ref FoursquareApiKey
@@ -396,6 +401,14 @@ Resources:
         - Name: email
           Required: true
           Mutable: true
+      EmailConfiguration:
+        EmailSendingAccount: DEVELOPER
+        From: !Sub "Wayt <verify@getwayt.com>"
+        SourceArn: !Sub "arn:aws:ses:ca-central-1:${AWS::AccountId}:identity/getwayt.com"
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: "Your Wayt verification code"
+        EmailMessage: '<html><body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,''Segoe UI'',Roboto,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0;"><tr><td align="center"><table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;"><tr><td style="background:linear-gradient(180deg,#FFE650,#FFD232);padding:28px;text-align:center;"><span style="color:#1a1a1a;font-size:26px;font-weight:800;letter-spacing:2px;">WAYT</span></td></tr><tr><td style="padding:32px 32px 16px;"><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">Verify your email</h2><p style="margin:0;color:#111111;font-size:15px;line-height:1.5;">Enter this code in the app to complete your signup:</p></td></tr><tr><td style="padding:8px 32px 24px;"><div style="background:#FFD232;border-radius:8px;padding:16px;text-align:center;"><span style="font-size:32px;font-weight:700;letter-spacing:6px;color:#111111;">{####}</span></div></td></tr><tr><td style="padding:0 32px 32px;"><p style="margin:0;color:#111111;font-size:13px;line-height:1.4;">This code expires in 24 hours. If you didn''t create a Wayt account, you can safely ignore this email.</p></td></tr><tr><td style="background:#FFFAED;padding:16px 32px;text-align:center;border-top:1px solid #F0E8C8;"><p style="margin:0;color:#111111;font-size:12px;">Wayt - Know the wait before you leave.</p></td></tr></table></td></tr></table></body></html>'
       AccountRecoverySetting:
         RecoveryMechanisms:
           - Name: verified_email
@@ -545,6 +558,53 @@ Resources:
           KeyType: RANGE
 
   # -----------------------------------------------
+  # Weekly Leaderboard
+  # -----------------------------------------------
+  GetLeaderboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getLeaderboard.handler
+      Environment:
+        Variables:
+          LEADERBOARD_TABLE: !Ref WeeklyLeaderboardTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref WeeklyLeaderboardTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UserProfilesTable
+      Events:
+        GetLeaderboard:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WaytApi
+            Path: /leaderboard/nearby
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
+  WeeklyLeaderboardTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "WeeklyLeaderboard-${Stage}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: weekGeohash
+          AttributeType: S
+        - AttributeName: score
+          AttributeType: N
+      KeySchema:
+        - AttributeName: weekGeohash
+          KeyType: HASH
+        - AttributeName: score
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # -----------------------------------------------
   # Signal Fusion Engine — DynamoDB Table
   # -----------------------------------------------
   WaytSignalsTable:
@@ -623,6 +683,8 @@ Outputs:
     Value: !Ref SavedVenuesTable
   WaytSignalsTableName:
     Value: !Ref WaytSignalsTable
+  WeeklyLeaderboardTableName:
+    Value: !Ref WeeklyLeaderboardTable
   Stage:
     Value: !Ref Stage
   UserPoolId:

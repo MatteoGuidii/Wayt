@@ -2,11 +2,11 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda
 import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 import { queryNearbyFused, batchGetItems } from "./db";
 import { haversineDistance, success, badRequest, serverError } from "./shared";
-import { FusedEstimate } from "./signals/types";
+import { FusedEstimate, classifyVenueCategory } from "./signals/types";
 import { ComputeInput } from "./computeVenueBusyness";
-import { emptyEstimate, foursquareConfidenceLevel } from "./signals/fusion";
+import { emptyEstimate, foursquareConfidenceLevel, DEFAULT_REFRESH_SECONDS } from "./signals/fusion";
 import { computeTimeAwareBusyness } from "./signals/foursquare";
-import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod, ensureVenueDetails } from "./signals/google";
+import { isOpenNow, CachedGoogleHours, GoogleOpenPeriod } from "./signals/google";
 import { createLogger } from "./logger";
 
 /** Max allowed search radius (10 km). */
@@ -85,6 +85,7 @@ export async function handler(
         sources: item.sources as string[],
         conflictDetected: item.conflictDetected as boolean,
         computedAt: item.computedAt as string,
+        refreshAfterSeconds: (item.refreshAfterSeconds as number | undefined) ?? DEFAULT_REFRESH_SECONDS,
         isOpen: (item.isOpen as boolean | null) ?? null,
         hoursToday: (item.hoursToday as string | null) ?? null,
         businessStatus: (item.businessStatus as FusedEstimate["businessStatus"]) ?? null,
@@ -125,30 +126,20 @@ export async function handler(
         };
       }
 
-      // Backfill GDETAILS for venues that have Google hours but no details cached.
-      // Runs in parallel, capped at 10 per request to limit Google API cost.
-      const needsBackfill = cachedVenueIds.filter(
-        (id) => googleDataMap.has(id) && !googleDetailsMap.has(id)
-      );
-      if (needsBackfill.length > 0) {
-        log.info("Backfilling venue details", { count: needsBackfill.length });
-        const backfilled = await Promise.all(
-          needsBackfill.slice(0, 10).map((id) => ensureVenueDetails(id).catch(() => null))
-        );
-        for (let i = 0; i < backfilled.length; i++) {
-          const details = backfilled[i];
-          if (!details) continue;
-          const existing = nearbyFused.get(needsBackfill[i]);
-          if (!existing) continue;
-          existing.venueDetails = {
-            primaryType: details.primaryType,
-            primaryTypeDisplayName: details.primaryTypeDisplayName,
-            rating: details.rating,
-            userRatingCount: details.userRatingCount,
-            priceLevel: details.priceLevel,
-            priceRange: details.priceRange,
-          };
-        }
+      // GDETAILS backfill removed — venue details (rating, reviews, price)
+      // are now fetched lazily via ensureVenueDetails() when a user taps
+      // into the single-venue detail view (getVenueBusyness endpoint).
+      // This avoids up to 10 Enterprise-tier Place Details calls ($25/1K)
+      // on every /v1/venues/nearby request.
+    }
+
+    // Step 1c: Detect stale cached signals (refreshAfterSeconds elapsed).
+    // Still returned to client; dispatched to background for recomputation below.
+    const staleVenueIds = new Set<string>();
+    for (const [venueId, estimate] of nearbyFused) {
+      const ageSeconds = (nowMs - new Date(estimate.computedAt).getTime()) / 1000;
+      if (ageSeconds > estimate.refreshAfterSeconds) {
+        staleVenueIds.add(venueId);
       }
     }
 
@@ -179,7 +170,7 @@ export async function handler(
 
           // Check Google hours for open/closed status
           const googleData = googleDataMap.get(v.venueId);
-          let openStatus: { isOpen: boolean; hoursToday: string | null } | null = null;
+          let openStatus: { isOpen: boolean | null; hoursToday: string | null } | null = null;
           if (googleData) {
             const cachedHours: CachedGoogleHours = {
               businessStatus: (googleData.businessStatus as CachedGoogleHours["businessStatus"]) ?? null,
@@ -189,7 +180,9 @@ export async function handler(
             openStatus = isOpenNow(cachedHours, nowMs, timezone);
           }
 
-          const { score, confidence } = computeTimeAwareBusyness(data, nowMs, timezone, openStatus?.isOpen);
+          const detailsData = missingDetailsMap.get(v.venueId);
+          const category = classifyVenueCategory(detailsData?.primaryType as string | null);
+          const { score, confidence } = computeTimeAwareBusyness(data, nowMs, timezone, openStatus?.isOpen, category);
           nearbyFused.set(v.venueId, {
             venueId: v.venueId,
             busynessScore: Math.round(score * 1000) / 1000,
@@ -200,12 +193,12 @@ export async function handler(
             sources: ["foursquare"],
             conflictDetected: false,
             computedAt: new Date(nowMs).toISOString(),
+            refreshAfterSeconds: DEFAULT_REFRESH_SECONDS,
             isOpen: openStatus?.isOpen ?? null,
             hoursToday: openStatus?.hoursToday ?? null,
             businessStatus: googleData ? (googleData.businessStatus as FusedEstimate["businessStatus"]) ?? null : null,
           });
           // Attach venue details summary if cached
-          const detailsData = missingDetailsMap.get(v.venueId);
           if (detailsData) {
             nearbyFused.get(v.venueId)!.venueDetails = {
               primaryType: (detailsData.primaryType as string) ?? null,
@@ -223,29 +216,6 @@ export async function handler(
       // Cold venues: no FSQDATA cached at all
       const coldVenues = missing.filter((v) => !fsqDataMap.has(v.venueId));
       coldCount = coldVenues.length;
-
-      // Dispatch ALL missing venues to background for full computation + cache writes
-      if (BACKGROUND_FUNCTION) {
-        try {
-          await lambdaClient.send(
-            new InvokeCommand({
-              FunctionName: BACKGROUND_FUNCTION,
-              InvocationType: "Event",
-              Payload: Buffer.from(
-                JSON.stringify({
-                  venues: missing,
-                  timezone,
-                  centerLat: lat,
-                  centerLng: lng,
-                  radius,
-                })
-              ),
-            })
-          );
-        } catch (err) {
-          log.error("Failed to dispatch missing venues", { count: missing.length }, err);
-        }
-      }
 
       // For cold venues, use area-average score instead of generic 0.5
       // This gives meaningful colors based on surrounding venues with real data
@@ -273,6 +243,33 @@ export async function handler(
       }
     }
 
+    // Dispatch missing + stale venues to background. Missing venues need initial
+    // computation + DynamoDB writes; stale venues need fresh report data.
+    const staleFromRequest = clientVenues.filter((v) => staleVenueIds.has(v.venueId));
+    const toDispatch = [...missing, ...staleFromRequest];
+
+    if (BACKGROUND_FUNCTION && toDispatch.length > 0) {
+      try {
+        await lambdaClient.send(
+          new InvokeCommand({
+            FunctionName: BACKGROUND_FUNCTION,
+            InvocationType: "Event",
+            Payload: Buffer.from(
+              JSON.stringify({
+                venues: toDispatch,
+                timezone,
+                centerLat: lat,
+                centerLng: lng,
+                radius,
+              })
+            ),
+          })
+        );
+      } catch (err) {
+        log.error("Failed to dispatch venues for recomputation", { count: toDispatch.length }, err);
+      }
+    }
+
     // Step 3: Return results immediately
     const venues = Array.from(nearbyFused.values());
 
@@ -280,7 +277,8 @@ export async function handler(
       venueCount: venues.length,
       cached: venues.length - missing.length,
       inlineComputed: inlineCount,
-      dispatched: missing.length,
+      dispatched: toDispatch.length,
+      staleRefreshed: staleFromRequest.length,
       cold: coldCount,
     });
     return success({ venues });

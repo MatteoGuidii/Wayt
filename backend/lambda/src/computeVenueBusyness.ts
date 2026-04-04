@@ -5,17 +5,19 @@ import {
   putItem,
 } from "./db";
 import { encode } from "./geohash";
-import { VenueSignal, FusedEstimate, SOURCE_CONFIG, SignalSource } from "./signals/types";
+import { VenueSignal, FusedEstimate, SOURCE_CONFIG, SignalSource, classifyVenueCategory } from "./signals/types";
 import { fuseSignals, emptyEstimate } from "./signals/fusion";
 import { fetchFoursquareSignal } from "./signals/foursquare";
 import { aggregateUserReports } from "./signals/userReports";
 import { getGoogleHoursData, isOpenNow } from "./signals/google";
+import { getLocalTime } from "./signals/matching";
 import { createLogger } from "./logger";
 
 /** TTL for the cached fused estimate (2 hours).
  * The Gaussian temporal model changes slowly (~hour-wide peaks),
- * so 2-hour recomputation frequency is sufficient. Longer TTL means
- * app reopens within 2 hours hit the fast geohash cache path. */
+ * so 2-hour recomputation frequency is sufficient (individual source
+ * signals recompute every 5 min). Longer TTL means app reopens within
+ * 2 hours hit the fast geohash cache path. */
 const FUSED_TTL_SECONDS = 2 * 60 * 60;
 
 export interface ComputeInput {
@@ -44,9 +46,27 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
   const log = createLogger("computeVenueBusyness");
 
   try {
-    // Step 1: Check for cached signals
-    const cachedItems = await queryByPK(venueKey(venueId), "SIGNAL#");
-    const cachedSignals = parseCachedSignals(cachedItems, now);
+    // Step 1: Check cached signals + fetch Google data in parallel
+    // Google data is needed for venue category (affects Foursquare curve shape)
+    const [cachedItems, googleResult] = await Promise.all([
+      queryByPK(venueKey(venueId), "SIGNAL#"),
+      getGoogleHoursData(venueId, venueName, lat, lng, address),
+    ]);
+
+    const cachedSignals = parseCachedSignals(cachedItems, now, timezone);
+    const googleHours = googleResult?.hours ?? null;
+    const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
+    const googlePrimaryType = googleResult?.venueDetails?.primaryType ?? null;
+
+    if (googleHours) {
+      log.debug("Google hours resolved", {
+        venueId,
+        businessStatus: googleHours.businessStatus,
+        isOpen: openStatus?.isOpen,
+        hoursToday: openStatus?.hoursToday,
+        periodCount: googleHours.regularPeriods.length,
+      });
+    }
 
     // Determine which sources need refreshing
     const freshSources = new Set(cachedSignals.map((s) => s.sourceId));
@@ -63,7 +83,7 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 
     if (staleSourceIds.length > 0) {
       const fetches = staleSourceIds.map((sourceId) =>
-        fetchSignalBySource(sourceId, venueId, venueName, lat, lng, timezone, address)
+        fetchSignalBySource(sourceId, venueId, venueName, lat, lng, timezone, address, googlePrimaryType)
       );
       const results = await Promise.all(fetches);
 
@@ -81,21 +101,6 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
       staleSources: staleSourceIds,
       freshCount: freshSignals.length - cachedSignals.length,
     });
-
-    // Step 2b: Fetch Google hours for open/closed status (parallel with signals)
-    const googleResult = await getGoogleHoursData(venueId, venueName, lat, lng, address);
-    const googleHours = googleResult?.hours ?? null;
-    const openStatus = googleHours ? isOpenNow(googleHours, now, timezone ?? "UTC") : null;
-
-    if (googleHours) {
-      log.debug("Google hours resolved", {
-        venueId,
-        businessStatus: googleHours.businessStatus,
-        isOpen: openStatus?.isOpen,
-        hoursToday: openStatus?.hoursToday,
-        periodCount: googleHours.regularPeriods.length,
-      });
-    }
 
     // Step 3: Fuse all available signals
     const fused = freshSignals.length > 0
@@ -176,14 +181,20 @@ export async function computeVenueBusyness(input: ComputeInput): Promise<FusedEs
 /** Parse cached signal items, filtering out expired ones. */
 function parseCachedSignals(
   items: Record<string, unknown>[],
-  now: number
+  now: number,
+  timezone?: string
 ): VenueSignal[] {
   const nowSeconds = Math.floor(now / 1000);
+  const currentDay = timezone ? getLocalTime(now, timezone).localDay : undefined;
   const signals: VenueSignal[] = [];
 
   for (const item of items) {
     const ttl = item.ttl as number | undefined;
     if (ttl && ttl < nowSeconds) continue; // expired
+
+    if (item.sourceId === "foursquare" && item.computedDay != null && currentDay != null) {
+      if (item.computedDay !== currentDay) continue;
+    }
 
     const signal: VenueSignal = {
       sourceId: item.sourceId as SignalSource,
@@ -220,11 +231,12 @@ async function fetchSignalBySource(
   lat: number,
   lng: number,
   timezone?: string,
-  address?: string
+  address?: string,
+  googlePrimaryType?: string | null
 ): Promise<VenueSignal | null> {
   switch (sourceId) {
     case "foursquare":
-      return fetchFoursquareSignal(venueId, venueName, lat, lng, timezone, address);
+      return fetchFoursquareSignal(venueId, venueName, lat, lng, timezone, address, classifyVenueCategory(googlePrimaryType));
     case "user_reports":
       return aggregateUserReports(venueId);
     default:

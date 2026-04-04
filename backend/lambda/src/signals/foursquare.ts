@@ -6,7 +6,7 @@ import {
   putItem,
 } from "../db";
 import { haversineDistance } from "../shared";
-import { VenueSignal, SOURCE_CONFIG } from "./types";
+import { VenueSignal, SOURCE_CONFIG, VenueCategory } from "./types";
 import { createLogger } from "../logger";
 import {
   nameSimilarity,
@@ -74,7 +74,8 @@ export async function fetchFoursquareSignal(
   lat: number,
   lng: number,
   timezone: string = "UTC",
-  address?: string
+  address?: string,
+  category: VenueCategory = "default"
 ): Promise<VenueSignal | null> {
   if (!FOURSQUARE_API_KEY) return null;
 
@@ -90,7 +91,7 @@ export async function fetchFoursquareSignal(
 
     // Step 2: Compute time-aware score from cached data + current time
     const now = Date.now();
-    const { score: busynessScore, confidence } = computeTimeAwareBusyness(data, now, timezone);
+    const { score: busynessScore, confidence } = computeTimeAwareBusyness(data, now, timezone, undefined, category);
     log.debug("Signal computed", { venueId, busynessScore: Math.round(busynessScore * 1000) / 1000, confidence: Math.round(confidence * 100) / 100 });
     const config = SOURCE_CONFIG.foursquare;
 
@@ -104,13 +105,15 @@ export async function fetchFoursquareSignal(
       ttlSeconds: config.ttlSeconds,
     };
 
-    // Cache the derived signal for 10 min so computeVenueBusyness doesn't
+    // Cache the derived signal for 5 min so computeVenueBusyness doesn't
     // re-derive on every request. Score refreshes when this TTL expires,
     // picking up the new time-of-day from the 30-day raw data cache.
+    const { localDay } = getLocalTime(now, timezone);
     await putItem({
       PK: venueKey(venueId),
       SK: signalSK("foursquare", now),
       ...signal,
+      computedDay: localDay,
       ttl: Math.floor(now / 1000) + config.ttlSeconds,
     });
 
@@ -392,38 +395,68 @@ async function fetchPlaceDetails(fsqId: string): Promise<FsqPlaceDetails | null>
 // -----------------------------------------------
 
 /**
- * Day-of-week amplitude multipliers using Foursquare convention (1=Mon..7=Sun).
- * Reflects that a Friday dinner peak is more intense than a Tuesday one,
- * even if both have popular windows. Derived from industry foot traffic data.
- * Saturday = 1.0 reference for restaurants; Friday for bars.
+ * Category-aware day-of-week amplitude multipliers (1=Mon..7=Sun).
+ * Different venue types have fundamentally different weekly patterns:
+ * - Coffee: weekday mornings are peak (commuters), weekends quieter
+ * - Bars: Thu–Sat are strong, Mon–Wed very quiet
+ * - Nightclubs: extreme Fri–Sat skew, nearly dead Mon–Wed
+ * - Restaurants: original pattern (Sat peak, gradual weekday build)
  */
-export const DAY_MULTIPLIERS: Record<number, number> = {
-  1: 0.55,  // Monday
-  2: 0.60,  // Tuesday
-  3: 0.65,  // Wednesday
-  4: 0.75,  // Thursday
-  5: 0.95,  // Friday
-  6: 1.00,  // Saturday (reference)
-  7: 0.70,  // Sunday
+export const CATEGORY_DAY_MULTIPLIERS: Record<VenueCategory, Record<number, number>> = {
+  restaurant: { 1: 0.55, 2: 0.60, 3: 0.65, 4: 0.75, 5: 0.95, 6: 1.00, 7: 0.70 },
+  coffee:     { 1: 0.95, 2: 0.95, 3: 0.95, 4: 0.95, 5: 0.90, 6: 0.75, 7: 0.65 },
+  bar:        { 1: 0.35, 2: 0.40, 3: 0.50, 4: 0.70, 5: 1.00, 6: 0.95, 7: 0.45 },
+  nightclub:  { 1: 0.15, 2: 0.15, 3: 0.25, 4: 0.50, 5: 0.95, 6: 1.00, 7: 0.30 },
+  default:    { 1: 0.55, 2: 0.60, 3: 0.65, 4: 0.75, 5: 0.95, 6: 1.00, 7: 0.70 },
+};
+
+/** @deprecated Use CATEGORY_DAY_MULTIPLIERS instead. Kept for backward compat. */
+export const DAY_MULTIPLIERS = CATEGORY_DAY_MULTIPLIERS.default;
+
+// -----------------------------------------------
+// Asymmetric temporal curve parameters
+// -----------------------------------------------
+
+interface TemporalCurveParams {
+  /** Where peak falls within the window: 0.0 = start, 1.0 = end. */
+  peakPosition: number;
+  /** Sigma multiplier for the ramp-up (left) side. Larger = more gradual. */
+  sigmaLeftScale: number;
+  /** Sigma multiplier for the taper-off (right) side. Larger = longer tail. */
+  sigmaRightScale: number;
+}
+
+/**
+ * Category-specific curve shapes reflecting real-world arrival/departure patterns.
+ * Uses a split-normal (piecewise Gaussian with different left/right sigma).
+ */
+const CATEGORY_CURVES: Record<VenueCategory, TemporalCurveParams> = {
+  restaurant: { peakPosition: 0.40, sigmaLeftScale: 0.20, sigmaRightScale: 0.35 },
+  coffee:     { peakPosition: 0.25, sigmaLeftScale: 0.15, sigmaRightScale: 0.40 },
+  bar:        { peakPosition: 0.65, sigmaLeftScale: 0.30, sigmaRightScale: 0.20 },
+  nightclub:  { peakPosition: 0.75, sigmaLeftScale: 0.35, sigmaRightScale: 0.15 },
+  default:    { peakPosition: 0.45, sigmaLeftScale: 0.25, sigmaRightScale: 0.30 },
 };
 
 /**
- * Compute a time-aware busyness score using a Sum of Gaussians model.
+ * Compute a time-aware busyness score using category-aware asymmetric curves.
  *
- * Each popular window becomes a bell curve centered at its midpoint.
- * Busyness at any time = popularity × dayMultiplier × Σ gaussian curves.
+ * Each popular window becomes an asymmetric bell curve (split-normal) whose
+ * shape varies by venue category: restaurants peak early with a lingering tail,
+ * bars peak late and stay packed, coffee shops spike at opening.
  *
- * This produces smooth, continuous transitions: crowds ramp up before peak,
- * hit maximum at center, and taper off naturally. No artificial edge zones.
+ * Popularity is transformed via sqrt to prevent low-popularity venues from
+ * being invisible at their peak times.
  *
- * Based on the approach described in "Predicting Temporal Activity Patterns
- * of New Venues" (EPJ Data Science, 2018) and how Google Popular Times works.
+ * Based on "Predicting Temporal Activity Patterns of New Venues" (EPJ Data
+ * Science, 2018) and industry foot traffic research.
  */
 export function computeTimeAwareBusyness(
   data: CachedFsqData,
   nowMs: number,
   timezone: string = "UTC",
-  isOpen?: boolean | null
+  isOpen?: boolean | null,
+  category: VenueCategory = "default"
 ): { score: number; confidence: number } {
   // When Google hours confirm venue is closed, short-circuit to zero
   if (isOpen === false) {
@@ -447,62 +480,83 @@ export function computeTimeAwareBusyness(
   // Without hours_popular we have no temporal shape — weak baseline only
   if (data.hoursPopular.length === 0) {
     return {
-      score: popularity * 0.15,
+      score: popularityToIntensity(popularity) * 0.15,
       confidence: 0.25,
     };
   }
 
-  // Find popular windows for today
+  // Find popular windows for today (handle midnight-crossing windows)
+  // Use strict < to avoid treating degenerate zero-length windows (close===open) as 24h
   const todayWindows = data.hoursPopular
     .filter((h) => h.day === currentDay)
+    .map((h) => {
+      const open = parseTimeToMinutes(h.open);
+      let close = parseTimeToMinutes(h.close);
+      if (close < open) close += 1440; // Extend past midnight
+      return { open, close };
+    });
+
+  // Also include yesterday's windows that cross midnight into today
+  const yesterdayFsq = currentDay === 1 ? 7 : currentDay - 1;
+  const midnightSpill = data.hoursPopular
+    .filter((h) => h.day === yesterdayFsq)
     .map((h) => ({
       open: parseTimeToMinutes(h.open),
       close: parseTimeToMinutes(h.close),
+    }))
+    .filter((w) => w.close < w.open) // Only windows that cross midnight (strict <)
+    .map((w) => ({
+      open: w.open - 1440, // Shift to "yesterday" frame
+      close: w.close,      // Close is already in "today" minutes
     }));
 
-  if (todayWindows.length === 0) {
+  const allWindows = [...todayWindows, ...midnightSpill];
+
+  if (allWindows.length === 0) {
     // Check if Foursquare has popular hours for OTHER days but not today
     const hasOtherDays = data.hoursPopular.some((h) => h.day !== currentDay);
     if (hasOtherDays) {
       // Data exists for other days but not today — likely closed or very quiet
-      return { score: popularity * 0.05, confidence: 0.6 };
+      return { score: popularityToIntensity(popularity) * 0.05, confidence: 0.6 };
     }
     // No popular hours for any day — Foursquare lacks data
-    return { score: popularity * 0.05, confidence: 0.25 };
+    return { score: popularityToIntensity(popularity) * 0.05, confidence: 0.25 };
   }
 
-  // Sum of Gaussians: each window contributes a bell curve
-  // sigma = windowDuration / 4 → 95% of the curve falls within the window
-  // Minimum sigma of 15 min to avoid infinitely sharp peaks for short windows
-  let gaussianSum = 0;
-  for (const w of todayWindows) {
-    const mu = (w.open + w.close) / 2;
-    const sigma = Math.max((w.close - w.open) / 4, 15);
-    const diff = currentMinutes - mu;
-    gaussianSum += Math.exp(-(diff * diff) / (2 * sigma * sigma));
+  // Sum of asymmetric kernels: each window contributes a split-normal curve
+  const curveParams = CATEGORY_CURVES[category];
+  let kernelSum = 0;
+  for (const w of allWindows) {
+    kernelSum += asymmetricKernel(currentMinutes, w.open, w.close, curveParams);
   }
 
   // Clamp to [0, 1] — overlapping peaks can sum above 1
-  const temporalShape = Math.min(1, gaussianSum);
+  const temporalShape = Math.min(1, kernelSum);
 
-  // Day-of-week amplitude scaling
-  const dayMult = DAY_MULTIPLIERS[currentDay] ?? 0.7;
+  // Category-aware day-of-week amplitude scaling
+  const dayMults = CATEGORY_DAY_MULTIPLIERS[category];
+  const dayMult = dayMults[currentDay] ?? 0.7;
 
-  // Final score: popularity (capacity) × day multiplier × temporal shape
-  // Floor of 0.05 ensures we never predict absolute zero for an open venue
-  const score = Math.min(1, popularity * dayMult * (0.05 + 0.95 * temporalShape));
+  // Transform popularity into peak intensity (sqrt compresses range so
+  // low-popularity venues still show busyness at peak)
+  const peakIntensity = popularityToIntensity(popularity);
 
-  // Confidence: higher when we're near a known peak or clearly in a trough
-  const confidence = computeTemporalConfidence(temporalShape, todayWindows.length);
+  // Final score: day multiplier × temporal shape × peak intensity
+  const score = Math.min(1, dayMult * temporalShape * peakIntensity);
+
+  // Confidence: lower than before — this is historical data, not real-time
+  const confidence = computeTemporalConfidence(temporalShape, allWindows.length, category);
 
   const log = createLogger("foursquare");
   log.debug("Temporal busyness computed", {
+    category,
     popularity: popularity.toFixed(3),
+    peakIntensity: peakIntensity.toFixed(3),
     dayMultiplier: dayMult,
     currentDay,
     currentMinutes,
-    windowCount: todayWindows.length,
-    gaussianSum: gaussianSum.toFixed(3),
+    windowCount: allWindows.length,
+    kernelSum: kernelSum.toFixed(3),
     temporalShape: temporalShape.toFixed(3),
     score: score.toFixed(3),
     confidence: confidence.toFixed(3),
@@ -512,31 +566,75 @@ export function computeTimeAwareBusyness(
 }
 
 /**
- * Confidence increases when the temporal model is more certain:
- * - Near a peak (high gaussian) → we know it should be busy → higher confidence
- * - Deep in a trough (low gaussian) → we know it should be quiet → decent confidence
- * - Transitional zone (mid gaussian) → less certain → lower confidence
+ * Asymmetric kernel (split-normal): uses different sigma on the left (ramp-up)
+ * and right (taper-off) sides of the peak. Same computational cost as a
+ * standard Gaussian — just one Math.exp per window.
+ */
+function asymmetricKernel(
+  currentMinutes: number,
+  windowOpen: number,
+  windowClose: number,
+  params: TemporalCurveParams
+): number {
+  const duration = windowClose - windowOpen;
+  if (duration <= 0) return 0;
+
+  // Peak position in absolute minutes
+  const mu = windowOpen + duration * params.peakPosition;
+
+  // Sigma values derived from window duration (min 10 min to avoid sharp spikes)
+  const sigmaLeft = Math.max(duration * params.sigmaLeftScale, 10);
+  const sigmaRight = Math.max(duration * params.sigmaRightScale, 10);
+
+  const diff = currentMinutes - mu;
+  const sigma = diff <= 0 ? sigmaLeft : sigmaRight;
+
+  return Math.exp(-(diff * diff) / (2 * sigma * sigma));
+}
+
+/**
+ * Transform Foursquare popularity (0-1, a relative 6-month ranking) into
+ * peak intensity (0-1) for the busyness formula.
+ *
+ * Uses sqrt to compress the range: a venue with popularity 0.1 still gets
+ * intensity ~0.52 at peak, while popularity 0.9 → ~0.96. This prevents
+ * small but packed venues from being invisible on the map.
+ */
+function popularityToIntensity(popularity: number): number {
+  return 0.3 + 0.7 * Math.sqrt(Math.max(0, Math.min(1, popularity)));
+}
+
+/**
+ * Confidence for Foursquare temporal predictions. Deliberately lower than before
+ * because this is 6-month aggregate data, not real-time observation.
+ *
+ * Max confidence is 0.55 (was 0.85), ensuring single-source Foursquare
+ * predictions map to "LOW" in the fusion engine (threshold for "MEDIUM" is 0.6).
  */
 function computeTemporalConfidence(
-  gaussianValue: number,
-  windowCount: number
+  temporalShape: number,
+  windowCount: number,
+  category: VenueCategory
 ): number {
   let base: number;
-  if (gaussianValue > 0.5) {
-    // Near a known peak — confident it's busy
-    base = 0.6;
-  } else if (gaussianValue < 0.1) {
-    // Deep trough — confident it's quiet
-    base = 0.55;
+  if (temporalShape > 0.5) {
+    // Near a known peak — somewhat confident (historical pattern)
+    base = 0.40;
+  } else if (temporalShape < 0.1) {
+    // Deep trough — slightly less confident (venue might have an event)
+    base = 0.35;
   } else {
-    // Transitional — less certain
-    base = 0.45;
+    // Transitional — low confidence
+    base = 0.25;
   }
 
   // More popular windows = more historical data = slightly more confident
-  const dataBonus = Math.min(0.1, windowCount * 0.03);
+  const dataBonus = Math.min(0.10, windowCount * 0.03);
 
-  return Math.min(0.85, base + dataBonus);
+  // Well-established pattern categories get a small boost
+  const categoryBonus = (category === "coffee" || category === "nightclub") ? 0.05 : 0;
+
+  return Math.min(0.55, base + dataBonus + categoryBonus);
 }
 
 

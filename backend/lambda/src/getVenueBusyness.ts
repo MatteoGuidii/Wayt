@@ -3,6 +3,7 @@ import { venueKey, fusedSK, getItem, queryByPK, mappingSK } from "./db";
 import { success, badRequest, serverError } from "./shared";
 import { computeVenueBusyness } from "./computeVenueBusyness";
 import { FusedEstimate, VenueDetailsFull } from "./signals/types";
+import { DEFAULT_REFRESH_SECONDS } from "./signals/fusion";
 import { getGoogleHoursData, isOpenNow, getGoogleVenueDetails, ensureVenueDetails } from "./signals/google";
 import { createLogger } from "./logger";
 
@@ -56,6 +57,7 @@ export async function handler(
           sources: cached.sources as string[],
           conflictDetected: cached.conflictDetected as boolean,
           computedAt: cached.computedAt as string,
+          refreshAfterSeconds: (cached.refreshAfterSeconds as number | undefined) ?? DEFAULT_REFRESH_SECONDS,
           isOpen: (cached.isOpen as boolean | null) ?? null,
           hoursToday: (cached.hoursToday as string | null) ?? null,
           businessStatus: (cached.businessStatus as FusedEstimate["businessStatus"]) ?? null,
@@ -103,11 +105,14 @@ export async function handler(
       });
 
     // Fetch full venue details (including reviews) for single-venue response.
-    // If not cached, try to resolve via Google API (handles venues where
-    // batch processing skipped details due to circuit breaker / timeout).
-    let cachedDetails = await getGoogleVenueDetails(venueId);
+    // ensureVenueDetails() checks whether Enterprise-tier fields (rating,
+    // reviews, price) are already cached and only calls Google API if they
+    // are missing. This handles both cold venues and Basic-tier-only entries
+    // written by getGoogleHoursData() (which only fetches hours/types).
+    let cachedDetails = await ensureVenueDetails(venueId);
     if (!cachedDetails) {
-      cachedDetails = await ensureVenueDetails(venueId);
+      // No Google mapping exists — fall back to whatever is cached
+      cachedDetails = await getGoogleVenueDetails(venueId);
     }
     // Build Google Maps URL using Place ID for exact venue (handles chains)
     const mapping = await getItem(venueKey(venueId), mappingSK("google"));

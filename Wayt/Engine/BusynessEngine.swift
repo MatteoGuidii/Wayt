@@ -143,6 +143,8 @@ struct FusedEstimateResponse: Codable, Sendable {
     // Google venue details (optional)
     let venueDetails: VenueDetailsSummary?
 
+    let refreshAfterSeconds: Int?
+
     // Minimal init for backward compat (used by tests and legacy code)
     init(
         busynessScore: Double,
@@ -157,7 +159,8 @@ struct FusedEstimateResponse: Codable, Sendable {
         isOpen: Bool? = nil,
         hoursToday: String? = nil,
         businessStatus: String? = nil,
-        venueDetails: VenueDetailsSummary? = nil
+        venueDetails: VenueDetailsSummary? = nil,
+        refreshAfterSeconds: Int? = nil
     ) {
         self.busynessScore = busynessScore
         self.confidence = confidence
@@ -172,6 +175,7 @@ struct FusedEstimateResponse: Codable, Sendable {
         self.hoursToday = hoursToday
         self.businessStatus = businessStatus
         self.venueDetails = venueDetails
+        self.refreshAfterSeconds = refreshAfterSeconds
     }
 }
 

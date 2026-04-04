@@ -1,6 +1,5 @@
 import SwiftUI
 import Amplify
-import Authenticator
 
 struct AuthRootView: View {
 
@@ -13,43 +12,67 @@ struct AuthRootView: View {
     @EnvironmentObject private var authState: AuthState
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var screen: Screen = .onboarding
+    /// Once true, MainTabView stays in the tree forever — auth overlays on top.
+    @State private var hasEnteredBrowsing = false
+    /// Once true, auth form stays in the tree so form state is never lost.
+    @State private var hasShownAuthenticator = false
 
     var body: some View {
         ZStack {
-            switch screen {
-            case .onboarding:
+            // MainTabView persists once entered — never destroyed by auth overlay
+            if hasEnteredBrowsing {
+                MainTabView()
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
+
+            // Onboarding — always in tree once created, hidden via opacity to avoid
+            // destroying state if user swipes back quickly.
+            if !hasCompletedOnboarding {
                 OnboardingView(
                     onGetStarted: {
                         hasCompletedOnboarding = true
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                            hasEnteredBrowsing = true
                             screen = .browsing
                         }
                     },
                     onLogIn: {
+                        hasShownAuthenticator = true
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                             screen = .authenticator
                         }
                     }
                 )
-                .transition(.opacity.combined(with: .move(edge: .leading)))
+                .zIndex(1)
+                .opacity(screen == .onboarding ? 1 : 0)
+                .allowsHitTesting(screen == .onboarding)
+                .animation(.easeOut(duration: 0.3), value: screen)
+            }
 
-            case .browsing:
-                MainTabView()
-                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
-
-            case .authenticator:
+            if hasShownAuthenticator {
                 authenticatorView
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    .zIndex(2)
+                    .opacity(screen == .authenticator ? 1 : 0)
+                    .allowsHitTesting(screen == .authenticator)
+                    .accessibilityHidden(screen != .authenticator)
+                    .animation(.easeOut(duration: 0.3), value: screen)
+            }
+        }
+        .onChange(of: screen) { _, newScreen in
+            if newScreen != .authenticator {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
         }
         .onAppear {
             // Skip onboarding if user already passed it or is signed in
             if authState.isSignedIn || hasCompletedOnboarding {
+                hasEnteredBrowsing = true
                 screen = .browsing
             }
 
             // Let any child trigger sign-in from guest mode
             authState.onRequestSignIn = { [self] in
+                hasShownAuthenticator = true
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                     screen = .authenticator
                 }
@@ -59,6 +82,7 @@ struct AuthRootView: View {
             await authState.checkCurrentSession()
             if authState.isSignedIn {
                 hasCompletedOnboarding = true
+                hasEnteredBrowsing = true
                 screen = .browsing
             }
         }
@@ -76,8 +100,10 @@ struct AuthRootView: View {
                 HStack {
                     Button {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            hasEnteredBrowsing = true
                             screen = .browsing
                         }
+                        authState.triggerVenueRestore()
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "chevron.left")
@@ -96,13 +122,15 @@ struct AuthRootView: View {
                 // Header collapses on keyboard via GeometryReader keyboard height
                 AuthHeaderView()
 
-                // Isolated Authenticator — never re-renders from parent state changes
-                AuthenticatorContainer(onSignedIn: { username in
+                // Isolated container — never re-renders from parent state changes
+                AuthFlowContainer(isVisible: screen == .authenticator, onSignedIn: { username in
                     authState.didSignIn(username: username)
                     hasCompletedOnboarding = true
+                    hasEnteredBrowsing = true
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                         screen = .browsing
                     }
+                    authState.triggerVenueRestore()
                 })
             }
         }
@@ -133,7 +161,7 @@ private struct AuthHeaderView: View {
         .frame(maxHeight: keyboardVisible ? 0 : nil)
         .clipped()
         .opacity(keyboardVisible ? 0 : 1)
-        .animation(.easeOut(duration: 0.2), value: keyboardVisible)
+        .animation(.easeOut(duration: 0.15), value: keyboardVisible)
         .onReceive(
             NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
         ) { _ in keyboardVisible = true }
@@ -143,61 +171,43 @@ private struct AuthHeaderView: View {
     }
 }
 
-// MARK: - Authenticator Container (isolated)
+// MARK: - Auth Flow Container (isolated)
 
-/// Wraps Amplify's Authenticator in its own View struct so it is never
+/// Wraps the custom auth forms in its own View struct so it is never
 /// invalidated by unrelated state changes in the parent (keyboard, screen, etc.).
-private struct AuthenticatorContainer: View {
+private struct AuthFlowContainer: View {
+    var isVisible: Bool
     var onSignedIn: (String) -> Void
 
+    @StateObject private var viewModel = AuthFlowViewModel()
+
     var body: some View {
-        Authenticator { state in
-            Color.clear
-                .onAppear {
-                    onSignedIn(state.user.username)
+        ScrollView {
+            VStack(spacing: 0) {
+                switch viewModel.step {
+                case .signIn:
+                    SignInFormView(viewModel: viewModel)
+                case .signUp:
+                    SignUpFormView(viewModel: viewModel)
+                case .confirmSignUp:
+                    ConfirmSignUpFormView(viewModel: viewModel)
+                case .forgotPassword:
+                    ForgotPasswordFormView(viewModel: viewModel)
+                case .confirmResetPassword:
+                    ConfirmResetPasswordFormView(viewModel: viewModel)
                 }
+                Spacer(minLength: 40)
+            }
+            .animation(.easeInOut(duration: 0.2), value: viewModel.step)
         }
-        .authenticatorTheme(Self.theme)
+        .scrollDismissesKeyboard(.interactively)
+        .onAppear {
+            viewModel.onSignedIn = onSignedIn
+        }
+        .onChange(of: isVisible) { _, visible in
+            if visible { viewModel.reset() }
+        }
     }
-
-    private static let theme: AuthenticatorTheme = {
-        var t = AuthenticatorTheme()
-
-        // Backgrounds
-        t.colors.background.primary   = .clear
-        t.colors.background.secondary = .clear
-        t.colors.background.tertiary  = .clear
-        t.components.authenticator.backgroundColor = .clear
-
-        // Fields
-        t.components.field.backgroundColor = WaytTheme.fieldBackground
-        t.components.field.cornerRadius = 12
-
-        // Accent color
-        t.colors.background.interactive = WaytTheme.mapsBlue
-        t.colors.foreground.interactive = WaytTheme.mapsBlue
-
-        // Buttons
-        t.components.button.primary.cornerRadius = 16
-        t.components.button.primary.padding = 16
-        t.components.button.primary.font = WaytTheme.calloutBoldFont
-        t.components.button.link.font = WaytTheme.subtitleFont
-
-        // Fonts — use Wayt's rounded design system
-        t.fonts.largeTitle = WaytTheme.largeTitleFont
-        t.fonts.title      = WaytTheme.heroFont
-        t.fonts.title2     = WaytTheme.headlineFont
-        t.fonts.title3     = WaytTheme.title3Font
-        t.fonts.headline   = WaytTheme.bodyBoldFont
-        t.fonts.subheadline = WaytTheme.subtitleFont
-        t.fonts.body       = WaytTheme.bodyFont
-        t.fonts.callout    = WaytTheme.subheadLightFont
-        t.fonts.caption    = WaytTheme.captionFont
-        t.fonts.caption2   = WaytTheme.captionLightFont
-        t.fonts.footnote   = WaytTheme.footnoteFont
-
-        return t
-    }()
 }
 
 // MARK: - Preview

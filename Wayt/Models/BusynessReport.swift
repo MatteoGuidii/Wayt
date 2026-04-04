@@ -51,4 +51,5 @@ struct SubmitReportRequest: Codable, Sendable {
     let venueType: String
     let lat: Double
     let lng: Double
+    let timezone: String
 }

@@ -27,8 +27,8 @@ amplifytools.xcconfig
 xcuserdata/
 *.xcuserdatad/
 
-# Claude worktrees
-.claude/worktrees/
+# Claude Code config
+.claude/
 
 # SAM CLI auto-generated build files
 backend/.aws-sam/

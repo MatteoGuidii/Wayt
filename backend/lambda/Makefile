@@ -15,6 +15,7 @@ build-DeleteAccountFunction: build-common
 build-GetNearbyVenuesFunction: build-common
 build-ComputeColdVenuesFunction: build-common
 build-GetVenueBusynessFunction: build-common
+build-GetLeaderboardFunction: build-common
 
 build-common:
 	cp -r dist $(ARTIFACTS_DIR)/dist

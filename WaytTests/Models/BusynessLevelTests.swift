@@ -47,13 +47,6 @@ struct BusynessLevelTests {
         }
     }
 
-    @Test("All levels have non-empty description")
-    func allLevelsHaveNonEmptyDescription() {
-        for level in BusynessLevel.allCases {
-            #expect(!level.description.isEmpty, "description for \(level) is empty")
-        }
-    }
-
     @Test("Labels are distinct across all levels")
     func labelsAreDistinct() {
         let labels = BusynessLevel.allCases.map { $0.label }

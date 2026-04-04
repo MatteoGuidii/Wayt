@@ -28,6 +28,7 @@ import {
 import { createLogger } from "./logger";
 
 const s3 = new S3Client({});
+const LEADERBOARD_TABLE = process.env.LEADERBOARD_TABLE ?? "";
 const cognito = new CognitoIdentityProviderClient({});
 
 export async function handler(
@@ -73,7 +74,12 @@ export async function handler(
       log.warn("Profile image deletion failed (may not exist)");
     }
 
-    // 4. Delete user profile from DynamoDB
+    // 4. Delete leaderboard entries
+    if (LEADERBOARD_TABLE) {
+      await deleteLeaderboardEntries(userId, log);
+    }
+
+    // 5. Delete user profile from DynamoDB
     await ddb.send(
       new DeleteCommand({
         TableName: USERS_TABLE,
@@ -82,7 +88,7 @@ export async function handler(
     );
     log.info("User profile deleted");
 
-    // 5. Delete Cognito user
+    // 6. Delete Cognito user
     if (USER_POOL_ID) {
       try {
         await cognito.send(
@@ -192,4 +198,44 @@ async function deleteSavedVenues(
   } while (lastKey);
 
   log.info(`Deleted ${deleted} saved venues`);
+}
+
+/** Leaderboard entries have an 8-day TTL so the table stays small — scan is acceptable. */
+async function deleteLeaderboardEntries(
+  userId: string,
+  log: ReturnType<typeof createLogger>
+): Promise<void> {
+  let lastKey: Record<string, unknown> | undefined;
+  let deleted = 0;
+
+  do {
+    const scan = await ddb.send(
+      new ScanCommand({
+        TableName: LEADERBOARD_TABLE,
+        FilterExpression: "userId = :uid",
+        ExpressionAttributeValues: { ":uid": userId },
+        ProjectionExpression: "weekGeohash, score",
+        ExclusiveStartKey: lastKey,
+      })
+    );
+
+    if (scan.Items) {
+      for (const item of scan.Items) {
+        await ddb.send(
+          new DeleteCommand({
+            TableName: LEADERBOARD_TABLE,
+            Key: {
+              weekGeohash: item.weekGeohash,
+              score: item.score,
+            },
+          })
+        );
+        deleted++;
+      }
+    }
+
+    lastKey = scan.LastEvaluatedKey as Record<string, unknown> | undefined;
+  } while (lastKey);
+
+  log.info(`Deleted ${deleted} leaderboard entries`);
 }

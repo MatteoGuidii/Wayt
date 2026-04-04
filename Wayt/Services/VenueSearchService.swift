@@ -152,13 +152,22 @@ final class VenueSearchService {
         return bestEntry?.results
     }
 
-    // MARK: - Excluded Categories
+    // MARK: - Category Filtering
 
+    /// POI categories that are definitely NOT venues we want.
     private static let excludedCategories: Set<MKPointOfInterestCategory> = [
         .gasStation, .atm, .bank, .hospital, .pharmacy,
         .police, .fireStation, .parking, .carRental,
         .evCharger, .laundry, .postOffice, .store,
         .foodMarket
+    ]
+
+    /// POI categories that ARE the venues we want.
+    /// Used as an allowlist for keyword searches — MapKit's natural language queries
+    /// return anything with the keyword in the name (e.g. "Restaurant Imports"),
+    /// so we only keep results whose POI category matches a real venue type.
+    private static let allowedCategories: Set<MKPointOfInterestCategory> = [
+        .restaurant, .cafe, .nightlife, .bakery, .brewery, .winery
     ]
 
     // MARK: - Non-Venue Filtering
@@ -184,6 +193,15 @@ final class VenueSearchService {
         "bartender", "bartending",
         "event planner", "event planning", "event rental",
         "food truck",
+        // Commercial / industrial / retail (not actual dining venues)
+        "imports", "import", "wholesale", "distributor", "distribution",
+        "supply", "supplies", "supplier", "equipment",
+        "storage", "warehouse", "depot",
+        "repair", "maintenance", "auto ", "automotive",
+        "parts", "hardware", "lumber", "flooring",
+        "printing", "signage", "packaging",
+        "rental", "rentals",
+        "hotel supplies", "restaurant supply", "restaurant equipment",
         // Medical / health — compound terms only to avoid false positives
         // (e.g., "The Clinic Bar" or "Remedy Café" are legit venues)
         "medical centre", "medical center", "medical clinic",
@@ -247,9 +265,10 @@ final class VenueSearchService {
 
         recordRequest()
 
+        let searchRegion = Self.clampedSearchRegion(region)
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
-        request.region = region
+        request.region = searchRegion
         request.resultTypes = .pointOfInterest
 
         let search = MKLocalSearch(request: request)
@@ -267,9 +286,17 @@ final class VenueSearchService {
                 return nil
             }
 
-            // Filter to venues within the search region + 10% buffer (MKLocalSearch returns results beyond it)
+            // Allowlist: keyword searches return anything with the keyword in the name
+            // (e.g. "Restaurant Imports", "Carribean Specialty Storage").
+            // If MapKit assigned a POI category, it must be one we actually want.
+            if let category = item.pointOfInterestCategory,
+               !Self.allowedCategories.contains(category) {
+                return nil
+            }
+
+            // Filter to venues within the clamped search region + 10% buffer
             let coord = item.placemark.coordinate
-            if !region.containsWithBuffer(coord) {
+            if !searchRegion.containsWithBuffer(coord) {
                 return nil
             }
 
@@ -365,7 +392,8 @@ final class VenueSearchService {
 
         recordRequest()
 
-        let request = MKLocalPointsOfInterestRequest(coordinateRegion: region)
+        let searchRegion = Self.clampedSearchRegion(region)
+        let request = MKLocalPointsOfInterestRequest(coordinateRegion: searchRegion)
         request.pointOfInterestFilter = MKPointOfInterestFilter(including: [category])
 
         let search = MKLocalSearch(request: request)
@@ -383,7 +411,7 @@ final class VenueSearchService {
             }
 
             let coord = item.placemark.coordinate
-            if !region.containsWithBuffer(coord) { return nil }
+            if !searchRegion.containsWithBuffer(coord) { return nil }
 
             return Venue(mapItem: item)
         }
@@ -588,6 +616,19 @@ final class VenueSearchService {
         }
 
         return accumulated
+    }
+
+    // MARK: - Region Clamping
+
+    /// Returns a region with span clamped to at least `minimumSearchSpan`.
+    /// Ensures MapKit searches a large enough area when the map is zoomed in tight.
+    private static func clampedSearchRegion(_ region: MKCoordinateRegion) -> MKCoordinateRegion {
+        let minSpan = AppConstants.minimumSearchSpan
+        let clampedSpan = MKCoordinateSpan(
+            latitudeDelta: max(region.span.latitudeDelta, minSpan),
+            longitudeDelta: max(region.span.longitudeDelta, minSpan)
+        )
+        return MKCoordinateRegion(center: region.center, span: clampedSpan)
     }
 
 }

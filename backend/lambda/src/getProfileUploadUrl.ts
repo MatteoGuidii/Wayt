@@ -38,7 +38,7 @@ export async function handler(
         Key: imageKey,
         ContentType: "image/jpeg",
       }),
-      { expiresIn: 300 }
+      { expiresIn: 900 }
     );
 
     // Store the image key in the user's profile

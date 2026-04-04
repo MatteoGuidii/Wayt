@@ -12,6 +12,7 @@ struct ProfileScreen: View {
     @EnvironmentObject private var savedVenuesVM: SavedVenuesViewModel
     @EnvironmentObject private var tabSelection: TabSelection
     @EnvironmentObject private var mapViewModel: MapViewModel
+    @EnvironmentObject private var locationService: LocationService
     @State private var showEditSheet = false
     @State private var showPhotoPicker = false
     @State private var showImagePreview = false
@@ -35,7 +36,12 @@ struct ProfileScreen: View {
                 if viewModel.showFirstTimeNamePrompt {
                     showFirstTimeNameSheet = true
                 }
+                await loadLeaderboardIfReady()
             }
+        }
+        .onChange(of: locationService.userLocation) { _, newLocation in
+            guard authState.isSignedIn, newLocation != nil else { return }
+            Task { await loadLeaderboardIfReady() }
         }
         .sheet(isPresented: $showEditSheet) {
             ProfileEditSheet(isFirstTime: false)
@@ -198,8 +204,37 @@ struct ProfileScreen: View {
                     // Stats
                     statsStrip(rank: rank)
 
+                    // Streak
+                    StreakStrip(
+                        currentStreak: viewModel.currentStreak,
+                        last4Weeks: viewModel.last4Weeks,
+                        reportDates: viewModel.reportDates,
+                        remainingFreezes: viewModel.remainingFreezes
+                    )
+
                     // Rank progress
                     rankCard(rank: rank)
+
+                    // Impact
+                    if viewModel.totalReports > 0 {
+                        ImpactCard(
+                            totalReports: viewModel.totalReports,
+                            distinctVenues: viewModel.distinctVenueCount,
+                            topVenueName: viewModel.topVenueName,
+                            topVenueCategory: viewModel.topVenueCategory,
+                            confirmationsReceived: viewModel.confirmationsReceived
+                        )
+                    }
+
+                    LeaderboardCard(
+                        entries: viewModel.leaderboardEntries,
+                        currentUserEntry: viewModel.leaderboardCurrentUser,
+                        weekLabel: viewModel.leaderboardWeekLabel,
+                        isLoading: viewModel.isLoadingLeaderboard
+                    )
+
+                    // Recent activity
+                    RecentActivityCard(entries: viewModel.reportHistory)
 
                     // Saved venues
                     if !savedVenuesVM.savedVenues.isEmpty {
@@ -216,11 +251,36 @@ struct ProfileScreen: View {
                 }
             }
             .scrollIndicators(.hidden)
+
         }
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    // MARK: - Greeting
+
+    private func greetingHeader(displayName: String) -> some View {
+        VStack(spacing: 4) {
+            Text("\(timeGreeting), \(displayName)")
+                .font(WaytTheme.largeTitleFont)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+    }
+
+    private var timeGreeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12:  return "Good morning"
+        case 12..<17: return "Good afternoon"
+        case 17..<21: return "Good evening"
+        default:      return "Good night"
+        }
+    }
+
     // MARK: - Hero Header
+
+    @State private var avatarPulse = false
 
     private func profileHero(displayName: String, rank: UserRank) -> some View {
         VStack(spacing: 12) {
@@ -236,11 +296,17 @@ struct ProfileScreen: View {
                     ZStack {
                         Circle()
                             .fill(WaytTheme.avatarRing)
-                            .frame(width: 100, height: 100)
+                            .frame(width: 116, height: 116)
+                            .scaleEffect(avatarPulse ? 1.03 : 1.0)
+                            .animation(
+                                .easeInOut(duration: 2.0).repeatForever(autoreverses: true),
+                                value: avatarPulse
+                            )
+                            .onAppear { avatarPulse = true }
 
                         Circle()
                             .fill(WaytTheme.avatarBackground)
-                            .frame(width: 92, height: 92)
+                            .frame(width: 108, height: 108)
                             .shadow(color: WaytTheme.cardShadow, radius: 10, y: 4)
 
                         if let cachedData = viewModel.cachedImageData,
@@ -248,7 +314,7 @@ struct ProfileScreen: View {
                             Image(uiImage: uiImage)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
-                                .frame(width: 86, height: 86)
+                                .frame(width: 100, height: 100)
                                 .clipShape(Circle())
                         } else if let imageUrl = viewModel.profileImageUrl,
                            let url = URL(string: imageUrl) {
@@ -258,7 +324,7 @@ struct ProfileScreen: View {
                                     image
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
-                                        .frame(width: 86, height: 86)
+                                        .frame(width: 100, height: 100)
                                         .clipShape(Circle())
                                 default:
                                     Text(initials(for: displayName))
@@ -276,7 +342,7 @@ struct ProfileScreen: View {
                         if viewModel.isSavingImage {
                             Circle()
                                 .fill(Color.black.opacity(0.4))
-                                .frame(width: 92, height: 92)
+                                .frame(width: 108, height: 108)
                             ProgressView()
                                 .tint(.white)
                         }
@@ -323,7 +389,7 @@ struct ProfileScreen: View {
                     .font(WaytTheme.subheadLightFont)
             }
         }
-        .padding(.top, 16)
+        .padding(.top, 4)
     }
 
     // MARK: - Stats Strip
@@ -335,7 +401,7 @@ struct ProfileScreen: View {
                 HStack(spacing: 4) {
                     Image(systemName: "megaphone.fill")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(WaytTheme.skyPunch)
+                        .foregroundStyle(WaytTheme.mapsBlue)
                     Text("\(viewModel.totalReports)")
                         .font(WaytTheme.headlineFont)
                 }
@@ -568,9 +634,12 @@ struct ProfileScreen: View {
                        case .failed = globalResult {
                         Log.auth.error("Sign-out failed")
                     } else {
-                        viewModel.reset()
-                        savedVenuesVM.reset()
-                        authState.didSignOut()
+                        await SessionCleanup.perform(
+                            profileViewModel: viewModel,
+                            savedVenuesVM: savedVenuesVM,
+                            mapViewModel: mapViewModel,
+                            authState: authState
+                        )
                     }
                 }
             } label: {
@@ -686,6 +755,16 @@ struct ProfileScreen: View {
 
         guard let jpegData = resized.jpegData(compressionQuality: 0.7) else { return }
         _ = await viewModel.uploadProfileImage(jpegData)
+    }
+
+    // MARK: - Leaderboard
+
+    private func loadLeaderboardIfReady() async {
+        guard let location = locationService.userLocation else { return }
+        await viewModel.loadLeaderboard(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude
+        )
     }
 
     // MARK: - Helpers
@@ -834,6 +913,7 @@ enum UserRank: Int, CaseIterable {
         .environmentObject(SavedVenuesViewModel())
         .environmentObject(TabSelection())
         .environmentObject(MapViewModel())
+        .environmentObject(LocationService())
 }
 
 #Preview("Profile - Signed In") {
@@ -845,4 +925,5 @@ enum UserRank: Int, CaseIterable {
         .environmentObject(SavedVenuesViewModel())
         .environmentObject(TabSelection())
         .environmentObject(MapViewModel())
+        .environmentObject(LocationService())
 }
