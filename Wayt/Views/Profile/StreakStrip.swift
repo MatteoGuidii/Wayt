@@ -6,6 +6,10 @@ struct StreakStrip: View {
     let currentWeekDays: [ProfileViewModel.WeekDay]
     let reportDates: [String]
     var remainingFreezes: Int = 0
+    var freezesUsed: Int = 0
+    #if DEBUG
+    var onSeedScenario: ((ProfileViewModel.StreakScenario) -> Void)?
+    #endif
 
     @State private var showCalendar = false
 
@@ -51,7 +55,7 @@ struct StreakStrip: View {
 
                 weekRow
 
-                if remainingFreezes > 0 || currentStreak >= 3 {
+                if remainingFreezes > 0 || freezesUsed > 0 || currentStreak >= 3 {
                     freezeSection
                 }
             }
@@ -62,6 +66,15 @@ struct StreakStrip: View {
             .padding(.horizontal, 16)
         }
         .buttonStyle(.plain)
+        #if DEBUG
+        .contextMenu {
+            if let onSeed = onSeedScenario {
+                ForEach(ProfileViewModel.StreakScenario.allCases, id: \.self) { scenario in
+                    Button(scenario.rawValue) { onSeed(scenario) }
+                }
+            }
+        }
+        #endif
         .sheet(isPresented: $showCalendar) {
             StreakCalendarSheet(
                 currentStreak: currentStreak,
@@ -79,19 +92,16 @@ struct StreakStrip: View {
 
     private var weekRow: some View {
         VStack(spacing: 6) {
-            // Day labels
             HStack(spacing: 0) {
                 ForEach(currentWeekDays) { day in
                     Text(day.label)
                         .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(WaytTheme.primaryText.opacity(0.55))
+                        .foregroundStyle(WaytTheme.secondaryText)
                         .frame(maxWidth: .infinity)
                 }
             }
 
-            // Circles with connecting line behind
             ZStack {
-                // Connecting line through circle centers
                 GeometryReader { geo in
                     let step = geo.size.width / 7
                     let y = circleSize / 2
@@ -106,7 +116,6 @@ struct StreakStrip: View {
                 }
                 .frame(height: circleSize)
 
-                // Circles on top
                 HStack(spacing: 0) {
                     ForEach(currentWeekDays) { day in
                         ZStack {
@@ -147,36 +156,71 @@ struct StreakStrip: View {
     // MARK: - Freeze Section
 
     private var freezeSection: some View {
-        HStack(spacing: 8) {
-            if remainingFreezes > 0 {
-                HStack(spacing: 4) {
-                    ForEach(0..<remainingFreezes, id: \.self) { _ in
-                        ZStack {
-                            Circle()
-                                .fill(Self.freezeBlue.opacity(0.15))
-                                .frame(width: 26, height: 26)
-                            Image(systemName: "snowflake")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(Self.freezeBlue)
-                        }
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Self.freezeBlue.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    VStack(spacing: 1) {
+                        Image(systemName: "snowflake")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Self.freezeBlue)
+                        Text("\(remainingFreezes)")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .foregroundStyle(Self.freezeBlue)
                     }
                 }
 
-                Text("\(remainingFreezes) streak freeze\(remainingFreezes == 1 ? "" : "s") ready to use")
-                    .font(WaytTheme.captionFont)
-                    .foregroundStyle(WaytTheme.primaryText)
-            } else {
-                Image(systemName: "snowflake")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Self.freezeBlue)
+                VStack(alignment: .leading, spacing: 3) {
+                    if remainingFreezes > 0 {
+                        Text("\(remainingFreezes) Streak Freeze\(remainingFreezes == 1 ? "" : "s")")
+                            .font(WaytTheme.subheadFont)
+                            .foregroundStyle(WaytTheme.primaryText)
+                    } else {
+                        Text("No Freezes Available")
+                            .font(WaytTheme.subheadFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
 
-                Text("Earn a freeze every 3 consecutive weeks")
-                    .font(WaytTheme.captionFont)
-                    .foregroundStyle(WaytTheme.secondaryText)
+                    Text("Activates automatically if you miss a week")
+                        .font(WaytTheme.captionLightFont)
+                        .foregroundStyle(WaytTheme.secondaryText)
+                }
+
+                Spacer()
             }
 
-            Spacer()
+            if freezesUsed > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Self.freezeBlue)
+                    Text("\(freezesUsed) freeze\(freezesUsed == 1 ? "" : "s") protecting your streak right now")
+                        .font(WaytTheme.captionFont)
+                        .foregroundStyle(Self.freezeBlue)
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Self.freezeBlue.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
+            if remainingFreezes == 0 && freezesUsed == 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(WaytTheme.secondaryText)
+                    Text("Report 3 weeks in a row to earn a freeze")
+                        .font(WaytTheme.captionLightFont)
+                        .foregroundStyle(WaytTheme.secondaryText)
+                    Spacer()
+                }
+            }
         }
-        .padding(.horizontal, 4)
+        .padding(12)
+        .background(Color(.systemGray6).opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

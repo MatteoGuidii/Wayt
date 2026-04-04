@@ -239,6 +239,10 @@ final class ProfileViewModel: ObservableObject {
         max(0, streakFreezes - streakResult.freezesUsed)
     }
 
+    var freezesUsed: Int {
+        streakResult.freezesUsed
+    }
+
     /// Returns all "yyyy-MM-dd" strings for a rolling 7-day window.
     /// Window 0 = today → 6 days ago, window 1 = 7 → 13 days ago, etc.
     private func datesInWindow(_ index: Int) -> [String] {
@@ -258,23 +262,29 @@ final class ProfileViewModel: ObservableObject {
         let isToday: Bool
     }
 
+    private static let dayLabelFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEEE"
+        return f
+    }()
+
+    /// Last 7 days (oldest first), aligned with `datesInWindow(0)` so the week row
+    /// matches the streak engine's definition of "this week."
     var currentWeekDays: [WeekDay] {
         let calendar = Calendar.current
         let today = Date()
-        let weekday = calendar.component(.weekday, from: today)
-        guard let startOfWeek = calendar.date(byAdding: .day, value: -(weekday - 1), to: today) else { return [] }
-        let labels = ["S", "M", "T", "W", "T", "F", "S"]
         let dateSet = Set(reportDates)
 
         return (0..<7).compactMap { offset in
-            guard let day = calendar.date(byAdding: .day, value: offset, to: startOfWeek) else { return nil }
+            let daysBack = 6 - offset
+            guard let day = calendar.date(byAdding: .day, value: -daysBack, to: today) else { return nil }
             let dateString = Self.dateFormatter.string(from: day)
             return WeekDay(
                 id: offset,
-                label: labels[offset],
+                label: Self.dayLabelFormatter.string(from: day),
                 date: dateString,
                 hasReport: dateSet.contains(dateString),
-                isToday: calendar.isDateInToday(day)
+                isToday: daysBack == 0
             )
         }
     }
@@ -567,6 +577,63 @@ final class ProfileViewModel: ObservableObject {
             // Optimistic increment already applied — keep it
         }
     }
+
+    // MARK: - Debug Seeding
+
+    #if DEBUG
+    func seedStreakData(scenario: StreakScenario) {
+        let calendar = Calendar.current
+        let today = Date()
+
+        switch scenario {
+        case .activeStreak:
+            // 4 consecutive weeks of reports + 2 freezes earned
+            var dates: [String] = []
+            for week in 0..<4 {
+                guard let day = calendar.date(byAdding: .day, value: -(week * 7 + 1), to: today) else { continue }
+                dates.append(Self.dateFormatter.string(from: day))
+            }
+            // Add today
+            dates.append(Self.dateFormatter.string(from: today))
+            reportDates = dates.sorted()
+            streakFreezes = 2
+
+        case .frozenWeek:
+            // 3-week streak with a gap (freeze should kick in)
+            var dates: [String] = []
+            for week in [0, 2, 3] {
+                guard let day = calendar.date(byAdding: .day, value: -(week * 7 + 1), to: today) else { continue }
+                dates.append(Self.dateFormatter.string(from: day))
+            }
+            reportDates = dates.sorted()
+            streakFreezes = 1
+
+        case .noStreak:
+            // Old reports only, no recent activity
+            var dates: [String] = []
+            for week in 5..<8 {
+                guard let day = calendar.date(byAdding: .day, value: -(week * 7 + 1), to: today) else { continue }
+                dates.append(Self.dateFormatter.string(from: day))
+            }
+            reportDates = dates.sorted()
+            streakFreezes = 0
+
+        case .clear:
+            reportDates = []
+            streakFreezes = 0
+        }
+
+        cacheValue(reportDates, forKey: CacheKey.reportDates)
+        cacheValue(streakFreezes, forKey: CacheKey.streakFreezes)
+    }
+
+    enum StreakScenario: String, CaseIterable {
+        case activeStreak = "4-week streak + 2 freezes"
+        case frozenWeek = "3-week with gap + 1 freeze"
+        case noStreak = "Lost streak (old reports)"
+        case clear = "Clear all"
+    }
+    #endif
 
     private func applyEngagementStats(from profile: UserProfile) {
         if let serverDates = profile.reportDates, !serverDates.isEmpty {

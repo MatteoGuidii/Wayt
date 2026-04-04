@@ -92,45 +92,63 @@ struct StreakCalendarSheet: View {
                     .foregroundStyle(WaytTheme.secondaryText)
             }
 
-            if remainingFreezes > 0 || currentStreak >= 3 {
-                VStack(spacing: 8) {
-                    if remainingFreezes > 0 {
-                        HStack(spacing: 8) {
-                            ForEach(0..<remainingFreezes, id: \.self) { _ in
-                                ZStack {
-                                    Circle()
-                                        .fill(StreakStrip.freezeBlue.opacity(0.15))
-                                        .frame(width: 36, height: 36)
-                                    Image(systemName: "snowflake")
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundStyle(StreakStrip.freezeBlue)
-                                }
-                            }
+            VStack(spacing: 10) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(StreakStrip.freezeBlue.opacity(0.12))
+                            .frame(width: 52, height: 52)
+                        VStack(spacing: 2) {
+                            Image(systemName: "snowflake")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundStyle(StreakStrip.freezeBlue)
+                            Text("\(remainingFreezes)")
+                                .font(.system(size: 14, weight: .black, design: .rounded))
+                                .foregroundStyle(StreakStrip.freezeBlue)
                         }
-
-                        Text("\(remainingFreezes) streak freeze\(remainingFreezes == 1 ? "" : "s") ready to use")
-                            .font(WaytTheme.captionFont)
-                            .foregroundStyle(WaytTheme.primaryText)
-                    } else {
-                        Image(systemName: "snowflake")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(StreakStrip.freezeBlue)
-
-                        Text("Earn a freeze every 3 consecutive weeks")
-                            .font(WaytTheme.captionFont)
-                            .foregroundStyle(WaytTheme.primaryText)
                     }
 
-                    Text("Freezes protect your streak if you miss a week")
-                        .font(WaytTheme.captionLightFont)
-                        .foregroundStyle(WaytTheme.secondaryText)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(remainingFreezes) Streak Freeze\(remainingFreezes == 1 ? "" : "s")")
+                            .font(WaytTheme.subheadFont)
+                            .foregroundStyle(WaytTheme.primaryText)
+
+                        Text("Activates automatically if you miss a week")
+                            .font(WaytTheme.captionLightFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    }
+
+                    Spacer()
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity)
-                .background(StreakStrip.freezeBlue.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label {
+                        Text("Report 3 weeks in a row to earn a freeze")
+                            .font(WaytTheme.captionLightFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    } icon: {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(StreakStrip.flameOrange)
+                    }
+
+                    Label {
+                        Text("You can hold up to 2 freezes at a time")
+                            .font(WaytTheme.captionLightFont)
+                            .foregroundStyle(WaytTheme.secondaryText)
+                    } icon: {
+                        Image(systemName: "tray.2.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(StreakStrip.freezeBlue)
+                    }
+                }
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(StreakStrip.freezeBlue.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .padding(.top, 8)
         .padding(.bottom, 4)

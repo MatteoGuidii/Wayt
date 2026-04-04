@@ -205,12 +205,24 @@ struct ProfileScreen: View {
                     statsStrip(rank: rank)
 
                     // Streak
+                    #if DEBUG
                     StreakStrip(
                         currentStreak: viewModel.currentStreak,
                         currentWeekDays: viewModel.currentWeekDays,
                         reportDates: viewModel.reportDates,
-                        remainingFreezes: viewModel.remainingFreezes
+                        remainingFreezes: viewModel.remainingFreezes,
+                        freezesUsed: viewModel.freezesUsed,
+                        onSeedScenario: { viewModel.seedStreakData(scenario: $0) }
                     )
+                    #else
+                    StreakStrip(
+                        currentStreak: viewModel.currentStreak,
+                        currentWeekDays: viewModel.currentWeekDays,
+                        reportDates: viewModel.reportDates,
+                        remainingFreezes: viewModel.remainingFreezes,
+                        freezesUsed: viewModel.freezesUsed
+                    )
+                    #endif
 
                     // Rank progress
                     rankCard(rank: rank)
