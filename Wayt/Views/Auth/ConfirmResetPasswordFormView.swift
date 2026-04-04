@@ -41,7 +41,8 @@ struct ConfirmResetPasswordFormView: View {
                 label: "Reset Code",
                 placeholder: "123456",
                 text: $viewModel.code,
-                keyboardType: .numberPad
+                keyboardType: .numberPad,
+                textContentType: .oneTimeCode
             )
             .focused($focus, equals: .code)
             .onChange(of: viewModel.code) { _, newValue in

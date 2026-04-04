@@ -38,6 +38,7 @@ struct SignInFormView: View {
                 placeholder: "Enter your password",
                 text: $viewModel.password,
                 isSecure: true,
+                textContentType: .password,
                 onSubmit: { if canSubmit { Task { await viewModel.signIn() } } }
             )
             .focused($focus, equals: .password)

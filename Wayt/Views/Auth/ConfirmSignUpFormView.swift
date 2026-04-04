@@ -35,7 +35,8 @@ struct ConfirmSignUpFormView: View {
                 label: "Verification Code",
                 placeholder: "123456",
                 text: $viewModel.code,
-                keyboardType: .numberPad
+                keyboardType: .numberPad,
+                textContentType: .oneTimeCode
             )
             .focused($codeFocused)
             .onChange(of: viewModel.code) { _, newValue in
@@ -65,6 +66,10 @@ struct ConfirmSignUpFormView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
-        .onAppear { codeFocused = true }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                codeFocused = true
+            }
+        }
     }
 }

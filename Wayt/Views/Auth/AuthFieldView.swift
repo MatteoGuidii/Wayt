@@ -26,6 +26,7 @@ struct AuthFieldView: View {
                         text: $text,
                         placeholder: placeholder,
                         hideText: !showingPassword,
+                        contentType: textContentType,
                         onSubmit: onSubmit
                     )
                     .frame(height: 25)
@@ -75,13 +76,14 @@ private struct PasswordTextField: UIViewRepresentable {
     @Binding var text: String
     var placeholder: String
     var hideText: Bool
+    var contentType: UITextContentType?
     var onSubmit: (() -> Void)?
 
     func makeUIView(context: Context) -> UITextField {
         let field = UITextField()
         field.delegate = context.coordinator
         field.placeholder = placeholder
-        field.textContentType = .oneTimeCode
+        field.textContentType = contentType ?? .oneTimeCode
         field.passwordRules = nil
         field.autocapitalizationType = .none
         field.autocorrectionType = .no
@@ -97,14 +99,20 @@ private struct PasswordTextField: UIViewRepresentable {
 
     func updateUIView(_ field: UITextField, context: Context) {
         let coord = context.coordinator
+        let hideTextChanged = coord.hideText != hideText
         coord.hideText = hideText
+
+        // While actively editing, only react to eye-toggle — don't re-set field.text
+        // from the async binding echo, which would reset the cursor position.
+        if field.isFirstResponder && !hideTextChanged {
+            return
+        }
 
         // Sync real text from binding (e.g. when reset externally via viewModel.reset())
         if coord.realText != text {
             coord.realText = text
         }
 
-        // Use coord.realText as canonical source to avoid race with async binding update
         let canonical = coord.realText
         let expected = hideText ? String(repeating: bullet, count: canonical.count) : canonical
         if field.text != expected {
