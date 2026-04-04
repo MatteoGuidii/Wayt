@@ -160,14 +160,14 @@ export async function handler(
       };
       if (body.timezone && cachedHours.regularPeriods.length > 0) {
         const openStatus = isOpenNow(cachedHours, now, body.timezone);
-        if (!openStatus.isOpen) {
+        if (openStatus.isOpen === false) {
           log.info("Report rejected: venue currently closed", { venueId });
           return badRequest("This venue appears to be closed right now");
         }
       }
     }
 
-    const reportId = `${venueId}_${now}_${userId.slice(0, 8)}`;
+    const reportId = `${venueId}_${now}_${crypto.randomUUID().slice(0, 8)}`;
     const ttl = Math.floor(now / 1000) + REPORT_TTL_SECONDS;
 
     // Write report (geohash enables efficient spatial queries via GSI)

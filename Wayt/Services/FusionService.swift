@@ -27,9 +27,10 @@ final class FusionService {
         guard Date().timeIntervalSince(cacheTimestamp) < AppConstants.reportCacheTTL else {
             return false
         }
-        // Invalidate if the user moved significantly (> ~500m)
+        // Invalidate if the user moved significantly (> ~500m).
+        // Scale longitude delta by cos(latitude) to account for degree compression at higher latitudes.
         let latDelta = abs(lat - cachedLat)
-        let lngDelta = abs(lng - cachedLng)
+        let lngDelta = abs(lng - cachedLng) * cos(lat * .pi / 180)
         return latDelta < 0.005 && lngDelta < 0.005
     }
 

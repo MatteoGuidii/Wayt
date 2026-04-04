@@ -260,6 +260,7 @@ Resources:
       Environment:
         Variables:
           USER_POOL_ID: !Ref WaytUserPool
+          LEADERBOARD_TABLE: !Ref WeeklyLeaderboardTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref VenueReportsTable
@@ -267,6 +268,8 @@ Resources:
             TableName: !Ref UserProfilesTable
         - DynamoDBCrudPolicy:
             TableName: !Ref SavedVenuesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WeeklyLeaderboardTable
         - Statement:
             - Effect: Allow
               Action: s3:DeleteObject

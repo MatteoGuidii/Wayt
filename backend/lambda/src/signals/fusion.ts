@@ -3,9 +3,6 @@ import { createLogger } from "../logger";
 
 /** Threshold: sources diverging by more than this are in conflict. */
 const CONFLICT_THRESHOLD = 0.3;
-/** Bonus multiplier when 3+ sources agree within this range. */
-const CORROBORATION_RANGE = 0.15;
-const CORROBORATION_BONUS = 1.3;
 /** Penalty multiplier for outlier signals during conflict. */
 const OUTLIER_PENALTY = 0.5;
 
@@ -14,10 +11,9 @@ const OUTLIER_PENALTY = 0.5;
  *
  * Algorithm:
  * 1. Compute effective weight for each signal: baseWeight × freshnessDecay × confidence
- * 2. Detect conflict: if max(scores) - min(scores) > 0.3, flag and penalize outliers
- * 3. Apply corroboration bonus: if 3+ signals agree within 0.15, boost their weights by 1.3×
- * 4. Weighted average to produce final score
- * 5. Map to confidence level based on source count and agreement
+ * 2. Detect conflict: if max(scores) - min(scores) > 0.3 and 3+ sources, penalize outliers
+ * 3. Weighted average to produce final score
+ * 4. Map to confidence level based on source count and agreement
  */
 export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEstimate {
   const log = createLogger("fusion");
@@ -52,54 +48,35 @@ export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEsti
   const maxScore = Math.max(...scores);
   const conflictDetected = scores.length >= 2 && (maxScore - minScore) > CONFLICT_THRESHOLD;
 
-  // During conflict, penalize outliers (furthest from median)
-  if (conflictDetected) {
+  // With only 2 sources the median sits between them so both get penalized equally,
+  // making the result random — skip outlier logic and let confidence weights decide.
+  if (conflictDetected && weighted.length >= 3) {
     const sorted = [...scores].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
 
     const penalizedSources: string[] = [];
     for (const w of weighted) {
       const distance = Math.abs(w.signal.busynessScore - median);
-      // If this signal is the outlier (furthest from median), reduce its weight
       if (distance > CONFLICT_THRESHOLD / 2) {
         w.effectiveWeight *= OUTLIER_PENALTY;
         penalizedSources.push(w.signal.sourceId);
       }
     }
 
-    log.info("Conflict detected", {
+    log.info("Conflict detected — outlier penalty applied", {
       venueId,
       spread: (maxScore - minScore).toFixed(3),
       median: median.toFixed(3),
       penalizedSources,
     });
+  } else if (conflictDetected) {
+    log.info("Conflict detected — skipping outlier penalty (only 2 sources)", {
+      venueId,
+      spread: (maxScore - minScore).toFixed(3),
+    });
   }
 
-  // Step 3: Corroboration bonus (future-ready for 3+ sources)
-  if (weighted.length >= 3) {
-    const corroboratedSources: string[] = [];
-    // Group signals that agree within the corroboration range
-    for (let i = 0; i < weighted.length; i++) {
-      let agreeing = 0;
-      for (let j = 0; j < weighted.length; j++) {
-        if (i === j) continue;
-        if (Math.abs(weighted[i].signal.busynessScore - weighted[j].signal.busynessScore) <= CORROBORATION_RANGE) {
-          agreeing++;
-        }
-      }
-      // If 2+ other signals agree with this one (total 3+), apply bonus
-      if (agreeing >= 2) {
-        weighted[i].effectiveWeight *= CORROBORATION_BONUS;
-        corroboratedSources.push(weighted[i].signal.sourceId);
-      }
-    }
-
-    if (corroboratedSources.length > 0) {
-      log.debug("Corroboration bonus applied", { venueId, corroboratedSources });
-    }
-  }
-
-  // Step 4: Weighted average
+  // Step 3: Weighted average
   let totalWeight = 0;
   let weightedSum = 0;
   for (const w of weighted) {
@@ -107,6 +84,9 @@ export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEsti
     totalWeight += w.effectiveWeight;
   }
 
+  if (totalWeight === 0) {
+    log.warn("All signals have zero effective weight — falling back to 0.5", { venueId });
+  }
   const busynessScore = totalWeight > 0 ? weightedSum / totalWeight : 0.5;
 
   // Extract report-specific data
@@ -114,10 +94,10 @@ export function fuseSignals(signals: VenueSignal[], now = Date.now()): FusedEsti
   const reportCount = reportSignal?.reportCount ?? 0;
   const waitMinutes = reportSignal?.waitMinutes ?? null;
 
-  // Step 5: Confidence mapping
+  // Step 4: Confidence mapping
   const confidence = computeConfidence(weighted, conflictDetected);
 
-  // Step 6: Adaptive refresh hint
+  // Step 5: Adaptive refresh hint
   const refreshAfterSeconds = computeRefreshHint(reportSignal, now);
 
   log.debug("Fusion result", {

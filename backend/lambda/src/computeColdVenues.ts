@@ -84,7 +84,7 @@ export async function handler(event: BackgroundEvent): Promise<void> {
 
       // Fetch Google hours + details for matched venues (5 concurrent max)
       const matchedEntries = Array.from(matched.entries());
-      const googleHoursMap = new Map<string, { isOpen: boolean; hoursToday: string | null; businessStatus: string | null }>();
+      const googleHoursMap = new Map<string, { isOpen: boolean | null; hoursToday: string | null; businessStatus: string | null }>();
       const googleDetailsMap = new Map<string, CachedVenueDetails>();
       const GOOGLE_CONCURRENCY = 5;
 

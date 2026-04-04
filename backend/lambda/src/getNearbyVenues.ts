@@ -170,7 +170,7 @@ export async function handler(
 
           // Check Google hours for open/closed status
           const googleData = googleDataMap.get(v.venueId);
-          let openStatus: { isOpen: boolean; hoursToday: string | null } | null = null;
+          let openStatus: { isOpen: boolean | null; hoursToday: string | null } | null = null;
           if (googleData) {
             const cachedHours: CachedGoogleHours = {
               businessStatus: (googleData.businessStatus as CachedGoogleHours["businessStatus"]) ?? null,

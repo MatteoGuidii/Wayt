@@ -64,9 +64,9 @@ export interface CachedGoogleHours {
   cachedAt: string;
 }
 
-/** Result of isOpenNow() check. */
+/** Result of isOpenNow() check. isOpen is null when hours data is unavailable. */
 export interface OpenStatus {
-  isOpen: boolean;
+  isOpen: boolean | null;
   hoursToday: string | null;  // e.g. "11:00 AM – 10:00 PM"
 }
 
@@ -364,9 +364,12 @@ export function isOpenNow(
     return { isOpen: false, hoursToday: "Temporarily closed" };
   }
 
-  // No periods data — can't determine
+  // No periods data — if marked OPERATIONAL assume open, otherwise unknown
   if (data.regularPeriods.length === 0) {
-    return { isOpen: false, hoursToday: null };
+    if (data.businessStatus === "OPERATIONAL") {
+      return { isOpen: true, hoursToday: null };
+    }
+    return { isOpen: null, hoursToday: null };
   }
 
   // Check if a 24-hour venue

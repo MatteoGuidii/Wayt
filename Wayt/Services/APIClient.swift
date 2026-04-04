@@ -81,7 +81,7 @@ actor APIClient {
         var request = try await buildRequest(method: "POST", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await executeWithRetry(request: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("POST \(path, privacy: .public) -> \(status) (\(ms)ms)")
@@ -99,11 +99,11 @@ actor APIClient {
         var request = try await buildRequest(method: "PUT", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await executeWithRetry(request: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("PUT \(path, privacy: .public) -> \(status) (\(ms)ms)")
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -121,7 +121,7 @@ actor APIClient {
         var request = try await buildRequest(method: "PUT", path: path)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await executeWithRetry(request: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
         Log.api.info("PUT \(path, privacy: .public) -> \(status) (\(ms)ms)")
