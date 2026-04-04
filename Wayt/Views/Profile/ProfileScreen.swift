@@ -207,7 +207,7 @@ struct ProfileScreen: View {
                     // Streak
                     StreakStrip(
                         currentStreak: viewModel.currentStreak,
-                        last4Weeks: viewModel.last4Weeks,
+                        currentWeekDays: viewModel.currentWeekDays,
                         reportDates: viewModel.reportDates,
                         remainingFreezes: viewModel.remainingFreezes
                     )

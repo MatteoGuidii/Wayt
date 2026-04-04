@@ -93,21 +93,43 @@ struct StreakCalendarSheet: View {
             }
 
             if remainingFreezes > 0 || currentStreak >= 3 {
-                HStack(spacing: 6) {
-                    Image(systemName: "snowflake")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(StreakStrip.freezeBlue)
+                VStack(spacing: 8) {
+                    if remainingFreezes > 0 {
+                        HStack(spacing: 8) {
+                            ForEach(0..<remainingFreezes, id: \.self) { _ in
+                                ZStack {
+                                    Circle()
+                                        .fill(StreakStrip.freezeBlue.opacity(0.15))
+                                        .frame(width: 36, height: 36)
+                                    Image(systemName: "snowflake")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundStyle(StreakStrip.freezeBlue)
+                                }
+                            }
+                        }
 
-                    Text(remainingFreezes > 0
-                         ? "\(remainingFreezes) streak freeze\(remainingFreezes == 1 ? "" : "s") available"
-                         : "Earn a freeze at 3 consecutive weeks")
-                        .font(WaytTheme.captionFont)
+                        Text("\(remainingFreezes) streak freeze\(remainingFreezes == 1 ? "" : "s") ready to use")
+                            .font(WaytTheme.captionFont)
+                            .foregroundStyle(WaytTheme.primaryText)
+                    } else {
+                        Image(systemName: "snowflake")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(StreakStrip.freezeBlue)
+
+                        Text("Earn a freeze every 3 consecutive weeks")
+                            .font(WaytTheme.captionFont)
+                            .foregroundStyle(WaytTheme.primaryText)
+                    }
+
+                    Text("Freezes protect your streak if you miss a week")
+                        .font(WaytTheme.captionLightFont)
                         .foregroundStyle(WaytTheme.secondaryText)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(StreakStrip.freezeBlue.opacity(0.08))
-                .clipShape(Capsule())
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .background(StreakStrip.freezeBlue.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
         .padding(.top, 8)

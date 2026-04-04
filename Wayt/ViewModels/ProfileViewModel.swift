@@ -239,12 +239,6 @@ final class ProfileViewModel: ObservableObject {
         max(0, streakFreezes - streakResult.freezesUsed)
     }
 
-    /// The last 4 rolling 7-day windows (oldest first).
-    /// Each element is the set of "yyyy-MM-dd" date strings for that window.
-    var last4Weeks: [[String]] {
-        (0..<4).reversed().map { datesInWindow($0) }
-    }
-
     /// Returns all "yyyy-MM-dd" strings for a rolling 7-day window.
     /// Window 0 = today → 6 days ago, window 1 = 7 → 13 days ago, etc.
     private func datesInWindow(_ index: Int) -> [String] {
@@ -253,6 +247,35 @@ final class ProfileViewModel: ObservableObject {
         return (startOffset..<startOffset + 7).compactMap { dayOffset in
             guard let d = calendar.date(byAdding: .day, value: -dayOffset, to: Date()) else { return nil }
             return Self.dateFormatter.string(from: d)
+        }
+    }
+
+    struct WeekDay: Identifiable {
+        let id: Int
+        let label: String
+        let date: String
+        let hasReport: Bool
+        let isToday: Bool
+    }
+
+    var currentWeekDays: [WeekDay] {
+        let calendar = Calendar.current
+        let today = Date()
+        let weekday = calendar.component(.weekday, from: today)
+        guard let startOfWeek = calendar.date(byAdding: .day, value: -(weekday - 1), to: today) else { return [] }
+        let labels = ["S", "M", "T", "W", "T", "F", "S"]
+        let dateSet = Set(reportDates)
+
+        return (0..<7).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: startOfWeek) else { return nil }
+            let dateString = Self.dateFormatter.string(from: day)
+            return WeekDay(
+                id: offset,
+                label: labels[offset],
+                date: dateString,
+                hasReport: dateSet.contains(dateString),
+                isToday: calendar.isDateInToday(day)
+            )
         }
     }
 
