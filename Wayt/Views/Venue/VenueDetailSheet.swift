@@ -124,6 +124,8 @@ struct VenueDetailSheet: View {
             async let reportsTask: () = viewModel.loadReports()
             async let lookAroundTask: () = fetchLookAroundScene()
             _ = await (reportsTask, lookAroundTask)
+            // Sync fresh estimate back to map so marker color matches detail
+            mapViewModel.syncBusynessFromDetail(venueId: venue.id, estimate: viewModel.estimate)
         }
         .onChange(of: locationService.userLocation) { _, newLocation in
             viewModel.updateProximity(userLocation: newLocation)

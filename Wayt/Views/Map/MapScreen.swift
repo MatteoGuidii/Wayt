@@ -145,7 +145,11 @@ struct MapScreen: View {
             case .background:
                 locationBeforeBackground = locationService.userLocation
             case .active:
-                needsRecenterOnResume = true
+                // Only recenter when returning from background, not from brief
+                // .inactive → .active transitions (Control Center, notifications, sheets)
+                if locationBeforeBackground != nil {
+                    needsRecenterOnResume = true
+                }
             default:
                 break
             }

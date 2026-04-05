@@ -448,15 +448,11 @@ final class ProfileViewModel: ObservableObject {
 
             // Initialize lastCelebratedRank for users who earned ranks before
             // this feature existed, preventing false celebrations on first launch.
-            let defaults = UserDefaults.standard
-            let serverRank = UserRank.from(reports: profile.totalReports)
-            if defaults.object(forKey: CacheKey.lastCelebratedRank) == nil {
-                defaults.set(serverRank.rawValue, forKey: CacheKey.lastCelebratedRank)
-            } else {
-                let lastCelebrated = defaults.integer(forKey: CacheKey.lastCelebratedRank)
-                if serverRank.rawValue < lastCelebrated {
-                    defaults.set(serverRank.rawValue, forKey: CacheKey.lastCelebratedRank)
-                }
+            // Never lower it — ranks are permanent achievements. Lowering caused
+            // false re-celebrations when server report counts temporarily dipped.
+            if UserDefaults.standard.object(forKey: CacheKey.lastCelebratedRank) == nil {
+                let serverRank = UserRank.from(reports: profile.totalReports)
+                UserDefaults.standard.set(serverRank.rawValue, forKey: CacheKey.lastCelebratedRank)
             }
 
             hasLoadedFromAPI = true

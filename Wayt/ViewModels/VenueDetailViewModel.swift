@@ -242,17 +242,21 @@ final class VenueDetailViewModel: ObservableObject {
                     waitMinutes: waitMinutes
                 )
                 await MainActor.run {
+                    var userInfo: [String: Any] = [
+                        "venueId": venueSnapshot.id,
+                        "venueName": venueSnapshot.name,
+                        "venueType": venueSnapshot.category.rawValue,
+                        "busynessLevel": level.rawValue,
+                        "lat": venueSnapshot.coordinate.latitude,
+                        "lng": venueSnapshot.coordinate.longitude,
+                    ]
+                    if let waitMinutes {
+                        userInfo["waitMinutes"] = waitMinutes
+                    }
                     NotificationCenter.default.post(
                         name: .reportSubmitted,
                         object: venueSnapshot.id,
-                        userInfo: [
-                            "venueId": venueSnapshot.id,
-                            "venueName": venueSnapshot.name,
-                            "venueType": venueSnapshot.category.rawValue,
-                            "busynessLevel": level.rawValue,
-                            "lat": venueSnapshot.coordinate.latitude,
-                            "lng": venueSnapshot.coordinate.longitude,
-                        ]
+                        userInfo: userInfo
                     )
                 }
                 Log.reports.info("Report submitted successfully for \(venueSnapshot.id, privacy: .public)")

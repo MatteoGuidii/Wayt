@@ -98,7 +98,8 @@ final class MapViewModel: ObservableObject {
                 let venueId = notification.object as? String
                 let reportedLevel = (notification.userInfo?["busynessLevel"] as? Int)
                     .flatMap { BusynessLevel(rawValue: $0) }
-                self?.refreshAfterReport(venueId: venueId, reportedLevel: reportedLevel)
+                let waitMinutes = notification.userInfo?["waitMinutes"] as? Int
+                self?.refreshAfterReport(venueId: venueId, reportedLevel: reportedLevel, waitMinutes: waitMinutes)
             }
     }
 
@@ -116,6 +117,8 @@ final class MapViewModel: ObservableObject {
     private var prefetchTask: Task<Void, Never>?
     private var followUpTask: Task<Void, Never>?
     private var reportRefreshTask: Task<Void, Never>?
+    /// Protects a venue's optimistic level after a report until fusion confirms it (sourceCount >= 2) or 30s expires.
+    private var reportProtection: (venueId: String, expiry: Date)?
 
     /// Approximate search radius in meters, accounting for longitude compression at higher latitudes.
     private func searchRadius(for region: MKCoordinateRegion) -> Double {
@@ -363,6 +366,18 @@ final class MapViewModel: ObservableObject {
         }
     }
 
+    /// Sync a fresher busyness estimate from the detail sheet back to the map venue.
+    /// Prevents the map marker color from being stale while the detail shows current data.
+    func syncBusynessFromDetail(venueId: String, estimate: BusynessEstimate) {
+        guard let idx = venues.firstIndex(where: { $0.id == venueId }),
+              venues[idx].busyness != estimate.level else { return }
+        venues[idx].busyness = estimate.level
+        venues[idx].busynessConfidence = estimate.confidence
+        venues[idx].reportCount = estimate.reportCount
+        venues[idx].estimatedWaitMinutes = estimate.waitMinutes
+        recomputeClusters()
+    }
+
     /// Select a venue (tap on marker)
     func selectVenue(_ venue: Venue, heading: Double = 0, pitch: Double = 0) {
         selectedVenue = venue
@@ -533,19 +548,24 @@ final class MapViewModel: ObservableObject {
         searchVenues(in: region)
     }
 
-    /// Refresh busyness data after a report: optimistic local update, then background
-    /// retries at +2s/+5s to catch the backend's recomputed fused estimate.
-    func refreshAfterReport(venueId: String? = nil, reportedLevel: BusynessLevel? = nil) {
+    /// Refresh busyness data after a report: optimistic local update, then delayed
+    /// retries at +5s/+10s to catch the backend's recomputed fused estimate.
+    /// The optimistic level is preserved until fusion confirms the report was indexed.
+    func refreshAfterReport(venueId: String? = nil, reportedLevel: BusynessLevel? = nil, waitMinutes: Int? = nil) {
         reportRefreshTask?.cancel()
+        followUpTask?.cancel() // Prevent progressive refreshes from racing
 
-        // Optimistic: immediately reflect the reported level on the map marker
+        // Optimistic: immediately reflect the reported level on the map marker.
+        // Set protection so no code path overwrites it until fusion confirms.
         if let venueId, let level = reportedLevel,
            let idx = venues.firstIndex(where: { $0.id == venueId }) {
             var v = venues[idx]
             v.busyness = level
             v.busynessConfidence = .low
+            v.estimatedWaitMinutes = waitMinutes
             venues[idx] = v
             recomputeClusters()
+            reportProtection = (venueId: venueId, expiry: Date().addingTimeInterval(30))
         }
 
         ReportService.shared.invalidateCache()
@@ -554,29 +574,39 @@ final class MapViewModel: ObservableObject {
         } else {
             fusionService.invalidateCache()
         }
-        guard let region = lastSearchedRegion else { return }
-        reportRefreshTask = Task {
-            var updated = venues
-            await overlayBusynessData(on: &updated, region: region)
-            venues = updated
-            recomputeClusters()
 
-            // Backend background Lambda needs ~0.5-2s to recompute the fused
-            // estimate with the new report. Retry to pick it up.
-            var previous = 0
-            for cumulative in [2, 5] {
-                try? await Task.sleep(for: .seconds(cumulative - previous))
-                previous = cumulative
+        guard let region = lastSearchedRegion, let venueId else { return }
+
+        // Delayed retries — reportProtection guards the optimistic level in
+        // applyFusedEstimates, so stale fetches from other code paths are safe.
+        reportRefreshTask = Task {
+            let radius = searchRadius(for: region)
+
+            for delay in [5, 5] {
+                try? await Task.sleep(for: .seconds(delay))
                 guard !Task.isCancelled else { return }
-                if let venueId {
-                    fusionService.invalidateCacheForVenue(venueId)
-                } else {
-                    fusionService.invalidateCache()
+                guard let venue = venues.first(where: { $0.id == venueId }) else { return }
+
+                do {
+                    let estimates = try await fusionService.fetchMissingEstimates(
+                        lat: region.center.latitude,
+                        lng: region.center.longitude,
+                        radius: radius,
+                        venues: [VenueInfo(venue: venue)]
+                    )
+
+                    var updated = venues
+                    applyFusedEstimates(estimates, to: &updated)
+                    venues = updated
+                    recomputeClusters()
+
+                    if reportProtection == nil {
+                        Log.map.info("Report picked up by fusion for \(venueId, privacy: .public)")
+                        return
+                    }
+                } catch {
+                    Log.map.notice("Report retry fetch failed: \(error.localizedDescription)")
                 }
-                var refreshed = venues
-                await overlayBusynessData(on: &refreshed, region: region)
-                venues = refreshed
-                recomputeClusters()
             }
         }
     }
@@ -882,6 +912,18 @@ final class MapViewModel: ObservableObject {
 
                 // Only apply busyness scores when real signal data exists
                 guard (response.sourceCount ?? 0) > 0 else { continue }
+
+                // Protect optimistic level after report until fusion includes it
+                if let protection = reportProtection,
+                   protection.venueId == venues[i].id,
+                   Date() < protection.expiry {
+                    if (response.sourceCount ?? 0) >= 2 {
+                        reportProtection = nil
+                    } else {
+                        continue
+                    }
+                }
+
                 let estimate = busynessEngine.estimate(from: response)
                 venues[i].busyness = estimate.level
                 venues[i].busynessConfidence = estimate.confidence

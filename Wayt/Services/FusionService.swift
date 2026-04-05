@@ -240,15 +240,13 @@ final class FusionService {
         venueRefreshHints = [:]
     }
 
-    /// Invalidate the cached estimate for a single venue and force a re-fetch.
-    /// Removes the venue's entry and resets the cache timestamp so the next
-    /// `fetchNearbyEstimates` call hits the backend (existing cached data for
-    /// other venues is preserved via merge on response).
+    /// Invalidate the cached estimate for a single venue.
+    /// Removes only the venue's entry — the global cache timestamp stays valid so
+    /// `fetchNearbyEstimates` continues to serve other venues from cache.
     func invalidateCacheForVenue(_ venueId: String) {
         nearbyCache.removeValue(forKey: venueId)
         cacheAccessOrder.removeAll { $0 == venueId }
         venueRefreshHints[venueId] = nil
-        cacheTimestamp = .distantPast
         Log.fusion.debug("Invalidated cache for venue: \(venueId, privacy: .public)")
     }
 }
