@@ -696,6 +696,23 @@ final class MapViewModel: ObservableObject {
     func startLiveRefresh() {
         // Prevent duplicate timers if .task re-fires on tab return
         guard refreshTimer == nil else { return }
+
+        // Refresh immediately on foreground return so stale wait times / busyness
+        // levels update without waiting for the full timer cycle.
+        if !venues.isEmpty, let region = lastSearchedRegion,
+           Date().timeIntervalSince(lastFullRefreshDate) > AppConstants.minAdaptiveRefreshInterval {
+            Task {
+                fusionService.invalidateCache()
+                var updated = venues
+                await overlayBusynessData(on: &updated, region: region)
+                venues = updated
+                recomputeClusters()
+                lastFullRefreshDate = Date()
+                scheduleHoursTransitionRefresh()
+                Log.map.debug("Foreground refresh complete")
+            }
+        }
+
         refreshTimer = Task {
             while !Task.isCancelled {
                 let interval = fusionService.secondsUntilNextRefresh()
