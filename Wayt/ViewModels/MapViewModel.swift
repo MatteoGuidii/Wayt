@@ -565,7 +565,7 @@ final class MapViewModel: ObservableObject {
             v.estimatedWaitMinutes = waitMinutes
             venues[idx] = v
             recomputeClusters()
-            reportProtection = (venueId: venueId, expiry: Date().addingTimeInterval(30))
+            reportProtection = (venueId: venueId, expiry: Date().addingTimeInterval(AppConstants.liveRefreshInterval))
         }
 
         ReportService.shared.invalidateCache()
@@ -575,32 +575,39 @@ final class MapViewModel: ObservableObject {
             fusionService.invalidateCache()
         }
 
-        guard let region = lastSearchedRegion, let venueId else { return }
+        guard lastSearchedRegion != nil, let venueId else { return }
 
-        // Delayed retries — reportProtection guards the optimistic level in
-        // applyFusedEstimates, so stale fetches from other code paths are safe.
+        // Delayed retries using the single-venue endpoint (always computes fresh,
+        // unlike the batch endpoint which serves stale DynamoDB cache).
+        // reportProtection guards the optimistic level in applyFusedEstimates,
+        // so stale fetches from other code paths are safe meanwhile.
         reportRefreshTask = Task {
-            let radius = searchRadius(for: region)
-
             for delay in [5, 5] {
                 try? await Task.sleep(for: .seconds(delay))
                 guard !Task.isCancelled else { return }
                 guard let venue = venues.first(where: { $0.id == venueId }) else { return }
 
                 do {
-                    let estimates = try await fusionService.fetchMissingEstimates(
-                        lat: region.center.latitude,
-                        lng: region.center.longitude,
-                        radius: radius,
-                        venues: [VenueInfo(venue: venue)]
+                    let response = try await fusionService.fetchVenueBusyness(
+                        venueId: venue.id,
+                        venueName: venue.name,
+                        lat: venue.coordinate.latitude,
+                        lng: venue.coordinate.longitude,
+                        address: venue.address
                     )
+                    let fused = response.toFusedEstimate()
 
-                    var updated = venues
-                    applyFusedEstimates(estimates, to: &updated)
-                    venues = updated
-                    recomputeClusters()
+                    guard (fused.sourceCount ?? 0) >= 2 else { continue }
 
-                    if reportProtection == nil {
+                    // Fresh single-venue data confirms the report — apply and clear protection
+                    let estimate = busynessEngine.estimate(from: fused)
+                    if let idx = venues.firstIndex(where: { $0.id == venueId }) {
+                        venues[idx].busyness = estimate.level
+                        venues[idx].busynessConfidence = estimate.confidence
+                        venues[idx].reportCount = estimate.reportCount
+                        venues[idx].estimatedWaitMinutes = estimate.waitMinutes
+                        reportProtection = nil
+                        recomputeClusters()
                         Log.map.info("Report picked up by fusion for \(venueId, privacy: .public)")
                         return
                     }
