@@ -106,6 +106,26 @@ struct Venue: Identifiable, Hashable, @unchecked Sendable {
         self.mapItem = item
     }
 
+    // MARK: - Init from ReportHistoryEntry
+
+    init(reportEntry: ReportHistoryEntry) {
+        let coord = reportEntry.coordinate
+        let lat = String(format: "%.5f", coord.latitude)
+        let lng = String(format: "%.5f", coord.longitude)
+        self.id = reportEntry.venueId ?? "\(Self.normalizedName(reportEntry.venueName))_\(lat)_\(lng)"
+        self.name = reportEntry.venueName
+        self.coordinate = coord
+        self.poiCategory = nil
+        self.categoryOverride = reportEntry.category
+        self.address = nil
+        self.phoneNumber = nil
+        self.url = nil
+        let placemark = MKPlacemark(coordinate: coord)
+        let item = MKMapItem(placemark: placemark)
+        item.name = reportEntry.venueName
+        self.mapItem = item
+    }
+
     // MARK: - Hashable
 
     static func == (lhs: Venue, rhs: Venue) -> Bool {

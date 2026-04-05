@@ -18,6 +18,7 @@ struct ProfileScreen: View {
     @State private var showImagePreview = false
     @State private var showFirstTimeNameSheet = false
     @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedLeaderboardUser: LeaderboardEntry?
 
     var body: some View {
         NavigationStack {
@@ -52,6 +53,11 @@ struct ProfileScreen: View {
             ProfileEditSheet(isFirstTime: true)
                 .environmentObject(viewModel)
                 .environmentObject(authState)
+        }
+        .sheet(item: $selectedLeaderboardUser) { entry in
+            PublicProfileSheet(userId: entry.userId ?? "", displayName: entry.displayName)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
         .photosPicker(
             isPresented: $showPhotoPicker,
@@ -224,17 +230,32 @@ struct ProfileScreen: View {
                     )
                     #endif
 
-                    // Rank progress
+                    if viewModel.totalReports > 0 {
+                        StatsCard(
+                            reportsThisWeek: viewModel.reportsThisWeek,
+                            reportsThisMonth: viewModel.reportsThisMonth,
+                            totalReports: viewModel.totalReports,
+                            categoryBreakdown: viewModel.categoryBreakdown
+                        )
+                    }
+
                     rankCard(rank: rank)
 
-                    // Impact
+                    if !viewModel.earnedBadges.isEmpty {
+                        BadgesCard(earnedBadges: viewModel.earnedBadges)
+                    }
+
                     if viewModel.totalReports > 0 {
                         ImpactCard(
                             totalReports: viewModel.totalReports,
                             distinctVenues: viewModel.distinctVenueCount,
                             topVenueName: viewModel.topVenueName,
                             topVenueCategory: viewModel.topVenueCategory,
-                            confirmationsReceived: viewModel.confirmationsReceived
+                            confirmationsReceived: viewModel.confirmationsReceived,
+                            onTapTopVenue: {
+                                guard let id = viewModel.topVenueId else { return }
+                                navigateToVenueById(id)
+                            }
                         )
                     }
 
@@ -242,11 +263,16 @@ struct ProfileScreen: View {
                         entries: viewModel.leaderboardEntries,
                         currentUserEntry: viewModel.leaderboardCurrentUser,
                         weekLabel: viewModel.leaderboardWeekLabel,
-                        isLoading: viewModel.isLoadingLeaderboard
+                        isLoading: viewModel.isLoadingLeaderboard,
+                        onTapUser: { entry in
+                            guard entry.userId != nil else { return }
+                            selectedLeaderboardUser = entry
+                        }
                     )
 
-                    // Recent activity
-                    RecentActivityCard(entries: viewModel.reportHistory)
+                    RecentActivityCard(entries: viewModel.reportHistory) { entry in
+                        navigateToReportVenue(entry)
+                    }
 
                     // Saved venues
                     if !savedVenuesVM.savedVenues.isEmpty {
@@ -593,6 +619,32 @@ struct ProfileScreen: View {
 
     private func navigateToSavedVenue(_ venue: SavedVenue) {
         mapViewModel.navigateToSavedVenue(venue)
+        tabSelection.selectedTab = .map
+    }
+
+    private func navigateToReportVenue(_ entry: ReportHistoryEntry) {
+        // Prefer existing venue in map (has richer data from MapKit)
+        if let venue = entry.venueId.flatMap({ id in mapViewModel.venues.first(where: { $0.id == id }) })
+            ?? mapViewModel.venues.first(where: { $0.name == entry.venueName }) {
+            mapViewModel.selectVenue(venue)
+            tabSelection.selectedTab = .map
+            return
+        }
+
+        // Construct venue from report entry if coordinates are available
+        if entry.hasCoordinates {
+            mapViewModel.navigateToReportVenue(entry)
+            tabSelection.selectedTab = .map
+            return
+        }
+
+        // Legacy entries without coordinates — just switch to map
+        tabSelection.selectedTab = .map
+    }
+
+    private func navigateToVenueById(_ venueId: String) {
+        guard let venue = mapViewModel.venues.first(where: { $0.id == venueId }) else { return }
+        mapViewModel.selectVenue(venue)
         tabSelection.selectedTab = .map
     }
 

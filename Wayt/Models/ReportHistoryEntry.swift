@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 
 /// A locally cached record of a user's busyness report submission.
 /// Stored in UserDefaults for the Profile activity feed — not sent to the backend.
@@ -9,10 +10,20 @@ struct ReportHistoryEntry: Codable, Identifiable, Sendable {
     let venueType: String
     let busynessLevel: Int
     let timestamp: Date
+    let lat: Double
+    let lng: Double
 
     var id: UUID { entryId }
 
-    /// Supports decoding legacy entries that lack `entryId` or `venueId` (pre-UUID format).
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+
+    var hasCoordinates: Bool {
+        lat != 0 || lng != 0
+    }
+
+    /// Supports decoding legacy entries that lack `entryId`, `venueId`, or coordinates.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         entryId = (try? container.decode(UUID.self, forKey: .entryId)) ?? UUID()
@@ -21,14 +32,18 @@ struct ReportHistoryEntry: Codable, Identifiable, Sendable {
         venueType = try container.decode(String.self, forKey: .venueType)
         busynessLevel = try container.decode(Int.self, forKey: .busynessLevel)
         timestamp = try container.decode(Date.self, forKey: .timestamp)
+        lat = (try? container.decode(Double.self, forKey: .lat)) ?? 0
+        lng = (try? container.decode(Double.self, forKey: .lng)) ?? 0
     }
 
-    init(venueId: String, venueName: String, venueType: String, busynessLevel: Int, timestamp: Date) {
+    init(venueId: String, venueName: String, venueType: String, busynessLevel: Int, lat: Double, lng: Double, timestamp: Date) {
         self.entryId = UUID()
         self.venueId = venueId
         self.venueName = venueName
         self.venueType = venueType
         self.busynessLevel = busynessLevel
+        self.lat = lat
+        self.lng = lng
         self.timestamp = timestamp
     }
 

@@ -250,6 +250,8 @@ final class VenueDetailViewModel: ObservableObject {
                             "venueName": venueSnapshot.name,
                             "venueType": venueSnapshot.category.rawValue,
                             "busynessLevel": level.rawValue,
+                            "lat": venueSnapshot.coordinate.latitude,
+                            "lng": venueSnapshot.coordinate.longitude,
                         ]
                     )
                 }

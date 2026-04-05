@@ -398,6 +398,27 @@ final class MapViewModel: ObservableObject {
         }
     }
 
+    /// Navigate to a venue from a report history entry — same behavior as saved venues.
+    func navigateToReportVenue(_ entry: ReportHistoryEntry) {
+        let venue = Venue(reportEntry: entry)
+
+        if !venues.contains(where: { $0.id == venue.id }) {
+            venues.insert(venue, at: 0)
+        }
+        recomputeClusters()
+        selectedVenue = venue
+        showSearchThisArea = true
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            cameraPosition = .camera(MapCamera(
+                centerCoordinate: entry.coordinate,
+                distance: 800,
+                heading: 0,
+                pitch: 0
+            ))
+        }
+    }
+
     /// Expand the search area to find more venues for Discover.
     /// Merges new results into existing venues without affecting the Map's search state.
     @Published var isExpandingSearch: Bool = false

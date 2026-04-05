@@ -55,6 +55,7 @@ export async function handler(
       const profile = profiles.get(uid);
       return {
         rank: index + 1,
+        userId: uid,
         displayName: profile?.displayName ?? profile?.username ?? "Anonymous",
         reportCount: entry.reportCount as number,
         isCurrentUser: uid === userId,

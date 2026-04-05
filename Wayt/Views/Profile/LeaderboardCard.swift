@@ -6,6 +6,7 @@ struct LeaderboardCard: View {
     let currentUserEntry: CurrentUserEntry?
     let weekLabel: String
     let isLoading: Bool
+    var onTapUser: ((LeaderboardEntry) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -85,24 +86,36 @@ struct LeaderboardCard: View {
     // MARK: - Row
 
     private func leaderboardRow(entry: LeaderboardEntry) -> some View {
-        HStack(spacing: 10) {
-            rankBadge(rank: entry.rank)
+        Button {
+            if !entry.isCurrentUser { onTapUser?(entry) }
+        } label: {
+            HStack(spacing: 10) {
+                rankBadge(rank: entry.rank)
 
-            Text(entry.isCurrentUser ? "You" : entry.displayName)
-                .font(entry.isCurrentUser ? WaytTheme.subheadFont : WaytTheme.subheadLightFont)
-                .foregroundStyle(entry.isCurrentUser ? WaytTheme.mapsBlue : WaytTheme.primaryText)
-                .lineLimit(1)
+                Text(entry.isCurrentUser ? "You" : entry.displayName)
+                    .font(entry.isCurrentUser ? WaytTheme.subheadFont : WaytTheme.subheadLightFont)
+                    .foregroundStyle(entry.isCurrentUser ? WaytTheme.mapsBlue : WaytTheme.primaryText)
+                    .lineLimit(1)
 
-            Spacer()
+                Spacer()
 
-            Text("\(entry.reportCount)")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                Text("\(entry.reportCount)")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(WaytTheme.primaryText)
 
-            Image(systemName: "megaphone.fill")
-                .font(.system(size: 10))
-                .foregroundStyle(WaytTheme.secondaryText)
+                Image(systemName: "megaphone.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(WaytTheme.secondaryText)
+
+                if !entry.isCurrentUser && onTapUser != nil {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(WaytTheme.secondaryText)
+                }
+            }
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 4)
+        .buttonStyle(.plain)
     }
 
     private func rankBadge(rank: Int) -> some View {

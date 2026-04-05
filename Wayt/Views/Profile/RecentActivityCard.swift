@@ -3,6 +3,7 @@ import SwiftUI
 struct RecentActivityCard: View {
 
     let entries: [ReportHistoryEntry]
+    var onTapVenue: ((ReportHistoryEntry) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -50,25 +51,34 @@ struct RecentActivityCard: View {
     }
 
     private func activityRow(_ entry: ReportHistoryEntry) -> some View {
-        HStack(spacing: 10) {
-            // Category icon
-            Image(systemName: entry.category.icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(WaytTheme.mapsBlue)
-                .frame(width: 20)
+        Button {
+            onTapVenue?(entry)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: entry.category.icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(WaytTheme.mapsBlue)
+                    .frame(width: 20)
 
-            // Venue name
-            Text(entry.venueName)
-                .font(WaytTheme.subheadFont)
-                .lineLimit(1)
+                Text(entry.venueName)
+                    .font(WaytTheme.subheadFont)
+                    .foregroundStyle(WaytTheme.primaryText)
+                    .lineLimit(1)
 
-            Spacer()
+                Spacer()
 
-            // Relative time
-            Text(entry.relativeTime)
-                .font(WaytTheme.captionLightFont)
-                .foregroundStyle(WaytTheme.secondaryText)
+                Text(entry.relativeTime)
+                    .font(WaytTheme.captionLightFont)
+                    .foregroundStyle(WaytTheme.secondaryText)
+
+                if onTapVenue != nil {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(WaytTheme.secondaryText)
+                }
+            }
+            .padding(.vertical, 8)
         }
-        .padding(.vertical, 8)
+        .buttonStyle(.plain)
     }
 }

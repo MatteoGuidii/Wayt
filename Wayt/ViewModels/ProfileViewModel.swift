@@ -100,11 +100,15 @@ final class ProfileViewModel: ObservableObject {
                    let venueName = userInfo["venueName"] as? String,
                    let venueType = userInfo["venueType"] as? String,
                    let busynessLevel = userInfo["busynessLevel"] as? Int {
+                    let lat = userInfo["lat"] as? Double ?? 0
+                    let lng = userInfo["lng"] as? Double ?? 0
                     let entry = ReportHistoryEntry(
                         venueId: venueId,
                         venueName: venueName,
                         venueType: venueType,
                         busynessLevel: busynessLevel,
+                        lat: lat,
+                        lng: lng,
                         timestamp: Date()
                     )
                     self.reportHistory.insert(entry, at: 0)
@@ -125,6 +129,8 @@ final class ProfileViewModel: ObservableObject {
                     }
                     self.cacheValue(self.reportDates, forKey: CacheKey.reportDates)
                 }
+
+                self.recomputeStats()
 
                 self.syncTask?.cancel()
                 self.syncTask = Task {
@@ -174,6 +180,8 @@ final class ProfileViewModel: ObservableObject {
 
         confirmationsReceived = defaults.integer(forKey: CacheKey.confirmationsReceived)
         streakFreezes = defaults.integer(forKey: CacheKey.streakFreezes)
+
+        recomputeStats()
 
         // Check for a rank-up that was never shown (e.g. app closed before celebration).
         // Only if the key exists — avoids false celebration for existing users on first update.
@@ -289,6 +297,31 @@ final class ProfileViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Cached Stats
+
+    @Published var reportsThisWeek: Int = 0
+    @Published var reportsThisMonth: Int = 0
+    @Published var categoryBreakdown: [(category: VenueCategory, count: Int)] = []
+    @Published var earnedBadges: [Badge] = []
+
+    private func recomputeStats() {
+        let weekDates = Set(datesInWindow(0))
+        reportsThisWeek = reportDates.filter { weekDates.contains($0) }.count
+
+        let now = Date()
+        let year = Calendar.current.component(.year, from: now)
+        let month = Calendar.current.component(.month, from: now)
+        let prefix = String(format: "%04d-%02d", year, month)
+        reportsThisMonth = reportDates.filter { $0.hasPrefix(prefix) }.count
+
+        categoryBreakdown = Dictionary(grouping: reportHistory, by: \.category)
+            .mapValues(\.count)
+            .map { (category: $0.key, count: $0.value) }
+            .sorted { $0.count > $1.count }
+
+        earnedBadges = Badge.allCases.filter { $0.isEarned(reports: reportHistory, totalReports: totalReports) }
+    }
+
     // MARK: - Computed: Impact
 
     /// Number of distinct venues reported from local history.
@@ -309,7 +342,11 @@ final class ProfileViewModel: ObservableObject {
             .first
     }
 
-    /// The category of the user's most reported venue.
+    var topVenueId: String? {
+        guard let topName = topVenueName else { return nil }
+        return reportHistory.first(where: { $0.venueName == topName })?.venueId
+    }
+
     var topVenueCategory: VenueCategory? {
         guard let topName = topVenueName else { return nil }
         return reportHistory.first(where: { $0.venueName == topName })?.category
@@ -409,11 +446,17 @@ final class ProfileViewModel: ObservableObject {
 
             applyEngagementStats(from: profile)
 
-            // Correct lastCelebratedRank if server reports are lower (e.g. after a reset)
+            // Initialize lastCelebratedRank for users who earned ranks before
+            // this feature existed, preventing false celebrations on first launch.
+            let defaults = UserDefaults.standard
             let serverRank = UserRank.from(reports: profile.totalReports)
-            let lastCelebrated = UserDefaults.standard.integer(forKey: CacheKey.lastCelebratedRank)
-            if serverRank.rawValue < lastCelebrated {
-                UserDefaults.standard.set(serverRank.rawValue, forKey: CacheKey.lastCelebratedRank)
+            if defaults.object(forKey: CacheKey.lastCelebratedRank) == nil {
+                defaults.set(serverRank.rawValue, forKey: CacheKey.lastCelebratedRank)
+            } else {
+                let lastCelebrated = defaults.integer(forKey: CacheKey.lastCelebratedRank)
+                if serverRank.rawValue < lastCelebrated {
+                    defaults.set(serverRank.rawValue, forKey: CacheKey.lastCelebratedRank)
+                }
             }
 
             hasLoadedFromAPI = true
@@ -645,6 +688,7 @@ final class ProfileViewModel: ObservableObject {
         streakFreezes = profile.streakFreezes ?? 0
         cacheValue(confirmationsReceived, forKey: CacheKey.confirmationsReceived)
         cacheValue(streakFreezes, forKey: CacheKey.streakFreezes)
+        recomputeStats()
     }
 }
 

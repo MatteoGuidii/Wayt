@@ -191,6 +191,28 @@ Resources:
     Metadata:
       BuildMethod: makefile
 
+  GetPublicProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/getPublicProfile.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UserProfilesTable
+        - Statement:
+            - Effect: Allow
+              Action: s3:GetObject
+              Resource: !Sub "arn:aws:s3:::wayt-profile-images-${AWS::AccountId}-${Stage}/profiles/*"
+      Events:
+        GetPublicProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WaytApi
+            Path: /user/profile/{userId}/public
+            Method: GET
+    Metadata:
+      BuildMethod: makefile
+
   # -----------------------------------------------
   # Saved Venues Lambda Functions
   # -----------------------------------------------

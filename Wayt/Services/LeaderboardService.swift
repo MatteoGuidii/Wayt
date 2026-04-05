@@ -62,6 +62,7 @@ struct LeaderboardResponse: Codable, Sendable {
 
 struct LeaderboardEntry: Codable, Identifiable, Sendable {
     let rank: Int
+    let userId: String?
     let displayName: String
     let reportCount: Int
     let isCurrentUser: Bool

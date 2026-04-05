@@ -7,6 +7,7 @@ struct ImpactCard: View {
     let topVenueName: String?
     let topVenueCategory: VenueCategory?
     let confirmationsReceived: Int
+    var onTapTopVenue: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -44,29 +45,42 @@ struct ImpactCard: View {
                 }
 
                 if let topVenue = topVenueName {
-                    HStack(spacing: 10) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(WaytTheme.rankGold)
-                            .frame(width: 20)
+                    Button {
+                        onTapTopVenue?()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(WaytTheme.rankGold)
+                                .frame(width: 20)
 
-                        HStack(spacing: 6) {
-                            Text("Most reported:")
-                                .font(WaytTheme.subheadLightFont)
+                            HStack(spacing: 6) {
+                                Text("Most reported:")
+                                    .font(WaytTheme.subheadLightFont)
+                                    .foregroundStyle(WaytTheme.primaryText)
 
-                            if let category = topVenueCategory {
-                                Image(systemName: category.icon)
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(WaytTheme.secondaryText)
+                                if let category = topVenueCategory {
+                                    Image(systemName: category.icon)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(WaytTheme.secondaryText)
+                                }
+
+                                Text(topVenue)
+                                    .font(WaytTheme.subheadFont)
+                                    .foregroundStyle(WaytTheme.primaryText)
+                                    .lineLimit(1)
                             }
 
-                            Text(topVenue)
-                                .font(WaytTheme.subheadFont)
-                                .lineLimit(1)
-                        }
+                            Spacer()
 
-                        Spacer()
+                            if onTapTopVenue != nil {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(WaytTheme.secondaryText)
+                            }
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
