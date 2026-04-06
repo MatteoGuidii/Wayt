@@ -1,6 +1,7 @@
 # Wayt Architecture Guide — Map & Discover
 
 > Detailed reference for new developers. Covers data flow, component relationships, and critical implementation details.
+> Last updated: April 6, 2026. Scope: Map and Discover features. Profile, Auth, Settings, and Backend signal processing are documented in `CLAUDE.md`.
 
 ---
 
@@ -56,6 +57,7 @@
 │  │  FusionService ←→ APIClient ←→ AWS  │                          │
 │  │  ReportService     (JWT auth)        │                          │
 │  │  SavedVenuesService                  │                          │
+│  │  LeaderboardService                  │                          │
 │  └──────────────────────────────────────┘                          │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -820,7 +822,6 @@ These areas have subtle, load-bearing logic. Changing them without full understa
 ### User Experience
 - **No pull-to-refresh on Discover**: Users must switch to Map and back, or wait for live refresh
 - **No offline mode**: If the device is offline, venues show with no busyness data. Could cache last-known state to UserDefaults.
-- **Search text on Map**: `searchText` is published but there's no visible search bar on MapScreen — only used when non-empty.
 
 ### Code Quality
 - **Magic numbers**: Several hardcoded values in MapViewModel (0.005 threshold, 300ms debounce, 800m camera distance). Could be moved to `AppConstants`.
