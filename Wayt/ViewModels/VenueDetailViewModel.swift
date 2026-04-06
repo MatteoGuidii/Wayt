@@ -259,6 +259,18 @@ final class VenueDetailViewModel: ObservableObject {
                         userInfo: userInfo
                     )
                 }
+                await AnalyticsService.shared.track(
+                    .reportSubmit,
+                    venueId: venueSnapshot.id,
+                    venueName: venueSnapshot.name,
+                    venueType: venueSnapshot.category.rawValue,
+                    lat: venueSnapshot.coordinate.latitude,
+                    lng: venueSnapshot.coordinate.longitude,
+                    properties: [
+                        "busynessLevel": .int(level.rawValue),
+                        "waitMinutes": .int(waitMinutes ?? -1),
+                    ]
+                )
                 Log.reports.info("Report submitted successfully for \(venueSnapshot.id, privacy: .public)")
             } catch APIError.rateLimited(let reason, let retryAfter) {
                 if let vm = self {

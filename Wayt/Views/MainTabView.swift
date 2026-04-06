@@ -11,6 +11,7 @@ struct MainTabView: View {
     @StateObject private var profileViewModel = ProfileViewModel()
     @StateObject private var savedVenuesVM = SavedVenuesViewModel()
     @State private var showRankCelebration = false
+    @State private var sessionStart = Date()
 
     var body: some View {
         ZStack {
@@ -80,12 +81,22 @@ struct MainTabView: View {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
+                sessionStart = Date()
                 mapViewModel.startLiveRefresh()
+                Task { await AnalyticsService.shared.track(.appSession, properties: ["action": .string("foreground")]) }
             case .background:
+                let durationMs = Int(Date().timeIntervalSince(sessionStart) * 1000)
                 mapViewModel.stopLiveRefresh()
+                Task {
+                    await AnalyticsService.shared.track(.appSession, properties: ["action": .string("background"), "durationMs": .int(durationMs)])
+                    await AnalyticsService.shared.onBackground()
+                }
             default:
                 break
             }
+        }
+        .onChange(of: tabSelection.selectedTab) { oldTab, newTab in
+            Task { await AnalyticsService.shared.track(.tabSwitch, properties: ["fromTab": .string("\(oldTab)"), "toTab": .string("\(newTab)")]) }
         }
     }
 }

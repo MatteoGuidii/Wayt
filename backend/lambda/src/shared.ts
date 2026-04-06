@@ -87,6 +87,44 @@ export interface SaveVenueBody {
 }
 
 // -----------------------------------------------
+// Analytics
+// -----------------------------------------------
+
+export const ANALYTICS_MAX_BATCH_SIZE = 50;
+
+export type AnalyticsEventType =
+  | "venue_view"
+  | "venue_view_end"
+  | "search"
+  | "report_submit"
+  | "venue_save"
+  | "venue_unsave"
+  | "directions_tap"
+  | "call_tap"
+  | "website_tap"
+  | "share_tap"
+  | "filter_change"
+  | "map_interaction"
+  | "detail_sheet_close"
+  | "lookaround_view"
+  | "report_rejected"
+  | "report_dismissed"
+  | "app_session"
+  | "tab_switch";
+
+export interface AnalyticsEvent {
+  eventType: AnalyticsEventType;
+  timestamp: number;
+  sessionId: string;
+  lat?: number;
+  lng?: number;
+  venueId?: string;
+  venueName?: string;
+  venueType?: string;
+  properties?: Record<string, string | number | boolean | null>;
+}
+
+// -----------------------------------------------
 // Response Helpers
 // -----------------------------------------------
 
@@ -107,6 +145,14 @@ export function success(body: unknown): APIGatewayProxyResult {
 export function created(body: unknown): APIGatewayProxyResult {
   return {
     statusCode: 201,
+    headers: corsHeaders,
+    body: JSON.stringify(body),
+  };
+}
+
+export function accepted(body: unknown): APIGatewayProxyResult {
+  return {
+    statusCode: 202,
     headers: corsHeaders,
     body: JSON.stringify(body),
   };

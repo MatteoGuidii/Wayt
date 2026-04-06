@@ -127,6 +127,7 @@ struct DiscoverScreen: View {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             filterState.selectBusynessLevel(nil)
                         }
+                        Task { await AnalyticsService.shared.track(.filterChange, properties: ["filterType": .string("busyness"), "filterValue": .string("none"), "isActive": .bool(false), "source": .string("discover")]) }
                     } label: {
                         HStack(spacing: 4) {
                             Text(level.label)
@@ -172,6 +173,7 @@ struct DiscoverScreen: View {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                         filterState.selectBusynessLevel(level)
                     }
+                    Task { await AnalyticsService.shared.track(.filterChange, properties: ["filterType": .string("busyness"), "filterValue": .string(level.label), "isActive": .bool(!isSelected), "source": .string("discover")]) }
                 } label: {
                     VStack(spacing: 5) {
                         RoundedRectangle(cornerRadius: 8)
@@ -306,6 +308,7 @@ struct DiscoverScreen: View {
                 ) {
                     viewModel.openNowOnly.toggle()
                     viewModel.applyFilterPublic()
+                    Task { await AnalyticsService.shared.track(.filterChange, properties: ["filterType": .string("openNow"), "isActive": .bool(viewModel.openNowOnly), "source": .string("discover")]) }
                 }
 
                 // Rating tiers
@@ -318,6 +321,7 @@ struct DiscoverScreen: View {
                     ) {
                         viewModel.ratingFilter = viewModel.ratingFilter == tier ? nil : tier
                         viewModel.applyFilterPublic()
+                        Task { await AnalyticsService.shared.track(.filterChange, properties: ["filterType": .string("rating"), "filterValue": .string(tier.label), "isActive": .bool(viewModel.ratingFilter == tier), "source": .string("discover")]) }
                     }
                 }
 
@@ -331,6 +335,7 @@ struct DiscoverScreen: View {
                     ) {
                         viewModel.priceFilter = viewModel.priceFilter == tier ? nil : tier
                         viewModel.applyFilterPublic()
+                        Task { await AnalyticsService.shared.track(.filterChange, properties: ["filterType": .string("price"), "filterValue": .string(tier.label), "isActive": .bool(viewModel.priceFilter == tier), "source": .string("discover")]) }
                     }
                 }
             }
@@ -393,13 +398,15 @@ struct DiscoverScreen: View {
         let count = viewModel.categoryCounts[category] ?? 0
 
         return Button {
+            let wasSelected = filterState.selectedCategory == category
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                if filterState.selectedCategory == category {
+                if wasSelected {
                     filterState.selectCategory(nil)
                 } else {
                     filterState.selectCategory(category)
                 }
             }
+            Task { await AnalyticsService.shared.track(.filterChange, properties: ["filterType": .string("category"), "filterValue": .string(category.rawValue), "isActive": .bool(!wasSelected), "source": .string("discover")]) }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: category.icon)
@@ -615,6 +622,7 @@ struct DiscoverScreen: View {
                             filterState.selectBusynessLevel(nil)
                             viewModel.clearDiscoverFilters()
                         }
+                        Task { await AnalyticsService.shared.track(.filterChange, properties: ["filterType": .string("clearAll"), "source": .string("discover")]) }
                     } label: {
                         Text("Clear filters")
                             .font(WaytTheme.captionFont)
@@ -661,6 +669,7 @@ struct DiscoverScreen: View {
         let atMax = mapViewModel.isAtMaxExpand
         return Button {
             mapViewModel.expandSearch()
+            Task { await AnalyticsService.shared.track(.mapInteraction, properties: ["action": .string("expand_search"), "venueCount": .int(mapViewModel.venues.count), "atMax": .bool(atMax)]) }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: atMax ? "figure.walk" : "plus.magnifyingglass")

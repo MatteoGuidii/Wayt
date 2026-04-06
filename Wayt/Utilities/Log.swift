@@ -38,4 +38,6 @@ enum Log {
     nonisolated static let engine   = Logger(subsystem: subsystem, category: "engine")
     /// App lifecycle, configuration
     nonisolated static let app      = Logger(subsystem: subsystem, category: "app")
+    /// Analytics event tracking, batching, flush
+    nonisolated static let analytics = Logger(subsystem: subsystem, category: "analytics")
 }

@@ -152,7 +152,10 @@ struct OnboardingView: View {
     private var ctaButtons: some View {
         VStack(spacing: 14) {
             // Primary CTA
-            Button(action: onGetStarted) {
+            Button {
+                Task { await AnalyticsService.shared.track(.appSession, properties: ["action": .string("onboarding_complete"), "page": .int(currentPage)]) }
+                onGetStarted()
+            } label: {
                 Text("Get started")
                     .font(WaytTheme.title3Font)
                     .foregroundStyle(.white)
@@ -166,7 +169,10 @@ struct OnboardingView: View {
             .opacity(appeared ? 1 : 0)
 
             // Secondary CTA
-            Button(action: onLogIn) {
+            Button {
+                Task { await AnalyticsService.shared.track(.appSession, properties: ["action": .string("onboarding_login"), "page": .int(currentPage)]) }
+                onLogIn()
+            } label: {
                 Text("I already have an account")
                     .font(WaytTheme.bodyFont)
                     .foregroundStyle(WaytTheme.mapsBlue)

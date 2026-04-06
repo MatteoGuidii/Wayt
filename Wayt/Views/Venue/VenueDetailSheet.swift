@@ -68,6 +68,10 @@ struct VenueDetailSheet: View {
     @State private var showReviewsSheet = false
     @State private var busynessFlashOpacity: Double = 0
     @AppStorage("wayt_distanceUnit") private var distanceUnit: String = "km"
+    @State private var sheetOpenTime = Date()
+    @State private var didReport = false
+    @State private var didSave = false
+    @State private var didGetDirections = false
 
     init(venue: Venue) {
         self.venue = venue
@@ -99,6 +103,7 @@ struct VenueDetailSheet: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         if authState.isSignedIn {
+                            didSave = true
                             Task { await savedVenuesVM.toggleSave(for: venue) }
                         } else {
                             showAuthGate = true
@@ -119,6 +124,25 @@ struct VenueDetailSheet: View {
             }
         }
         .task {
+            sheetOpenTime = Date()
+            let source: String = switch tabSelection.selectedTab {
+            case .map: "map_marker"
+            case .discover: "discover_list"
+            default: "other"
+            }
+            await AnalyticsService.shared.track(
+                .venueView,
+                venueId: venue.id,
+                venueName: venue.name,
+                venueType: venue.category.rawValue,
+                lat: venue.coordinate.latitude,
+                lng: venue.coordinate.longitude,
+                properties: [
+                    "source": .string(source),
+                    "isOpen": .bool(venue.isOpen ?? true),
+                    "busynessLevel": .int(venue.busyness?.rawValue ?? 0),
+                ]
+            )
             viewModel.updateProximity(userLocation: locationService.userLocation)
             viewModel.checkCooldown(reportHistory: profileViewModel.reportHistory)
             async let reportsTask: () = viewModel.loadReports()
@@ -151,8 +175,13 @@ struct VenueDetailSheet: View {
                 viewModel.busynessJustChanged = false
             }
         }
-        .sheet(isPresented: $viewModel.showReportSheet) {
+        .sheet(isPresented: $viewModel.showReportSheet, onDismiss: {
+            if !didReport {
+                Task { await AnalyticsService.shared.track(.reportDismissed, venueId: venue.id, venueName: venue.name, venueType: venue.category.rawValue) }
+            }
+        }) {
             ReportSheet(venue: venue) { level, wait in
+                didReport = true
                 Task { await viewModel.submitReport(level: level, waitMinutes: wait) }
             }
             .presentationDetents([.medium])
@@ -169,6 +198,23 @@ struct VenueDetailSheet: View {
             if let scene = lookAroundScene {
                 LookAroundPreview(initialScene: scene, allowsNavigation: true)
                     .ignoresSafeArea()
+            }
+        }
+        .onDisappear {
+            let durationMs = Int(Date().timeIntervalSince(sheetOpenTime) * 1000)
+            Task {
+                await AnalyticsService.shared.track(
+                    .venueViewEnd,
+                    venueId: venue.id,
+                    venueName: venue.name,
+                    venueType: venue.category.rawValue,
+                    properties: [
+                        "durationMs": .int(durationMs),
+                        "didReport": .bool(didReport),
+                        "didSave": .bool(didSave),
+                        "didGetDirections": .bool(didGetDirections),
+                    ]
+                )
             }
         }
     }
@@ -456,6 +502,7 @@ struct VenueDetailSheet: View {
         HStack(spacing: 12) {
             if let phone = venue.phoneNumber {
                 actionButton(icon: "phone.fill", label: "Call") {
+                    Task { await AnalyticsService.shared.track(.callTap, venueId: venue.id, venueName: venue.name) }
                     if let url = URL(string: "tel:\(phone)") {
                         UIApplication.shared.open(url)
                     }
@@ -463,6 +510,15 @@ struct VenueDetailSheet: View {
             }
 
             actionButton(icon: "arrow.triangle.turn.up.right.diamond.fill", label: "Directions") {
+                didGetDirections = true
+                Task {
+                    await AnalyticsService.shared.track(
+                        .directionsTap, venueId: venue.id, venueName: venue.name,
+                        venueType: venue.category.rawValue,
+                        lat: locationService.userLocation?.coordinate.latitude,
+                        lng: locationService.userLocation?.coordinate.longitude
+                    )
+                }
                 venue.mapItem.openInMaps(launchOptions: [
                     MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault
                 ])
@@ -483,6 +539,7 @@ struct VenueDetailSheet: View {
 
             if let url = venue.url {
                 actionButton(icon: "safari.fill", label: "Website") {
+                    Task { await AnalyticsService.shared.track(.websiteTap, venueId: venue.id, venueName: venue.name) }
                     UIApplication.shared.open(url)
                 }
             }
@@ -493,6 +550,7 @@ struct VenueDetailSheet: View {
                 tint: savedVenuesVM.isSaved(venue.id) ? WaytTheme.savedOrange : nil
             ) {
                 if authState.isSignedIn {
+                    didSave = true
                     Task { await savedVenuesVM.toggleSave(for: venue) }
                 } else {
                     showAuthGate = true

@@ -88,6 +88,7 @@ struct SettingsScreen: View {
         settingsCard {
             Button {
                 showDeleteConfirmation = true
+                Task { await AnalyticsService.shared.track(.appSession, properties: ["action": .string("delete_account_initiated")]) }
             } label: {
                 settingsRow(icon: "person.crop.circle.badge.minus", iconColor: .red) {
                     Text("Delete Account")

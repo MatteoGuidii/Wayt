@@ -52,6 +52,7 @@ struct MapScreen: View {
                         ) {
                             ClusterMarkerView(cluster: cluster)
                                 .onTapGesture {
+                                    Task { await AnalyticsService.shared.track(.mapInteraction, lat: cluster.coordinate.latitude, lng: cluster.coordinate.longitude, properties: ["action": .string("cluster_tap"), "clusterSize": .int(cluster.venues.count)]) }
                                     // Zoom into the cluster
                                     let clusterRegion = MKCoordinateRegion(
                                         center: cluster.coordinate,
@@ -188,6 +189,7 @@ struct MapScreen: View {
 
             if !viewModel.searchText.isEmpty {
                 Button {
+                    Task { await AnalyticsService.shared.track(.mapInteraction, properties: ["action": .string("clear_search"), "queryText": .string(viewModel.searchText)]) }
                     viewModel.clearSearch(in: visibleRegion)
                 } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -212,6 +214,7 @@ struct MapScreen: View {
 
                 Button {
                     viewModel.toggleCategoryFilter(category)
+                    Task { await AnalyticsService.shared.track(.filterChange, properties: ["filterType": .string("category"), "filterValue": .string(category.rawValue), "isActive": .bool(!isActive), "source": .string("map")]) }
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: category.icon)
@@ -296,6 +299,7 @@ struct MapScreen: View {
                         withAnimation(.easeInOut(duration: 0.3)) {
                             viewModel.cameraPosition = .userLocation(fallback: .automatic)
                         }
+                        Task { await AnalyticsService.shared.track(.mapInteraction, lat: locationService.userLocation?.coordinate.latitude, lng: locationService.userLocation?.coordinate.longitude, properties: ["action": .string("recenter")]) }
                     } label: {
                         Image(systemName: "location.fill")
                             .font(WaytTheme.headlineFont)
@@ -340,6 +344,7 @@ struct MapScreen: View {
 
             Button {
                 viewModel.searchVenues(in: visibleRegion)
+                Task { await AnalyticsService.shared.track(.mapInteraction, lat: visibleRegion.center.latitude, lng: visibleRegion.center.longitude, properties: ["action": .string("search_this_area"), "regionSpan": .double(visibleRegion.span.latitudeDelta)]) }
             } label: {
                 Label("Search This Area", systemImage: "arrow.clockwise")
                     .font(WaytTheme.subheadLightFont)

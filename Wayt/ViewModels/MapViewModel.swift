@@ -237,6 +237,23 @@ final class MapViewModel: ObservableObject {
 
                 Log.map.info("Found \(results.count) venues")
 
+                let resultCount = results.count
+                let queryText = searchText
+                let searchType = searchText.isEmpty ? "area" : "text"
+                Task {
+                    await AnalyticsService.shared.track(
+                        .search,
+                        lat: region.center.latitude,
+                        lng: region.center.longitude,
+                        properties: [
+                            "searchType": .string(searchType),
+                            "queryText": .string(queryText),
+                            "resultCount": .int(resultCount),
+                            "regionSpan": .double(region.span.latitudeDelta),
+                        ]
+                    )
+                }
+
                 // Apply all busyness data in a single pass (carry-over + cached + offline fallback)
                 results = applyAllBusynessData(to: results)
 

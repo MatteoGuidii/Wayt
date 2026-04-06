@@ -54,6 +54,7 @@ final class SavedVenuesViewModel: ObservableObject {
             savedVenueIDs.remove(venueId)
             savedVenues.removeAll { $0.venueId == venueId }
             persistIDs()
+            Task { await AnalyticsService.shared.track(.venueUnsave, venueId: venueId, venueName: venue.name, venueType: venue.category.rawValue) }
 
             do {
                 try await service.unsaveVenue(venueId: venueId)
@@ -67,6 +68,7 @@ final class SavedVenuesViewModel: ObservableObject {
             // Optimistic add
             savedVenueIDs.insert(venueId)
             persistIDs()
+            Task { await AnalyticsService.shared.track(.venueSave, venueId: venueId, venueName: venue.name, venueType: venue.category.rawValue) }
 
             do {
                 try await service.saveVenue(

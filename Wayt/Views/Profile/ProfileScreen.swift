@@ -267,10 +267,12 @@ struct ProfileScreen: View {
                         onTapUser: { entry in
                             guard entry.userId != nil else { return }
                             selectedLeaderboardUser = entry
+                            Task { await AnalyticsService.shared.track(.mapInteraction, properties: ["action": .string("leaderboard_user_tap"), "position": .int(entry.rank)]) }
                         }
                     )
 
                     RecentActivityCard(entries: viewModel.reportHistory) { entry in
+                        Task { await AnalyticsService.shared.track(.mapInteraction, venueId: entry.venueId, properties: ["action": .string("recent_activity_tap")]) }
                         navigateToReportVenue(entry)
                     }
 
@@ -693,6 +695,8 @@ struct ProfileScreen: View {
         VStack(spacing: 16) {
             Button {
                 Task {
+                    await AnalyticsService.shared.track(.appSession, properties: ["action": .string("sign_out")])
+                    await AnalyticsService.shared.onBackground()
                     let result = await Amplify.Auth.signOut()
                     if let globalResult = result as? AWSCognitoSignOutResult,
                        case .failed = globalResult {

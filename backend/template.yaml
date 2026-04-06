@@ -36,6 +36,12 @@ Parameters:
     Description: Google Places API key for operating hours (leave empty to disable)
     NoEcho: true
 
+  AnalyticsSalt:
+    Type: String
+    Default: "wayt-analytics-default-salt-2026"
+    Description: Salt for anonymizing user IDs in analytics events (rotate monthly)
+    NoEcho: true
+
 Resources:
   # -----------------------------------------------
   # API Gateway
@@ -542,6 +548,8 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
 
   UserProfilesTable:
     Type: AWS::DynamoDB::Table
@@ -691,6 +699,127 @@ Resources:
             AllowedOrigins: ["*"]
             MaxAge: 3600
 
+  # -----------------------------------------------
+  # Analytics — S3 Data Lake
+  # -----------------------------------------------
+  AnalyticsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "wayt-analytics-${AWS::AccountId}-${Stage}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: GlacierAfter1Year
+            Status: Enabled
+            Transitions:
+              - StorageClass: GLACIER
+                TransitionInDays: 365
+
+  # -----------------------------------------------
+  # Analytics — Kinesis Firehose → S3
+  # -----------------------------------------------
+  AnalyticsFirehoseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: FirehoseS3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt AnalyticsBucket.Arn
+                  - !Sub "${AnalyticsBucket.Arn}/*"
+
+  AnalyticsFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: !Sub "wayt-analytics-stream-${Stage}"
+      DeliveryStreamType: DirectPut
+      S3DestinationConfiguration:
+        BucketARN: !GetAtt AnalyticsBucket.Arn
+        RoleARN: !GetAtt AnalyticsFirehoseRole.Arn
+        Prefix: "events/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/"
+        ErrorOutputPrefix: "errors/!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
+        BufferingHints:
+          SizeInMBs: 5
+          IntervalInSeconds: 300
+        CompressionFormat: GZIP
+
+  # -----------------------------------------------
+  # Analytics — Archive Report Lambda (Stream Trigger)
+  # -----------------------------------------------
+  ArchiveReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/archiveReport.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          FIREHOSE_STREAM_NAME: !Ref AnalyticsFirehose
+          ANALYTICS_SALT: !Ref AnalyticsSalt
+      Policies:
+        - FirehoseWritePolicy:
+            DeliveryStreamName: !Ref AnalyticsFirehose
+      Events:
+        ReportStream:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt VenueReportsTable.StreamArn
+            StartingPosition: TRIM_HORIZON
+            BatchSize: 25
+            MaximumBatchingWindowInSeconds: 30
+            FilterCriteria:
+              Filters:
+                - Pattern: '{"eventName": ["INSERT"]}'
+    Metadata:
+      BuildMethod: makefile
+
+  # -----------------------------------------------
+  # Analytics — Ingest Events Lambda (API Endpoint)
+  # -----------------------------------------------
+  IngestEventsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: dist/ingestEvents.handler
+      Environment:
+        Variables:
+          FIREHOSE_STREAM_NAME: !Ref AnalyticsFirehose
+          ANALYTICS_SALT: !Ref AnalyticsSalt
+      Policies:
+        - FirehoseWritePolicy:
+            DeliveryStreamName: !Ref AnalyticsFirehose
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WaytSignalsTable
+      Events:
+        PostEvents:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WaytApi
+            Path: /v1/analytics/events
+            Method: POST
+    Metadata:
+      BuildMethod: makefile
+
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL
@@ -715,3 +844,7 @@ Outputs:
     Value: !Ref WaytUserPoolClient
   IdentityPoolId:
     Value: !Ref WaytIdentityPool
+  AnalyticsBucketName:
+    Value: !Ref AnalyticsBucket
+  AnalyticsFirehoseName:
+    Value: !Ref AnalyticsFirehose
