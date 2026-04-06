@@ -16,7 +16,7 @@ export const USER_POOL_ID = process.env.USER_POOL_ID ?? "";
 export const REPORT_TTL_SECONDS = 2 * 60 * 60;
 export const REPORT_COOLDOWN_SECONDS = 30 * 60;
 /** Max distance (meters) between user and venue for a report to be accepted. */
-export const REPORT_MAX_DISTANCE_M = 300;
+export const REPORT_MAX_DISTANCE_M = 200;
 /** Max reports a single user can submit per calendar day. */
 export const DAILY_REPORT_CAP = 30;
 
