@@ -10,7 +10,9 @@ export async function handler(
 ): Promise<APIGatewayProxyResult> {
   const log = createLogger("getVenueReports", event, context);
   try {
-    const venueId = event.pathParameters?.venueId;
+    // Path parameter is URL-encoded (iOS encodes spaces as %20). DynamoDB
+    // stores the literal venueId with spaces — decode here so the query matches.
+    const venueId = decodeURIComponent(event.pathParameters?.venueId ?? "");
 
     if (!venueId) {
       return badRequest("Missing venueId path parameter");

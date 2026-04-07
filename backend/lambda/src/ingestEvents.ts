@@ -28,7 +28,9 @@ function todayKey(): string {
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
-  const log = createLogger("ingestEvents", event);
+  // NOTE: do not pass `event` — it would auto-attach the Cognito userId to
+  // every log line, breaking the anonymization guarantee of this endpoint.
+  const log = createLogger("ingestEvents");
 
   const userId = getUserId(event.requestContext.authorizer?.claims);
   if (!userId) return badRequest("Unauthorized");

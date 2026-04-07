@@ -52,6 +52,12 @@ export async function handler(
       const reportDates = (result.Item.reportDates as string[] | undefined) ?? [];
       const streakFreezes = computeStreakFreezes(reportDates);
 
+      log.info("Profile fetched", {
+        totalReports: (result.Item.totalReports as number) ?? 0,
+        hasImage: !!profileImageUrl,
+        streakFreezes,
+      });
+
       return success({
         userId: result.Item.userId,
         username: result.Item.username,
@@ -82,6 +88,8 @@ export async function handler(
     ).catch(() => {
       // Ignore ConditionalCheckFailedException — another request created it first
     });
+
+    log.info("Profile created (new user)");
 
     return success({
       ...newProfile,

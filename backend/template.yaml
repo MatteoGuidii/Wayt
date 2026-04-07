@@ -724,6 +724,18 @@ Resources:
   # -----------------------------------------------
   # Analytics — Kinesis Firehose → S3
   # -----------------------------------------------
+  AnalyticsFirehoseLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/kinesisfirehose/wayt-analytics-stream-${Stage}"
+      RetentionInDays: 14
+
+  AnalyticsFirehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref AnalyticsFirehoseLogGroup
+      LogStreamName: S3Delivery
+
   AnalyticsFirehoseRole:
     Type: AWS::IAM::Role
     Properties:
@@ -747,6 +759,16 @@ Resources:
                 Resource:
                   - !GetAtt AnalyticsBucket.Arn
                   - !Sub "${AnalyticsBucket.Arn}/*"
+        - PolicyName: FirehoseCloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !GetAtt AnalyticsFirehoseLogGroup.Arn
+                  - !Sub "${AnalyticsFirehoseLogGroup.Arn}:*"
 
   AnalyticsFirehose:
     Type: AWS::KinesisFirehose::DeliveryStream
@@ -762,6 +784,10 @@ Resources:
           SizeInMBs: 5
           IntervalInSeconds: 300
         CompressionFormat: GZIP
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref AnalyticsFirehoseLogGroup
+          LogStreamName: !Ref AnalyticsFirehoseLogStream
 
   # -----------------------------------------------
   # Analytics — Archive Report Lambda (Stream Trigger)

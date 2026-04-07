@@ -31,6 +31,7 @@ export async function handler(
     );
 
     if (!result.Item) {
+      log.info("Public profile not found — returning placeholder", { targetUserId });
       return success({
         userId: targetUserId,
         displayName: "Anonymous",
@@ -62,6 +63,8 @@ export async function handler(
     else if (totalReports >= 30) rankLevel = 4;
     else if (totalReports >= 15) rankLevel = 3;
     else if (totalReports >= 5) rankLevel = 2;
+
+    log.info("Public profile fetched", { targetUserId, totalReports, rankLevel });
 
     return success({
       userId: targetUserId,

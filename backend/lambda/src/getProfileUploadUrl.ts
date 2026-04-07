@@ -30,7 +30,7 @@ export async function handler(
 
     const imageKey = `profiles/${userId}/avatar.jpg`;
 
-    // Generate presigned PUT URL (5 min expiry)
+    // Generate presigned PUT URL (15 min expiry)
     const uploadUrl = await getSignedUrl(
       s3,
       new PutObjectCommand({

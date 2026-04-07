@@ -45,6 +45,7 @@ export async function handler(
       })
     );
 
+    log.info("Venue unsaved", { venueId });
     return success({ venueId, message: "Venue unsaved" });
   } catch (err) {
     log.error("Failed to unsave venue", undefined, err);
